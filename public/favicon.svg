@@ -1,15 +1,48 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="102" fill="#0c0e14"/>
-  <g transform="translate(96, 72) scale(0.65)">
-    <!-- Book body -->
-    <path d="M60 40h240a60 60 0 0 1 60 60v280a60 60 0 0 1-60 60H120a60 60 0 0 1-60-60V40z" fill="#6c8cff" opacity="0.9"/>
-    <!-- Book spine -->
-    <path d="M60 40v380a30 30 0 0 0 30 30" stroke="#e2e4ed" stroke-width="16" fill="none" stroke-linecap="round"/>
-    <!-- Text lines -->
-    <line x1="130" y1="160" x2="300" y2="160" stroke="#0c0e14" stroke-width="16" stroke-linecap="round"/>
-    <line x1="130" y1="210" x2="270" y2="210" stroke="#0c0e14" stroke-width="14" stroke-linecap="round" opacity="0.5"/>
-    <line x1="130" y1="255" x2="240" y2="255" stroke="#0c0e14" stroke-width="12" stroke-linecap="round" opacity="0.3"/>
-    <!-- Bookmark ribbon -->
-    <path d="M280 40v120l-20-15l-20 15V40" fill="#e2e4ed" opacity="0.7"/>
+  <defs>
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e2231" />
+      <stop offset="100%" stop-color="#0c0e14" />
+    </linearGradient>
+    <linearGradient id="book-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8ba4ff" />
+      <stop offset="100%" stop-color="#6c8cff" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  
+  <!-- Foundation -->
+  <rect width="512" height="512" rx="128" fill="url(#bg-grad)" />
+  
+  <!-- Stylized Book Icon -->
+  <g transform="translate(116, 116) scale(0.55)">
+    <!-- Book Depth/Spine -->
+    <rect x="0" y="20" width="80" height="480" rx="20" fill="#4a69d4" />
+    
+    <!-- Main Book Face -->
+    <path d="M40 0h360c44 0 80 36 80 80v320c0 44-36 80-80 80H40V0z" fill="url(#book-grad)" filter="url(#glow)" />
+    
+    <!-- "Glass" Highlight -->
+    <path d="M40 0h360c44 0 80 36 80 80v20H40V0z" fill="#ffffff" opacity="0.15" />
+    
+    <!-- Progress Indicator Marks -->
+    <g transform="translate(100, 120)">
+      <rect width="280" height="24" rx="12" fill="#ffffff" opacity="0.9" />
+      <rect y="64" width="220" height="24" rx="12" fill="#ffffff" opacity="0.5" />
+      <rect y="128" width="180" height="24" rx="12" fill="#ffffff" opacity="0.3" />
+      
+      <!-- Progress Accent -->
+      <path d="M0 256h280v32H0z" fill="#ffffff" opacity="0.1" />
+      <rect y="256" width="140" height="32" rx="4" fill="#ffffff" opacity="0.8" />
+    </g>
+    
+    <!-- Bookmark -->
+    <path d="M400 0v180l-40-24-40 24V0h80z" fill="#ffffff" opacity="0.85" />
   </g>
+  
+  <!-- Corner Shine -->
+  <path d="M512 128C512 57.3 454.7 0 384 0L128 0C198.7 0 256 57.3 256 128L256 384C256 454.7 313.3 512 384 512L512 512L512 128Z" fill="#ffffff" opacity="0.03" />
 </svg>
