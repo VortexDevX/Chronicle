@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="102" fill="#0c0e14"/>
+  <g transform="translate(96, 72) scale(0.65)">
+    <!-- Book body -->
+    <path d="M60 40h240a60 60 0 0 1 60 60v280a60 60 0 0 1-60 60H120a60 60 0 0 1-60-60V40z" fill="#6c8cff" opacity="0.9"/>
+    <!-- Book spine -->
+    <path d="M60 40v380a30 30 0 0 0 30 30" stroke="#e2e4ed" stroke-width="16" fill="none" stroke-linecap="round"/>
+    <!-- Text lines -->
+    <line x1="130" y1="160" x2="300" y2="160" stroke="#0c0e14" stroke-width="16" stroke-linecap="round"/>
+    <line x1="130" y1="210" x2="270" y2="210" stroke="#0c0e14" stroke-width="14" stroke-linecap="round" opacity="0.5"/>
+    <line x1="130" y1="255" x2="240" y2="255" stroke="#0c0e14" stroke-width="12" stroke-linecap="round" opacity="0.3"/>
+    <!-- Bookmark ribbon -->
+    <path d="M280 40v120l-20-15l-20 15V40" fill="#e2e4ed" opacity="0.7"/>
+  </g>
+</svg>
