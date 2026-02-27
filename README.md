@@ -11,8 +11,8 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 | **Media Tracking** | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes |
 | **Smart Organization** | Search (debounced) · Filter by type & status · Sort by date, progress, rating, or title |
 | **Statistics** | Dashboard with breakdowns by type/status · Average rating · Completion percentage |
-| **Import / Export** | Export as JSON or CSV · Import from JSON file |
-| **Cover Art** | Auto-fetched anime thumbnails via [Jikan API](https://jikan.moe/) |
+| **Import / Export** | Export as JSON or CSV · Bulk import from JSON/CSV/Excel |
+| **Anime Support** | Auto-fetched anime thumbnails via [Jikan API](https://jikan.moe/) · AniList + MAL metadata lookup in modal |
 | **Stale Alerts** | Visual warnings on active entries not updated in 14+ days |
 | **Auth** | JWT-based login/register · bcrypt password hashing · Auto-logout on token expiry |
 | **DB Performance** | Compound MongoDB indexes for optimized queries |

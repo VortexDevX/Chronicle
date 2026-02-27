@@ -15,8 +15,8 @@
 <body>
     <div id="app"></div>
 
-    <!-- Hidden file input for JSON import -->
-    <input type="file" id="import-file" accept=".json" style="display:none" />
+    <!-- Hidden file input for bulk import -->
+    <input type="file" id="import-file" accept=".json,.csv,.xlsx,.xls" style="display:none" />
 
     <!-- Media Modal -->
     <dialog id="media-modal" aria-labelledby="modal-title">
@@ -26,7 +26,11 @@
 
             <div class="form-group">
                 <label for="media-title">Title</label>
-                <input type="text" id="media-title" placeholder="e.g. Solo Leveling" required>
+                <div class="title-row">
+                    <input type="text" id="media-title" placeholder="e.g. Solo Leveling" required>
+                    <button type="button" id="btn-anime-lookup" class="btn-ghost" title="Fetch anime metadata from AniList/MAL">Lookup</button>
+                </div>
+                <div id="lookup-hint" class="lookup-hint">Use lookup to auto-fill title and total episodes/chapters.</div>
             </div>
 
             <div class="row">
@@ -86,6 +90,31 @@
         <div class="modal-actions">
             <button type="button" class="btn-cancel" id="confirm-cancel">Cancel</button>
             <button type="button" class="btn-danger" id="confirm-ok">Delete</button>
+        </div>
+    </dialog>
+
+    <!-- Export By Type Dialog -->
+    <dialog id="export-type-dialog" aria-labelledby="export-type-title">
+        <h3 id="export-type-title">Export by type</h3>
+        <div class="form-group">
+            <label for="export-type-media">Media Type</label>
+            <select id="export-type-media">
+                <option value="Anime">Anime</option>
+                <option value="Manhwa">Manhwa</option>
+                <option value="Donghua">Donghua</option>
+                <option value="Light Novel">Light Novel</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="export-type-format">Format</label>
+            <select id="export-type-format">
+                <option value="csv">CSV</option>
+                <option value="xlsx">Excel (.xlsx)</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn-cancel" id="export-type-cancel">Cancel</button>
+            <button type="button" class="btn-primary" id="export-type-confirm">Export</button>
         </div>
     </dialog>
 

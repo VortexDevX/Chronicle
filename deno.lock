@@ -19,7 +19,8 @@
         "npm:mongoose@^8.2.1",
         "npm:netlify-cli@24",
         "npm:typescript@^5.4.2",
-        "npm:vite@^7.3.1"
+        "npm:vite@^7.3.1",
+        "npm:xlsx@~0.18.5"
       ]
     }
   }

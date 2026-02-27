@@ -26,7 +26,12 @@
 ## Data Import / Export
 - [x] Export data as JSON
 - [x] Export data as CSV
+- [x] Export data by media type (CSV / Excel)
 - [x] Import from JSON file (with validation)
+- [x] Bulk import from CSV
+- [x] Bulk import from Excel (.xlsx/.xls)
+- [x] Header alias mapping for imports (`title/name`, `type/media_type`, etc.)
+- [x] Direct MAL export import support (CSV/XLSX auto-mapping)
 
 ## Search, Filter & Sort
 - [x] Search by title (debounced)
@@ -39,15 +44,19 @@
 
 ## UI / UX
 - [x] Dark theme with custom design system
-- [x] Inter font (Google Fonts)
+- [x] Chronicle visual revamp with distinct identity
+- [x] Display + UI font pairing (Google Fonts)
+- [x] Title typography refinement for stronger Chronicle branding
 - [x] Responsive layout (desktop / tablet / mobile)
 - [x] Card-based media grid
+- [x] Comfortable card density polish for long-list readability
 - [x] Visual progress bars with percentage
 - [x] Status badges with semantic colors
+- [x] Status badge contrast + shape polish
 - [x] Relative timestamps ("2h ago", "3d ago")
 - [x] Empty state (with CTA button)
 - [x] Filter-aware empty state ("No matches found")
-- [x] Advanced statistics dashboard (by type, status, avg rating, completion %)
+- [x] Advanced statistics dashboard (by type, status, avg rating)
 - [x] Toast notifications (success / error)
 - [x] Styled confirm dialog (replaces native confirm)
 - [x] Modal with animation and focus management
@@ -58,6 +67,8 @@
 - [x] SVG favicon (inline, no external files)
 - [x] Cover image thumbnails (anime, lazy-loaded)
 - [x] Export dropdown menu
+- [x] Media metadata lookup (AniList primary + MAL fallback for Anime, Donghua, Manhwa)
+- [x] Subtle emotional contrast for Completed vs Planned items
 
 ## Accessibility
 - [x] Proper label/input associations
@@ -79,3 +90,40 @@
 - [x] Vite build
 - [x] Netlify hosting config
 - [x] Environment variable support (MONGODB_URI, JWT_SECRET)
+
+---
+
+## Status Summary
+- [x] All originally scoped milestones in this file are complete.
+
+## Next Milestones (Proposed)
+
+### Data Quality & Validation
+- [x] Enforce stricter server-side validation/sanitization for media payloads
+- [x] Reject invalid `progress_current > progress_total` (when total > 0)
+- [x] Normalize/trim titles and prevent empty-whitespace entries
+
+### Performance & Scale
+- [x] Add pagination/infinite loading for large libraries
+- [x] Move search/filter/sort to backend query params for scalability
+- [x] Add request-level caching strategy for repeated cover lookups
+
+### Reliability & Security
+- [x] Add per-user/API rate limiting on auth and write routes
+- [x] Add structured error payloads (`code`, `message`) across all endpoints
+- [x] Add audit-safe logging and remove raw error leakage in 500 responses
+
+### Product Features
+- [x] Add duplicate-title detection with merge/keep-both flow
+- [x] Add bulk actions (multi-select delete/status/progress update)
+- [ ] Add reminder workflow for stale entries (optional notification cadence)
+- [ ] Add optional read-only shareable profile page
+
+### Visual Identity
+- [x] Full UI revamp for stronger "Chronicle" visual identity (layout, typography, color system, motion)
+
+### DX, Testing & Ops
+- [ ] Add unit tests for auth and media Netlify functions
+- [ ] Add frontend smoke/e2e tests for auth, CRUD, import/export
+- [ ] Add CI pipeline (type-check + build + tests) on pull requests
+- [ ] Add seed script for local development/demo data
