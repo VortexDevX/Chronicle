@@ -9,18 +9,19 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 | Category | Highlights |
 |---|---|
 | **Media Tracking** | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes |
-| **Smart Organization** | Search (debounced) · Filter by type & status · Sort by date, progress, rating, or title |
-| **Statistics** | Dashboard with breakdowns by type/status · Average rating · Completion percentage |
-| **Import / Export** | Export as JSON or CSV · Bulk import from JSON/CSV/Excel |
-| **Anime Support** | Auto-fetched anime thumbnails via [Jikan API](https://jikan.moe/) · AniList + MAL metadata lookup in modal |
+| **Smart Organization** | Server-side search/filter/sort · Pagination (`Load more`) for large libraries |
+| **Statistics** | Dashboard with breakdowns by type/status · Average rating |
+| **Import / Export** | Export as JSON/CSV · Export by type (CSV/XLSX) · Bulk import from JSON/CSV/Excel · Direct MAL export import (CSV/XLSX auto-mapping) |
+| **Metadata Lookup** | AniList primary + MAL fallback lookup for Anime, Donghua, and Manhwa |
 | **Stale Alerts** | Visual warnings on active entries not updated in 14+ days |
 | **Auth** | JWT-based login/register · bcrypt password hashing · Auto-logout on token expiry |
-| **DB Performance** | Compound MongoDB indexes for optimized queries |
+| **Reliability** | API rate limiting on auth/write routes · Structured error payloads · Audit-safe server logs |
+| **Power Features** | Duplicate-title handling (merge/keep-both) · Bulk actions (multi-select delete/status/+1 progress) |
 
 ## 🖼️ UI
 
-- Dark theme with custom design system
-- Inter font · Responsive (mobile → desktop)
+- Chronicle visual identity revamp (archival, record-keeper vibe)
+- Space Grotesk + Fraunces typography pairing · Responsive (mobile → desktop)
 - Toast notifications · Styled confirm dialogs
 - Card-based grid with progress bars, status badges, and relative timestamps
 - Inline SVG favicon
@@ -33,7 +34,7 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 | Backend | Netlify Functions (serverless) |
 | Database | MongoDB (Atlas or local) |
 | Auth | JWT · bcrypt |
-| APIs | Jikan v4 (anime cover art) |
+| APIs | AniList GraphQL · Jikan v4 (MAL fallback + cover art) |
 
 ## 🚀 Getting Started
 
@@ -99,12 +100,15 @@ Chronicle/
 ├── netlify/
 │   └── functions/
 │       ├── auth.ts          # Login / Register
-│       ├── media.ts         # CRUD operations
+│       ├── media.ts         # CRUD + query + bulk endpoints
 │       └── utils/
 │           ├── auth.ts      # JWT verification
-│           └── db.ts        # MongoDB connection & schemas
+│           ├── db.ts        # MongoDB connection & schemas
+│           ├── rateLimit.ts # API rate limiter utility
+│           └── log.ts       # Audit-safe structured logging
 ├── docs/
-│   └── PROGRESS.md          # Feature checklist
+│   ├── PROGRESS.md          # Feature checklist
+│   └── import-templates/    # CSV/XLSX templates + usage guide
 ├── netlify.toml             # Netlify config & API proxy
 └── package.json
 ```
