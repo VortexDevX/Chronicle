@@ -6,111 +6,133 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description"
         content="Chronicle — Personal media tracker for Anime, Manhwa, Donghua, and Light Novels." />
-    <meta name="theme-color" content="#0c0e14" />
+    <meta name="theme-color" content="#050507" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Chronicle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/src/style.css">
 </head>
 
 <body>
     <div id="app"></div>
 
-    <!-- Hidden file input for bulk import -->
     <input type="file" id="import-file" accept=".json,.csv,.xlsx,.xls" style="display:none" />
 
-    <!-- Media Modal -->
     <dialog id="media-modal" aria-labelledby="modal-title">
         <form id="media-form" method="dialog">
-            <h2 id="modal-title">Add Entry</h2>
-            <input type="hidden" id="media-id">
-
-            <div class="form-group">
-                <label for="media-title">Title</label>
-                <div class="title-row">
-                    <input type="text" id="media-title" placeholder="e.g. Solo Leveling" required>
-                    <button type="button" id="btn-anime-lookup" class="btn-ghost" title="Fetch anime metadata from AniList/MAL">Lookup</button>
-                </div>
-                <div id="lookup-hint" class="lookup-hint">Use lookup to auto-fill title and total episodes/chapters.</div>
+            <div class="modal-header">
+                <h2 id="modal-title">Add Entry</h2>
             </div>
+            <div class="modal-body">
+                <input type="hidden" id="media-id">
 
-            <div class="row">
-                <div class="form-group" style="flex:1">
-                    <label for="media-type">Type</label>
-                    <select id="media-type" required>
-                        <option value="Anime">Anime</option>
-                        <option value="Manhwa">Manhwa</option>
-                        <option value="Donghua">Donghua</option>
-                        <option value="Light Novel">Light Novel</option>
-                    </select>
+                <div class="form-group">
+                    <label for="media-title">Title</label>
+                    <div class="title-row">
+                        <input type="text" id="media-title" placeholder="e.g. Return of the Mount Hua Sect" required>
+                        <button type="button" id="btn-anime-lookup" class="btn-secondary"
+                            title="Fetch metadata from AniList/MAL">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            Lookup
+                        </button>
+                    </div>
+                    <div id="lookup-hint" class="lookup-hint">Use lookup to auto-fill title and total episodes/chapters.
+                    </div>
                 </div>
-                <div class="form-group" style="flex:1">
-                    <label for="media-status">Status</label>
-                    <select id="media-status" required>
-                        <option value="Watching/Reading">Watching/Reading</option>
-                        <option value="Planned">Planned</option>
-                        <option value="On Hold">On Hold</option>
-                        <option value="Dropped">Dropped</option>
-                        <option value="Completed">Completed</option>
-                    </select>
+
+                <div class="row">
+                    <div class="form-group">
+                        <label for="media-type">Type</label>
+                        <select id="media-type" required>
+                            <option value="Anime">Anime</option>
+                            <option value="Manhwa">Manhwa</option>
+                            <option value="Donghua">Donghua</option>
+                            <option value="Light Novel">Light Novel</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="media-status">Status</label>
+                        <select id="media-status" required>
+                            <option value="Watching/Reading">Watching/Reading</option>
+                            <option value="Planned">Planned</option>
+                            <option value="On Hold">On Hold</option>
+                            <option value="Dropped">Dropped</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row row-3">
+                    <div class="form-group">
+                        <label for="media-progress-current">Current</label>
+                        <input type="number" id="media-progress-current" min="0" value="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="media-progress-total">Total</label>
+                        <input type="number" id="media-progress-total" min="0" value="0" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="media-rating">Rating</label>
+                        <input type="number" id="media-rating" min="0" max="10" placeholder="0–10">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="media-notes">Notes</label>
+                    <textarea id="media-notes" rows="3" placeholder="Inscribe your thoughts..."></textarea>
                 </div>
             </div>
-
-            <div class="row">
-                <div class="form-group" style="flex:1">
-                    <label for="media-progress-current">Current</label>
-                    <input type="number" id="media-progress-current" min="0" value="0" placeholder="0">
-                </div>
-                <div class="form-group" style="flex:1">
-                    <label for="media-progress-total">Total</label>
-                    <input type="number" id="media-progress-total" min="0" value="0" placeholder="0">
-                </div>
-                <div class="form-group" style="flex:1">
-                    <label for="media-rating">Rating</label>
-                    <input type="number" id="media-rating" min="0" max="10" placeholder="0–10">
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="media-notes">Notes</label>
-                <textarea id="media-notes" rows="3" placeholder="Optional notes..."></textarea>
-            </div>
-
             <div class="modal-actions">
                 <button type="button" class="btn-cancel"
                     onclick="document.getElementById('media-modal').close()">Cancel</button>
-                <button type="submit" class="btn-primary">Save</button>
+                <button type="submit" class="btn-primary">Seal Entry</button>
             </div>
         </form>
     </dialog>
 
-    <!-- Confirm Dialog -->
-    <dialog id="confirm-dialog" aria-labelledby="confirm-title">
-        <h3 id="confirm-title">Delete entry?</h3>
-        <p id="confirm-message">This action cannot be undone.</p>
+    <dialog id="confirm-dialog" aria-labelledby="confirm-title" class="dialog-sm">
+        <div class="modal-header">
+            <h3 id="confirm-title">Erase record?</h3>
+        </div>
+        <div class="modal-body">
+            <p id="confirm-message">This action cannot be undone.</p>
+        </div>
         <div class="modal-actions">
             <button type="button" class="btn-cancel" id="confirm-cancel">Cancel</button>
-            <button type="button" class="btn-danger" id="confirm-ok">Delete</button>
+            <button type="button" class="btn-danger" id="confirm-ok">Erase</button>
         </div>
     </dialog>
 
-    <!-- Export By Type Dialog -->
-    <dialog id="export-type-dialog" aria-labelledby="export-type-title">
-        <h3 id="export-type-title">Export by type</h3>
-        <div class="form-group">
-            <label for="export-type-media">Media Type</label>
-            <select id="export-type-media">
-                <option value="Anime">Anime</option>
-                <option value="Manhwa">Manhwa</option>
-                <option value="Donghua">Donghua</option>
-                <option value="Light Novel">Light Novel</option>
-            </select>
+    <dialog id="export-type-dialog" aria-labelledby="export-type-title" class="dialog-sm">
+        <div class="modal-header">
+            <h3 id="export-type-title">Export Archives</h3>
         </div>
-        <div class="form-group">
-            <label for="export-type-format">Format</label>
-            <select id="export-type-format">
-                <option value="csv">CSV</option>
-                <option value="xlsx">Excel (.xlsx)</option>
-            </select>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="export-type-media">Media Type</label>
+                <select id="export-type-media">
+                    <option value="Anime">Anime</option>
+                    <option value="Manhwa">Manhwa</option>
+                    <option value="Donghua">Donghua</option>
+                    <option value="Light Novel">Light Novel</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="export-type-format">Format</label>
+                <select id="export-type-format">
+                    <option value="csv">CSV</option>
+                    <option value="xlsx">Excel (.xlsx)</option>
+                </select>
+            </div>
         </div>
         <div class="modal-actions">
             <button type="button" class="btn-cancel" id="export-type-cancel">Cancel</button>
@@ -118,7 +140,6 @@
         </div>
     </dialog>
 
-    <!-- Toast Container -->
     <div id="toast-container" aria-live="polite"></div>
 
     <script type="module" src="/src/main.ts"></script>

@@ -1,6 +1,7 @@
 # Chronicle — Feature Progress
 
 ## Authentication
+
 - [x] User registration (username + password)
 - [x] User login with JWT tokens
 - [x] Password hashing (bcrypt)
@@ -11,6 +12,7 @@
 - [x] Loading spinner on auth buttons
 
 ## Media Management
+
 - [x] Add new media entries
 - [x] Edit existing entries
 - [x] Delete entries (with styled confirmation dialog)
@@ -24,6 +26,7 @@
 - [x] Cover image fetching (Jikan API for Anime/Donghua)
 
 ## Data Import / Export
+
 - [x] Export data as JSON
 - [x] Export data as CSV
 - [x] Export data by media type (CSV / Excel)
@@ -34,6 +37,7 @@
 - [x] Direct MAL export import support (CSV/XLSX auto-mapping)
 
 ## Search, Filter & Sort
+
 - [x] Search by title (debounced)
 - [x] Filter by media type
 - [x] Filter by status
@@ -43,6 +47,7 @@
 - [x] Sort by: Title A–Z
 
 ## UI / UX
+
 - [x] Dark theme with custom design system
 - [x] Chronicle visual revamp with distinct identity
 - [x] Display + UI font pairing (Google Fonts)
@@ -69,8 +74,10 @@
 - [x] Export dropdown menu
 - [x] Media metadata lookup (AniList primary + MAL fallback for Anime, Donghua, Manhwa)
 - [x] Subtle emotional contrast for Completed vs Planned items
+- [x] Mobile-native interaction polish (sticky header, touch sizing, FAB add action)
 
 ## Accessibility
+
 - [x] Proper label/input associations
 - [x] ARIA labels on controls
 - [x] Focus management (modal, auth form)
@@ -79,6 +86,7 @@
 - [x] aria-live region for toast notifications
 
 ## Backend / API
+
 - [x] Netlify Functions (serverless)
 - [x] MongoDB Atlas / local via Mongoose
 - [x] RESTful media CRUD endpoints
@@ -87,6 +95,7 @@
 - [x] DB indexes (user_id + last_updated, user_id + media_type)
 
 ## Deployment
+
 - [x] Vite build
 - [x] Netlify hosting config
 - [x] Environment variable support (MONGODB_URI, JWT_SECRET)
@@ -94,36 +103,35 @@
 ---
 
 ## Status Summary
+
 - [x] All originally scoped milestones in this file are complete.
 
 ## Next Milestones (Proposed)
 
 ### Data Quality & Validation
+
 - [x] Enforce stricter server-side validation/sanitization for media payloads
 - [x] Reject invalid `progress_current > progress_total` (when total > 0)
 - [x] Normalize/trim titles and prevent empty-whitespace entries
 
 ### Performance & Scale
+
 - [x] Add pagination/infinite loading for large libraries
 - [x] Move search/filter/sort to backend query params for scalability
 - [x] Add request-level caching strategy for repeated cover lookups
 
 ### Reliability & Security
+
 - [x] Add per-user/API rate limiting on auth and write routes
 - [x] Add structured error payloads (`code`, `message`) across all endpoints
 - [x] Add audit-safe logging and remove raw error leakage in 500 responses
 
 ### Product Features
+
 - [x] Add duplicate-title detection with merge/keep-both flow
 - [x] Add bulk actions (multi-select delete/status/progress update)
-- [ ] Add reminder workflow for stale entries (optional notification cadence)
-- [ ] Add optional read-only shareable profile page
+- [ ] Add Dashboard/Profile Page (Shareable too - Optional)
 
 ### Visual Identity
-- [x] Full UI revamp for stronger "Chronicle" visual identity (layout, typography, color system, motion)
 
-### DX, Testing & Ops
-- [ ] Add unit tests for auth and media Netlify functions
-- [ ] Add frontend smoke/e2e tests for auth, CRUD, import/export
-- [ ] Add CI pipeline (type-check + build + tests) on pull requests
-- [ ] Add seed script for local development/demo data
+- [x] Full UI revamp for stronger "Chronicle" visual identity (layout, typography, color system, motion)

@@ -109,17 +109,16 @@ async function processJikanQueue() {
 
     try {
       const res = await fetch(
-        `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`
+        `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`,
       );
       if (res.ok) {
         const json = await res.json();
-        const imageUrl =
-          json.data?.[0]?.images?.jpg?.small_image_url || null;
+        const imageUrl = json.data?.[0]?.images?.jpg?.small_image_url || null;
         setCachedCover(title, imageUrl);
 
         // Update the specific card thumbnail if element exists
         const thumbEl = document.querySelector(
-          `[data-cover-id="${id}"]`
+          `[data-cover-id="${id}"]`,
         ) as HTMLElement;
         if (thumbEl && imageUrl) {
           thumbEl.style.backgroundImage = `url(${imageUrl})`;
@@ -170,7 +169,7 @@ function relativeTime(dateStr: string): string {
 
 function daysSince(dateStr: string): number {
   return Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24)
+    (Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24),
   );
 }
 
@@ -193,7 +192,7 @@ type MediaLookup = {
 
 async function lookupAniList(
   title: string,
-  mediaType: string
+  mediaType: string,
 ): Promise<MediaLookup | null> {
   const anilistType =
     mediaType === "Anime" || mediaType === "Donghua" ? "ANIME" : "MANGA";
@@ -212,7 +211,10 @@ async function lookupAniList(
   const res = await fetch("https://graphql.anilist.co", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ query, variables: { search: title, type: anilistType } }),
+    body: JSON.stringify({
+      query,
+      variables: { search: title, type: anilistType },
+    }),
   });
   if (!res.ok) return null;
   const json = await res.json();
@@ -222,7 +224,7 @@ async function lookupAniList(
   const total =
     anilistType === "ANIME"
       ? media.episodes
-      : media.chapters ?? media.volumes ?? undefined;
+      : (media.chapters ?? media.volumes ?? undefined);
 
   return {
     title: media.title?.english || media.title?.romaji || media.title?.native,
@@ -233,12 +235,12 @@ async function lookupAniList(
 
 async function lookupMALViaJikan(
   title: string,
-  mediaType: string
+  mediaType: string,
 ): Promise<MediaLookup | null> {
   const isAnimeType = mediaType === "Anime" || mediaType === "Donghua";
   const endpoint = isAnimeType ? "anime" : "manga";
   const res = await fetch(
-    `https://api.jikan.moe/v4/${endpoint}?q=${encodeURIComponent(title)}&limit=1`
+    `https://api.jikan.moe/v4/${endpoint}?q=${encodeURIComponent(title)}&limit=1`,
   );
   if (!res.ok) return null;
   const json = await res.json();
@@ -246,8 +248,8 @@ async function lookupMALViaJikan(
   if (!first) return null;
 
   const total = isAnimeType
-    ? first.episodes ?? undefined
-    : first.chapters ?? first.volumes ?? undefined;
+    ? (first.episodes ?? undefined)
+    : (first.chapters ?? first.volumes ?? undefined);
 
   return {
     title: first.title_english || first.title || undefined,
@@ -258,7 +260,7 @@ async function lookupMALViaJikan(
 
 async function lookupMediaMeta(
   title: string,
-  mediaType: string
+  mediaType: string,
 ): Promise<MediaLookup | null> {
   if (mediaType === "Light Novel") return null;
 
@@ -295,7 +297,7 @@ function showConfirm(
   title: string,
   message: string,
   onConfirm: () => void,
-  onCancel?: () => void
+  onCancel?: () => void,
 ) {
   const dialog = document.getElementById("confirm-dialog") as HTMLDialogElement;
   (document.getElementById("confirm-title") as HTMLElement).textContent = title;
@@ -327,7 +329,17 @@ function showConfirm(
 
 function exportJSON() {
   const payload = state.media.map(
-    ({ _id, title, media_type, status, progress_current, progress_total, rating, notes, last_updated }) => ({
+    ({
+      _id,
+      title,
+      media_type,
+      status,
+      progress_current,
+      progress_total,
+      rating,
+      notes,
+      last_updated,
+    }) => ({
       title,
       media_type,
       status,
@@ -336,7 +348,7 @@ function exportJSON() {
       rating: rating ?? null,
       notes: notes ?? "",
       last_updated,
-    })
+    }),
   );
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
@@ -367,7 +379,7 @@ function toExportRows(items: MediaItem[]) {
         }
         return str;
       })
-      .join(",")
+      .join(","),
   );
   return { headers: [...headers], rows };
 }
@@ -404,13 +416,13 @@ function slugType(mediaType: string): string {
 
 function openExportTypeDialog() {
   const dialog = document.getElementById(
-    "export-type-dialog"
+    "export-type-dialog",
   ) as HTMLDialogElement;
   const typeSelect = document.getElementById(
-    "export-type-media"
+    "export-type-media",
   ) as HTMLSelectElement;
   const formatSelect = document.getElementById(
-    "export-type-format"
+    "export-type-format",
   ) as HTMLSelectElement;
   const confirmBtn = document.getElementById("export-type-confirm")!;
   const cancelBtn = document.getElementById("export-type-cancel")!;
@@ -479,7 +491,9 @@ function normalizeType(value: string): string {
 
 function normalizeStatus(value: string): string {
   const lower = value.trim().toLowerCase();
-  if (["watching", "reading", "watching/reading", "in progress"].includes(lower)) {
+  if (
+    ["watching", "reading", "watching/reading", "in progress"].includes(lower)
+  ) {
     return "Watching/Reading";
   }
   if (["plan to watch", "plan to read", "planned", "plan"].includes(lower)) {
@@ -492,11 +506,14 @@ function normalizeStatus(value: string): string {
 }
 
 function normalizeMALStatus(value: string, bucket: "anime" | "manga"): string {
-  const raw = String(value || "").trim().toLowerCase();
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase();
   const code = Number(raw);
 
   if (!Number.isNaN(code)) {
-    if (code === 1) return bucket === "anime" ? "Watching/Reading" : "Watching/Reading";
+    if (code === 1)
+      return bucket === "anime" ? "Watching/Reading" : "Watching/Reading";
     if (code === 2) return "Completed";
     if (code === 3) return "On Hold";
     if (code === 4) return "Dropped";
@@ -504,23 +521,38 @@ function normalizeMALStatus(value: string, bucket: "anime" | "manga"): string {
   }
 
   if (
-    ["watching", "reading", "watching/reading", "currently reading", "currently watching"].includes(raw)
+    [
+      "watching",
+      "reading",
+      "watching/reading",
+      "currently reading",
+      "currently watching",
+    ].includes(raw)
   ) {
     return "Watching/Reading";
   }
   if (["completed", "finished"].includes(raw)) return "Completed";
   if (["on-hold", "on hold", "hold", "paused"].includes(raw)) return "On Hold";
   if (["dropped"].includes(raw)) return "Dropped";
-  if (["plan to watch", "plan to read", "planned", "plan", "ptw", "ptr"].includes(raw)) {
+  if (
+    ["plan to watch", "plan to read", "planned", "plan", "ptw", "ptr"].includes(
+      raw,
+    )
+  ) {
     return "Planned";
   }
   return "Watching/Reading";
 }
 
-function inferMALType(row: Record<string, unknown>, bucket: "anime" | "manga"): string {
+function inferMALType(
+  row: Record<string, unknown>,
+  bucket: "anime" | "manga",
+): string {
   if (bucket === "anime") return "Anime";
 
-  const seriesType = String(row.series_type ?? "").trim().toLowerCase();
+  const seriesType = String(row.series_type ?? "")
+    .trim()
+    .toLowerCase();
   if (seriesType.includes("novel")) return "Light Novel";
   if (seriesType.includes("manhwa")) return "Manhwa";
   if (seriesType.includes("manhua")) return "Manhwa";
@@ -530,22 +562,21 @@ function inferMALType(row: Record<string, unknown>, bucket: "anime" | "manga"): 
 function looksLikeMALRow(row: Record<string, unknown>): boolean {
   return Boolean(
     row.series_title !== undefined ||
-      row.my_status !== undefined ||
-      row.my_watched_episodes !== undefined ||
-      row.my_read_chapters !== undefined
+    row.my_status !== undefined ||
+    row.my_watched_episodes !== undefined ||
+    row.my_read_chapters !== undefined,
   );
 }
 
 function toImportRowFromMAL(raw: Record<string, unknown>): ImportRow | null {
   const row = Object.fromEntries(
-    Object.entries(raw).map(([k, v]) => [k.toLowerCase().trim(), v])
+    Object.entries(raw).map(([k, v]) => [k.toLowerCase().trim(), v]),
   );
 
   if (!looksLikeMALRow(row)) return null;
 
   const bucket: "anime" | "manga" =
-    row.my_watched_episodes !== undefined ||
-    row.series_episodes !== undefined
+    row.my_watched_episodes !== undefined || row.series_episodes !== undefined
       ? "anime"
       : "manga";
 
@@ -567,11 +598,15 @@ function toImportRowFromMAL(raw: Record<string, unknown>): ImportRow | null {
 
   const ratingRaw = row.my_score;
   const rating =
-    ratingRaw === undefined || ratingRaw === null ? undefined : Number(ratingRaw);
+    ratingRaw === undefined || ratingRaw === null
+      ? undefined
+      : Number(ratingRaw);
 
   const comments = String(row.my_comments ?? "").trim();
   const tags = String(row.my_tags ?? "").trim();
-  const notes = [comments, tags ? `tags: ${tags}` : ""].filter(Boolean).join(" | ");
+  const notes = [comments, tags ? `tags: ${tags}` : ""]
+    .filter(Boolean)
+    .join(" | ");
 
   const clean: ImportRow = {
     title,
@@ -586,7 +621,8 @@ function toImportRowFromMAL(raw: Record<string, unknown>): ImportRow | null {
     notes: notes || undefined,
   };
 
-  if (Number.isFinite(rating!)) clean.rating = Math.max(0, Math.min(10, Number(rating)));
+  if (Number.isFinite(rating!))
+    clean.rating = Math.max(0, Math.min(10, Number(rating)));
   return clean;
 }
 
@@ -595,17 +631,20 @@ function toImportRow(raw: Record<string, unknown>): ImportRow | null {
   if (mal) return mal;
 
   const row = Object.fromEntries(
-    Object.entries(raw).map(([k, v]) => [k.toLowerCase().trim(), v])
+    Object.entries(raw).map(([k, v]) => [k.toLowerCase().trim(), v]),
   );
   const title = String(row.title ?? row.name ?? "").trim();
   const media_type = normalizeType(String(row.media_type ?? row.type ?? ""));
   const status = normalizeStatus(String(row.status ?? "Watching/Reading"));
   const progress_current = Number(
-    row.progress_current ?? row.current ?? row.progress ?? 0
+    row.progress_current ?? row.current ?? row.progress ?? 0,
   );
   const progress_total = Number(row.progress_total ?? row.total ?? 0);
   const ratingRaw = row.rating ?? row.score;
-  const rating = ratingRaw === undefined || ratingRaw === null ? undefined : Number(ratingRaw);
+  const rating =
+    ratingRaw === undefined || ratingRaw === null
+      ? undefined
+      : Number(ratingRaw);
   const notes = String(row.notes ?? row.note ?? "").trim();
 
   if (!title || !media_type || !status) return null;
@@ -623,14 +662,18 @@ function toImportRow(raw: Record<string, unknown>): ImportRow | null {
     notes: notes || undefined,
   };
 
-  if (Number.isFinite(rating!)) clean.rating = Math.max(0, Math.min(10, Number(rating)));
+  if (Number.isFinite(rating!))
+    clean.rating = Math.max(0, Math.min(10, Number(rating)));
   return clean;
 }
 
 function parseCSV(text: string): Record<string, unknown>[] {
   const wb = XLSX.read(text, { type: "string" });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+  return XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<
+    string,
+    unknown
+  >[];
 }
 
 async function parseImportFile(file: File): Promise<ImportRow[]> {
@@ -667,45 +710,47 @@ async function parseImportFile(file: File): Promise<ImportRow[]> {
   throw new Error("Unsupported file type");
 }
 
-document.getElementById("import-file")?.addEventListener("change", async (e) => {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
+document
+  .getElementById("import-file")
+  ?.addEventListener("change", async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
 
-  try {
-    const entries = await parseImportFile(file);
-    if (entries.length === 0) {
-      showToast("No valid rows found in file.", "error");
-      return;
-    }
-
-    let imported = 0;
-    let skipped = 0;
-    const CHUNK_SIZE = 100;
-
-    for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
-      const chunk = entries.slice(i, i + CHUNK_SIZE);
-      try {
-        const res = await apiFetch("/media?bulk=1", {
-          method: "POST",
-          body: JSON.stringify(chunk),
-        });
-        imported += Number(res?.inserted || 0);
-        skipped += Number(res?.skipped || 0);
-      } catch {
-        skipped += chunk.length;
+    try {
+      const entries = await parseImportFile(file);
+      if (entries.length === 0) {
+        showToast("No valid rows found in file.", "error");
+        return;
       }
+
+      let imported = 0;
+      let skipped = 0;
+      const CHUNK_SIZE = 100;
+
+      for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+        const chunk = entries.slice(i, i + CHUNK_SIZE);
+        try {
+          const res = await apiFetch("/media?bulk=1", {
+            method: "POST",
+            body: JSON.stringify(chunk),
+          });
+          imported += Number(res?.inserted || 0);
+          skipped += Number(res?.skipped || 0);
+        } catch {
+          skipped += chunk.length;
+        }
+      }
+
+      showToast(
+        `Imported ${imported} entries${skipped > 0 ? `, ${skipped} skipped` : ""}`,
+        imported > 0 ? "success" : "error",
+      );
+
+      if (imported > 0) fetchMedia(true);
+    } catch (err: any) {
+      showToast(err?.message || "Failed to import file.", "error");
     }
-
-    showToast(
-      `Imported ${imported} entries${skipped > 0 ? `, ${skipped} skipped` : ""}`,
-      imported > 0 ? "success" : "error"
-    );
-
-    if (imported > 0) fetchMedia(true);
-  } catch (err: any) {
-    showToast(err?.message || "Failed to import file.", "error");
-  }
-});
+  });
 
 // ── API Helpers ──────────────────────────────────────────────────
 
@@ -731,7 +776,10 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
       const text = await res.text();
       message = text || message;
     }
-    const err = new Error(message) as Error & { code?: string; status?: number };
+    const err = new Error(message) as Error & {
+      code?: string;
+      status?: number;
+    };
     err.code = code;
     err.status = res.status;
     throw err;
@@ -773,10 +821,10 @@ async function fetchMedia(reset = true) {
     if (reset) state.media = items;
     else state.media = [...state.media, ...items];
 
-    state.total = Array.isArray(payload) ? items.length : payload.total || items.length;
-    state.hasMore = Array.isArray(payload)
-      ? false
-      : Boolean(payload.has_more);
+    state.total = Array.isArray(payload)
+      ? items.length
+      : payload.total || items.length;
+    state.hasMore = Array.isArray(payload) ? false : Boolean(payload.has_more);
 
     if (!Array.isArray(payload)) {
       state.page = Number(payload.page || state.page);
@@ -820,7 +868,8 @@ function renderStats(): string {
     }
   });
 
-  const avgRating = ratingCount > 0 ? (ratingSum / ratingCount).toFixed(1) : "—";
+  const avgRating =
+    ratingCount > 0 ? (ratingSum / ratingCount).toFixed(1) : "—";
 
   const watching = byStatus["Watching/Reading"] || 0;
   const completed = byStatus["Completed"] || 0;
@@ -830,7 +879,10 @@ function renderStats(): string {
 
   // Type breakdown chips
   const typeChips = Object.entries(byType)
-    .map(([type, count]) => `<span class="stat-chip"><strong>${count}</strong>&nbsp;${escapeHtml(type)}</span>`)
+    .map(
+      ([type, count]) =>
+        `<span class="stat-chip"><strong>${count}</strong>&nbsp;${escapeHtml(type)}</span>`,
+    )
     .join("");
 
   return `
@@ -1014,12 +1066,16 @@ function renderApp() {
       <div class="load-more-wrap">
         <button id="btn-load-more" class="btn-ghost">Load more</button>
       </div>
+      <button id="btn-add-fab" class="btn-fab" aria-label="Add Entry">＋</button>
     </div>
   `;
 
   document.getElementById("btn-logout")?.addEventListener("click", logout);
   document
     .getElementById("btn-add")
+    ?.addEventListener("click", () => openModal());
+  document
+    .getElementById("btn-add-fab")
     ?.addEventListener("click", () => openModal());
   document.getElementById("btn-bulk-mode")?.addEventListener("click", () => {
     state.bulkMode = !state.bulkMode;
@@ -1032,18 +1088,14 @@ function renderApp() {
     e.stopPropagation();
     document.getElementById("export-menu")?.classList.toggle("open");
   });
-  document
-    .getElementById("btn-export-json")
-    ?.addEventListener("click", () => {
-      document.getElementById("export-menu")?.classList.remove("open");
-      exportJSON();
-    });
-  document
-    .getElementById("btn-export-csv")
-    ?.addEventListener("click", () => {
-      document.getElementById("export-menu")?.classList.remove("open");
-      exportCSV();
-    });
+  document.getElementById("btn-export-json")?.addEventListener("click", () => {
+    document.getElementById("export-menu")?.classList.remove("open");
+    exportJSON();
+  });
+  document.getElementById("btn-export-csv")?.addEventListener("click", () => {
+    document.getElementById("export-menu")?.classList.remove("open");
+    exportCSV();
+  });
   document
     .getElementById("btn-export-by-type")
     ?.addEventListener("click", () => {
@@ -1056,7 +1108,7 @@ function renderApp() {
     () => {
       document.getElementById("export-menu")?.classList.remove("open");
     },
-    { once: true }
+    { once: true },
   );
 
   // Import
@@ -1092,37 +1144,42 @@ function renderApp() {
   renderMediaCards();
 
   if (state.bulkMode) {
-    document.getElementById("btn-bulk-select-all")?.addEventListener("click", () => {
-      state.media.forEach((m) => state.selectedIds.add(m._id));
-      renderApp();
-    });
+    document
+      .getElementById("btn-bulk-select-all")
+      ?.addEventListener("click", () => {
+        state.media.forEach((m) => state.selectedIds.add(m._id));
+        renderApp();
+      });
     document.getElementById("btn-bulk-clear")?.addEventListener("click", () => {
       state.selectedIds.clear();
       renderApp();
     });
-    document.getElementById("btn-bulk-status")?.addEventListener("click", async () => {
-      const status = (document.getElementById("bulk-status") as HTMLSelectElement)
-        .value;
-      const ids = Array.from(state.selectedIds);
-      if (ids.length === 0) return showToast("No entries selected.", "error");
+    document
+      .getElementById("btn-bulk-status")
+      ?.addEventListener("click", async () => {
+        const status = (
+          document.getElementById("bulk-status") as HTMLSelectElement
+        ).value;
+        const ids = Array.from(state.selectedIds);
+        if (ids.length === 0) return showToast("No entries selected.", "error");
 
-      const updates = await Promise.allSettled(
-        ids.map((id) =>
-          apiFetch(`/media?id=${id}`, {
-            method: "PUT",
-            body: JSON.stringify({ status }),
-          })
-        )
-      );
-      const ok = updates.filter((r) => r.status === "fulfilled").length;
-      const fail = updates.length - ok;
-      showToast(
-        `Updated ${ok} entries${fail ? `, ${fail} failed` : ""}`,
-        ok > 0 ? "success" : "error"
-      );
-      state.selectedIds.clear();
-      await fetchMedia(true);
-    });
+        const updates = await Promise.allSettled(
+          ids.map((id) =>
+            apiFetch(`/media?id=${id}`, {
+              method: "PUT",
+              body: JSON.stringify({ status }),
+            }),
+          ),
+        );
+        const ok = updates.filter((r) => r.status === "fulfilled").length;
+        const fail = updates.length - ok;
+        showToast(
+          `Updated ${ok} entries${fail ? `, ${fail} failed` : ""}`,
+          ok > 0 ? "success" : "error",
+        );
+        state.selectedIds.clear();
+        await fetchMedia(true);
+      });
     document
       .getElementById("btn-bulk-increment")
       ?.addEventListener("click", async () => {
@@ -1139,49 +1196,51 @@ function renderApp() {
                 progress_current: item.progress_current + 1,
               }),
             });
-          })
+          }),
         );
         const ok = updates.filter((r) => r.status === "fulfilled").length;
         const fail = updates.length - ok;
         showToast(
           `Incremented ${ok} entries${fail ? `, ${fail} failed` : ""}`,
-          ok > 0 ? "success" : "error"
+          ok > 0 ? "success" : "error",
         );
         await fetchMedia(true);
       });
-    document.getElementById("btn-bulk-delete")?.addEventListener("click", () => {
-      const ids = Array.from(state.selectedIds);
-      if (ids.length === 0) return showToast("No entries selected.", "error");
-      showConfirm(
-        "Delete selected entries?",
-        `${ids.length} entries will be permanently removed.`,
-        async () => {
-          let ok = 0;
-          let fail = 0;
-          const CHUNK = 500;
-          for (let i = 0; i < ids.length; i += CHUNK) {
-            const chunk = ids.slice(i, i + CHUNK);
-            try {
-              const res = await apiFetch("/media?bulk_delete=1", {
-                method: "POST",
-                body: JSON.stringify({ ids: chunk }),
-              });
-              ok += Number(res?.deleted || 0);
-              const requested = Number(res?.requested || chunk.length);
-              fail += Math.max(0, requested - Number(res?.deleted || 0));
-            } catch {
-              fail += chunk.length;
+    document
+      .getElementById("btn-bulk-delete")
+      ?.addEventListener("click", () => {
+        const ids = Array.from(state.selectedIds);
+        if (ids.length === 0) return showToast("No entries selected.", "error");
+        showConfirm(
+          "Delete selected entries?",
+          `${ids.length} entries will be permanently removed.`,
+          async () => {
+            let ok = 0;
+            let fail = 0;
+            const CHUNK = 500;
+            for (let i = 0; i < ids.length; i += CHUNK) {
+              const chunk = ids.slice(i, i + CHUNK);
+              try {
+                const res = await apiFetch("/media?bulk_delete=1", {
+                  method: "POST",
+                  body: JSON.stringify({ ids: chunk }),
+                });
+                ok += Number(res?.deleted || 0);
+                const requested = Number(res?.requested || chunk.length);
+                fail += Math.max(0, requested - Number(res?.deleted || 0));
+              } catch {
+                fail += chunk.length;
+              }
             }
-          }
-          showToast(
-            `Deleted ${ok} entries${fail ? `, ${fail} failed` : ""}`,
-            ok > 0 ? "success" : "error"
-          );
-          state.selectedIds.clear();
-          await fetchMedia(true);
-        }
-      );
-    });
+            showToast(
+              `Deleted ${ok} entries${fail ? `, ${fail} failed` : ""}`,
+              ok > 0 ? "success" : "error",
+            );
+            state.selectedIds.clear();
+            await fetchMedia(true);
+          },
+        );
+      });
   }
 }
 
@@ -1191,7 +1250,7 @@ function renderMediaCards() {
   const container = document.getElementById("media-grid");
   if (!container) return;
   const loadMoreBtn = document.getElementById(
-    "btn-load-more"
+    "btn-load-more",
   ) as HTMLButtonElement | null;
 
   if (state.loading) {
@@ -1224,7 +1283,7 @@ function renderMediaCards() {
       const pct = m.progress_total
         ? Math.min(
             100,
-            Math.round((m.progress_current / m.progress_total) * 100)
+            Math.round((m.progress_current / m.progress_total) * 100),
           )
         : 0;
       const unit = progressLabel(m.media_type);
@@ -1242,8 +1301,7 @@ function renderMediaCards() {
         : "";
 
       // Cover thumbnail for anime
-      const isAnime =
-        m.media_type === "Anime" || m.media_type === "Donghua";
+      const isAnime = m.media_type === "Anime" || m.media_type === "Donghua";
       const cachedCover = getCachedCover(m.title);
       let thumbHtml = "";
       if (isAnime) {
@@ -1317,7 +1375,7 @@ function openModal(item?: MediaItem) {
   const titleInput = document.getElementById("media-title") as HTMLInputElement;
   const typeInput = document.getElementById("media-type") as HTMLSelectElement;
   const totalInput = document.getElementById(
-    "media-progress-total"
+    "media-progress-total",
   ) as HTMLInputElement;
   const lookupHint = document.getElementById("lookup-hint") as HTMLElement;
 
@@ -1347,15 +1405,14 @@ function openModal(item?: MediaItem) {
   }
 
   const lookupBtn = document.getElementById(
-    "btn-anime-lookup"
+    "btn-anime-lookup",
   ) as HTMLButtonElement;
   const newLookupBtn = lookupBtn.cloneNode(true) as HTMLButtonElement;
   lookupBtn.replaceWith(newLookupBtn);
 
   const updateLookupState = () => {
     const type = typeInput.value;
-    const allowed =
-      type === "Anime" || type === "Donghua" || type === "Manhwa";
+    const allowed = type === "Anime" || type === "Donghua" || type === "Manhwa";
     newLookupBtn.disabled = !allowed;
     lookupHint.textContent = allowed
       ? type === "Anime" || type === "Donghua"
@@ -1404,112 +1461,111 @@ function openModal(item?: MediaItem) {
   }, 50);
 }
 
-document
-  .getElementById("media-form")
-  ?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const id = (document.getElementById("media-id") as HTMLInputElement).value;
-    const saveBtn = (e.target as HTMLFormElement).querySelector(
-      ".btn-primary"
-    ) as HTMLButtonElement;
+document.getElementById("media-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = (document.getElementById("media-id") as HTMLInputElement).value;
+  const saveBtn = (e.target as HTMLFormElement).querySelector(
+    ".btn-primary",
+  ) as HTMLButtonElement;
 
-    const data = {
-      title: (document.getElementById("media-title") as HTMLInputElement).value,
-      media_type: (document.getElementById("media-type") as HTMLSelectElement)
+  const data = {
+    title: (document.getElementById("media-title") as HTMLInputElement).value,
+    media_type: (document.getElementById("media-type") as HTMLSelectElement)
+      .value,
+    status: (document.getElementById("media-status") as HTMLSelectElement)
+      .value,
+    progress_current: parseInt(
+      (document.getElementById("media-progress-current") as HTMLInputElement)
         .value,
-      status: (document.getElementById("media-status") as HTMLSelectElement)
+      10,
+    ),
+    progress_total: parseInt(
+      (document.getElementById("media-progress-total") as HTMLInputElement)
         .value,
-      progress_current: parseInt(
-        (document.getElementById("media-progress-current") as HTMLInputElement)
-          .value,
-        10
-      ),
-      progress_total: parseInt(
-        (document.getElementById("media-progress-total") as HTMLInputElement)
-          .value,
-        10
-      ),
-      rating:
-        parseInt(
-          (document.getElementById("media-rating") as HTMLInputElement).value,
-          10
-        ) || undefined,
-      notes: (document.getElementById("media-notes") as HTMLTextAreaElement)
-        .value,
-    };
+      10,
+    ),
+    rating:
+      parseInt(
+        (document.getElementById("media-rating") as HTMLInputElement).value,
+        10,
+      ) || undefined,
+    notes: (document.getElementById("media-notes") as HTMLTextAreaElement)
+      .value,
+  };
 
-    if (
-      data.progress_total > 0 &&
-      data.progress_current > data.progress_total
-    ) {
-      showToast("Current progress cannot exceed total.", "error");
-      return;
-    }
+  if (data.progress_total > 0 && data.progress_current > data.progress_total) {
+    showToast("Current progress cannot exceed total.", "error");
+    return;
+  }
 
-    // Loading state on save button
-    const originalText = saveBtn.textContent;
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = `<span class="spinner"></span>`;
+  // Loading state on save button
+  const originalText = saveBtn.textContent;
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = `<span class="spinner"></span>`;
 
-    const createEntry = async (mode?: "merge" | "keep_both") => {
-      const endpoint = mode ? `/media?duplicate_mode=${mode}` : "/media";
-      return apiFetch(endpoint, {
-        method: "POST",
+  const createEntry = async (mode?: "merge" | "keep_both") => {
+    const endpoint = mode ? `/media?duplicate_mode=${mode}` : "/media";
+    return apiFetch(endpoint, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  };
+
+  try {
+    if (id) {
+      await apiFetch(`/media?id=${id}`, {
+        method: "PUT",
         body: JSON.stringify(data),
       });
-    };
-
-    try {
-      if (id) {
-        await apiFetch(`/media?id=${id}`, {
-          method: "PUT",
-          body: JSON.stringify(data),
-        });
-      } else {
-        try {
-          await createEntry();
-        } catch (err: any) {
-          if (err?.code === "DUPLICATE_TITLE") {
-            saveBtn.disabled = false;
-            saveBtn.textContent = originalText;
-            showConfirm(
-              "Duplicate found",
-              "A similar title exists for this type. Merge into existing entry or keep both?",
-              async () => {
-                try {
-                  await createEntry("merge");
-                  (document.getElementById("media-modal") as HTMLDialogElement).close();
-                  showToast("Entry merged", "success");
-                  fetchMedia(true);
-                } catch {
-                  showToast("Failed to merge duplicate entry.", "error");
-                }
-              },
-              async () => {
-                try {
-                  await createEntry("keep_both");
-                  (document.getElementById("media-modal") as HTMLDialogElement).close();
-                  showToast("Entry added (kept both)", "success");
-                  fetchMedia(true);
-                } catch {
-                  showToast("Failed to save duplicate entry.", "error");
-                }
+    } else {
+      try {
+        await createEntry();
+      } catch (err: any) {
+        if (err?.code === "DUPLICATE_TITLE") {
+          saveBtn.disabled = false;
+          saveBtn.textContent = originalText;
+          showConfirm(
+            "Duplicate found",
+            "A similar title exists for this type. Merge into existing entry or keep both?",
+            async () => {
+              try {
+                await createEntry("merge");
+                (
+                  document.getElementById("media-modal") as HTMLDialogElement
+                ).close();
+                showToast("Entry merged", "success");
+                fetchMedia(true);
+              } catch {
+                showToast("Failed to merge duplicate entry.", "error");
               }
-            );
-            return;
-          }
-          throw err;
+            },
+            async () => {
+              try {
+                await createEntry("keep_both");
+                (
+                  document.getElementById("media-modal") as HTMLDialogElement
+                ).close();
+                showToast("Entry added (kept both)", "success");
+                fetchMedia(true);
+              } catch {
+                showToast("Failed to save duplicate entry.", "error");
+              }
+            },
+          );
+          return;
         }
+        throw err;
       }
-      (document.getElementById("media-modal") as HTMLDialogElement).close();
-      showToast(id ? "Entry updated" : "Entry added", "success");
-      fetchMedia(true);
-    } catch {
-      showToast("Failed to save. Please try again.", "error");
-      saveBtn.disabled = false;
-      saveBtn.textContent = originalText;
     }
-  });
+    (document.getElementById("media-modal") as HTMLDialogElement).close();
+    showToast(id ? "Entry updated" : "Entry added", "success");
+    fetchMedia(true);
+  } catch {
+    showToast("Failed to save. Please try again.", "error");
+    saveBtn.disabled = false;
+    saveBtn.textContent = originalText;
+  }
+});
 
 // ── Event Delegation for Card Buttons ────────────────────────────
 
@@ -1547,7 +1603,7 @@ document.addEventListener("click", async (e) => {
         } catch {
           showToast("Failed to delete. Please try again.", "error");
         }
-      }
+      },
     );
   } else if (target.classList.contains("btn-increment")) {
     const item = state.media.find((m) => m._id === id);
