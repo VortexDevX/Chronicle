@@ -47,7 +47,7 @@ type CoverCacheEntry = {
   ts: number;
 };
 
-const COVER_CACHE_KEY = "chronicle:cover-cache:v1";
+const COVER_CACHE_KEY = "chronicle:cover-cache:v2";
 const COVER_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COVER_CACHE_MAX = 600;
 
@@ -113,7 +113,7 @@ async function processJikanQueue() {
       );
       if (res.ok) {
         const json = await res.json();
-        const imageUrl = json.data?.[0]?.images?.jpg?.small_image_url || null;
+        const imageUrl = json.data?.[0]?.images?.jpg?.large_image_url || null;
         setCachedCover(title, imageUrl);
 
         // Update the specific card thumbnail if element exists

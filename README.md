@@ -6,35 +6,35 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 
 ## ✨ Features
 
-| Category | Highlights |
-|---|---|
-| **Media Tracking** | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes |
-| **Smart Organization** | Server-side search/filter/sort · Pagination (`Load more`) for large libraries |
-| **Statistics** | Dashboard with breakdowns by type/status · Average rating |
-| **Import / Export** | Export as JSON/CSV · Export by type (CSV/XLSX) · Bulk import from JSON/CSV/Excel · Direct MAL export import (CSV/XLSX auto-mapping) |
-| **Metadata Lookup** | AniList primary + MAL fallback lookup for Anime, Donghua, and Manhwa |
-| **Stale Alerts** | Visual warnings on active entries not updated in 14+ days |
-| **Auth** | JWT-based login/register · bcrypt password hashing · Auto-logout on token expiry |
-| **Reliability** | API rate limiting on auth/write routes · Structured error payloads · Audit-safe server logs |
-| **Power Features** | Duplicate-title handling (merge/keep-both) · Bulk actions (multi-select delete/status/+1 progress) |
+| Category               | Highlights                                                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Media Tracking**     | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes                        |
+| **Smart Organization** | Server-side search/filter/sort · Pagination (`Load more`) for large libraries                                                       |
+| **Statistics**         | Dashboard with breakdowns by type/status · Average rating                                                                           |
+| **Import / Export**    | Export as JSON/CSV · Export by type (CSV/XLSX) · Bulk import from JSON/CSV/Excel · Direct MAL export import (CSV/XLSX auto-mapping) |
+| **Metadata Lookup**    | AniList primary + MAL fallback lookup for Anime, Donghua, and Manhwa                                                                |
+| **Stale Alerts**       | Visual warnings on active entries not updated in 14+ days                                                                           |
+| **Auth**               | JWT-based login/register · bcrypt password hashing · Auto-logout on token expiry                                                    |
+| **Reliability**        | API rate limiting on auth/write routes · Structured error payloads · Audit-safe server logs                                         |
+| **Power Features**     | Duplicate-title handling (merge/keep-both) · Bulk actions (multi-select delete/status/+1 progress)                                  |
 
 ## 🖼️ UI
 
-- Chronicle visual identity revamp (archival, record-keeper vibe)
-- Space Grotesk + Fraunces typography pairing · Responsive (mobile → desktop)
-- Toast notifications · Styled confirm dialogs
-- Card-based grid with progress bars, status badges, and relative timestamps
+- Modern, immersive, glassmorphism-focused dark-themed dashboard
+- Inter typography with responsive grid layout
+- Built-in advanced search, filtering, and sleek collapsable panels
+- Card-based grid with beautiful hover animations, integrated progress bars, and glowing status badges
 - Inline SVG favicon
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | TypeScript · Vite · Vanilla CSS |
-| Backend | Netlify Functions (serverless) |
-| Database | MongoDB (Atlas or local) |
-| Auth | JWT · bcrypt |
-| APIs | AniList GraphQL · Jikan v4 (MAL fallback + cover art) |
+| Layer    | Technology                                            |
+| -------- | ----------------------------------------------------- |
+| Frontend | TypeScript · Vite · Vanilla CSS                       |
+| Backend  | Netlify Functions (serverless)                        |
+| Database | MongoDB (Atlas or local)                              |
+| Auth     | JWT · bcrypt                                          |
+| APIs     | AniList GraphQL · Jikan v4 (MAL fallback + cover art) |
 
 ## 🚀 Getting Started
 
@@ -69,6 +69,7 @@ JWT_SECRET=your-32-char-secret-here
 ```
 
 Generate a JWT secret:
+
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
