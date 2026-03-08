@@ -330,7 +330,6 @@ function showConfirm(
 function exportJSON() {
   const payload = state.media.map(
     ({
-      _id,
       title,
       media_type,
       status,

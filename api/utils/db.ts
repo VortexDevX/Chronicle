@@ -1,10 +1,13 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI!;
 let cachedDb: typeof mongoose | null = null;
 
 export const connectDB = async () => {
   if (cachedDb) return cachedDb;
+  const MONGODB_URI = process.env.MONGODB_URI;
+  if (!MONGODB_URI) {
+    throw new Error("MONGODB_URI is not defined in the environment variables. Please configure it in your Vercel Dashboard.");
+  }
   cachedDb = await mongoose.connect(MONGODB_URI);
   return cachedDb;
 };
