@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { connectDB, User } from "./utils/db";
+import { connectDB, User } from "./utils/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { checkRateLimit, getClientIp } from "./utils/rateLimit";
-import { logInternalError, logSecurityEvent } from "./utils/log";
+import { checkRateLimit, getClientIp } from "./utils/rateLimit.js";
+import { logInternalError, logSecurityEvent } from "./utils/log.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Credentials", "true");

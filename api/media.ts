@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { connectDB, MediaItem } from "./utils/db";
-import { verifyToken } from "./utils/auth";
+import { connectDB, MediaItem } from "./utils/db.js";
+import { verifyToken } from "./utils/auth.js";
 import mongoose from "mongoose";
-import { checkRateLimit, getClientIp } from "./utils/rateLimit";
-import { logInternalError, logSecurityEvent } from "./utils/log";
+import { checkRateLimit, getClientIp } from "./utils/rateLimit.js";
+import { logInternalError, logSecurityEvent } from "./utils/log.js";
 
 type MediaPayload = {
   title?: string;
