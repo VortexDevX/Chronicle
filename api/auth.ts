@@ -1,29 +1,26 @@
-import { Handler } from "@netlify/functions";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { connectDB, User } from "./utils/db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { checkRateLimit, getClientIp } from "./utils/rateLimit";
 import { logInternalError, logSecurityEvent } from "./utils/log";
 
-function error(statusCode: number, code: string, message: string) {
-  return { statusCode, body: JSON.stringify({ code, message }) };
-}
-
-export const handler: Handler = async (event) => {
-  if (event.httpMethod !== "POST") {
-    return error(405, "METHOD_NOT_ALLOWED", "Method Not Allowed");
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" });
   }
 
   try {
-    const { action, username, password } = JSON.parse(event.body || "{}");
+    const { action, username, password } = req.body || {};
     const normalizedUsername = String(username || "").trim();
     const normalizedPassword = String(password || "");
-    const ip = getClientIp(event.headers);
+    const ip = getClientIp(req);
 
     const authLimit =
       action === "register"
         ? checkRateLimit(`auth:register:${ip}`, 8, 15 * 60 * 1000)
         : checkRateLimit(`auth:login:${ip}`, 18, 10 * 60 * 1000);
+    
     if (!authLimit.allowed) {
       logSecurityEvent("rate_limit_block", {
         route: "auth",
@@ -31,38 +28,37 @@ export const handler: Handler = async (event) => {
         ip,
         retry_after_sec: authLimit.retryAfterSec,
       });
-      return error(
-        429,
-        "RATE_LIMITED",
-        `Too many attempts. Retry in ${authLimit.retryAfterSec}s`
-      );
+      return res.status(429).json({
+        code: "RATE_LIMITED",
+        message: `Too many attempts. Retry in ${authLimit.retryAfterSec}s`
+      });
     }
 
     await connectDB();
 
     if (!normalizedUsername || !normalizedPassword) {
-      return error(400, "MISSING_CREDENTIALS", "Missing credentials");
+      return res.status(400).json({ code: "MISSING_CREDENTIALS", message: "Missing credentials" });
     }
 
     if (action === "register") {
       if (normalizedUsername.length < 3 || normalizedUsername.length > 30) {
-        return error(
-          400,
-          "INVALID_USERNAME",
-          "Username must be between 3 and 30 characters"
-        );
+        return res.status(400).json({
+          code: "INVALID_USERNAME",
+          message: "Username must be between 3 and 30 characters"
+        });
       }
 
       if (normalizedPassword.length < 6) {
-        return error(
-          400,
-          "WEAK_PASSWORD",
-          "Password must be at least 6 characters"
-        );
+        return res.status(400).json({
+          code: "WEAK_PASSWORD",
+          message: "Password must be at least 6 characters"
+        });
       }
 
       const existing = await User.findOne({ username: normalizedUsername });
-      if (existing) return error(409, "USERNAME_TAKEN", "Username taken");
+      if (existing) {
+        return res.status(409).json({ code: "USERNAME_TAKEN", message: "Username taken" });
+      }
 
       const password_hash = await bcrypt.hash(normalizedPassword, 10);
       const user = await User.create({
@@ -73,32 +69,30 @@ export const handler: Handler = async (event) => {
         expiresIn: "30d",
       });
 
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ token, username: normalizedUsername }),
-      };
+      return res.status(200).json({ token, username: normalizedUsername });
     }
 
     if (action === "login") {
       const user = await User.findOne({ username: normalizedUsername });
-      if (!user) return error(401, "INVALID_CREDENTIALS", "Invalid credentials");
+      if (!user) {
+        return res.status(401).json({ code: "INVALID_CREDENTIALS", message: "Invalid credentials" });
+      }
 
       const isMatch = await bcrypt.compare(normalizedPassword, user.password_hash);
-      if (!isMatch)
-        return error(401, "INVALID_CREDENTIALS", "Invalid credentials");
+      if (!isMatch) {
+        return res.status(401).json({ code: "INVALID_CREDENTIALS", message: "Invalid credentials" });
+      }
 
       const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET!, {
         expiresIn: "30d",
       });
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ token, username: normalizedUsername }),
-      };
+      
+      return res.status(200).json({ token, username: normalizedUsername });
     }
 
-    return error(400, "INVALID_ACTION", "Invalid action");
+    return res.status(400).json({ code: "INVALID_ACTION", message: "Invalid action" });
   } catch (err) {
     logInternalError("auth_handler_error", err, { route: "auth" });
-    return error(500, "AUTH_INTERNAL_ERROR", "Internal Server Error");
+    return res.status(500).json({ code: "AUTH_INTERNAL_ERROR", message: "Internal Server Error" });
   }
-};
+}

@@ -11,14 +11,15 @@ export type RateLimitResult = {
   retryAfterSec: number;
 };
 
-export function getClientIp(headers: Record<string, string | undefined>) {
+import type { VercelRequest } from "@vercel/node";
+
+export function getClientIp(req: VercelRequest) {
+  const headers = req.headers || {};
   const forwarded = headers["x-forwarded-for"] || headers["X-Forwarded-For"];
-  if (forwarded) return forwarded.split(",")[0].trim();
+  if (forwarded && typeof forwarded === "string") return forwarded.split(",")[0].trim();
   return (
-    headers["client-ip"] ||
-    headers["Client-Ip"] ||
-    headers["x-real-ip"] ||
-    headers["X-Real-Ip"] ||
+    (typeof headers["client-ip"] === "string" ? headers["client-ip"] : undefined) ||
+    (typeof headers["x-real-ip"] === "string" ? headers["x-real-ip"] : undefined) ||
     "unknown"
   );
 }

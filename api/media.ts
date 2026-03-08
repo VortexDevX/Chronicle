@@ -1,13 +1,9 @@
-import { Handler } from "@netlify/functions";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { connectDB, MediaItem } from "./utils/db";
 import { verifyToken } from "./utils/auth";
 import mongoose from "mongoose";
 import { checkRateLimit, getClientIp } from "./utils/rateLimit";
 import { logInternalError, logSecurityEvent } from "./utils/log";
-
-function error(statusCode: number, code: string, message: string) {
-  return { statusCode, body: JSON.stringify({ code, message }) };
-}
 
 type MediaPayload = {
   title?: string;
@@ -101,26 +97,25 @@ function escapeRegex(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export const handler: Handler = async (event) => {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     await connectDB();
-    const userId = verifyToken(event.headers.authorization);
-    if (!userId) return error(401, "UNAUTHORIZED", "Unauthorized");
-    const ip = getClientIp(event.headers);
+    const userId = verifyToken(req.headers.authorization);
+    if (!userId) return res.status(401).json({ code: "UNAUTHORIZED", message: "Unauthorized" });
+    const ip = getClientIp(req);
 
-    const id = event.queryStringParameters?.id;
+    const id = req.query.id as string | undefined;
 
-    switch (event.httpMethod) {
+    switch (req.method) {
       case "GET": {
-        const params = event.queryStringParameters || {};
-        const search = String(params.search || "").trim();
-        const mediaType = String(params.media_type || "").trim();
-        const status = String(params.status || "").trim();
-        const sortBy = String(params.sort_by || "last_updated");
-        const page = Math.max(1, parseInt(String(params.page || "1"), 10) || 1);
+        const search = String(req.query.search || "").trim();
+        const mediaType = String(req.query.media_type || "").trim();
+        const status = String(req.query.status || "").trim();
+        const sortBy = String(req.query.sort_by || "last_updated");
+        const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
         const limit = Math.min(
           100,
-          Math.max(1, parseInt(String(params.limit || "24"), 10) || 24),
+          Math.max(1, parseInt(String(req.query.limit || "24"), 10) || 24),
         );
         const skip = (page - 1) * limit;
 
@@ -163,20 +158,16 @@ export const handler: Handler = async (event) => {
           MediaItem.countDocuments(match),
         ]);
 
-        return {
-          statusCode: 200,
-          body: JSON.stringify({
-            items,
-            total,
-            page,
-            limit,
-            has_more: skip + items.length < total,
-          }),
-        };
+        return res.status(200).json({
+          items,
+          total,
+          page,
+          limit,
+          has_more: skip + items.length < total,
+        });
       }
       case "POST": {
-        const isBulkDelete =
-          String(event.queryStringParameters?.bulk_delete || "") === "1";
+        const isBulkDelete = String(req.query.bulk_delete || "") === "1";
         if (isBulkDelete) {
           const bulkDeleteLimit = checkRateLimit(
             `media:bulk_delete:${userId}:${ip}`,
@@ -192,44 +183,39 @@ export const handler: Handler = async (event) => {
               user_id: userId,
               retry_after_sec: bulkDeleteLimit.retryAfterSec,
             });
-            return error(
-              429,
-              "RATE_LIMITED",
-              `Too many bulk delete requests. Retry in ${bulkDeleteLimit.retryAfterSec}s`
-            );
+            return res.status(429).json({
+              code: "RATE_LIMITED",
+              message: `Too many bulk delete requests. Retry in ${bulkDeleteLimit.retryAfterSec}s`
+            });
           }
 
-          const parsed = JSON.parse(event.body || "{}") as { ids?: string[] };
+          const parsed = req.body || {};
           const ids = Array.isArray(parsed.ids) ? parsed.ids : [];
           if (ids.length === 0) {
-            return error(400, "INVALID_BULK_PAYLOAD", "ids must be a non-empty array");
+            return res.status(400).json({ code: "INVALID_BULK_PAYLOAD", message: "ids must be a non-empty array" });
           }
           if (ids.length > 500) {
-            return error(
-              400,
-              "BULK_LIMIT_EXCEEDED",
-              "Bulk delete payload too large (max 500 ids per request)"
-            );
+            return res.status(400).json({
+              code: "BULK_LIMIT_EXCEEDED",
+              message: "Bulk delete payload too large (max 500 ids per request)"
+            });
           }
 
           const objectIds = ids
-            .filter((x) => mongoose.Types.ObjectId.isValid(x))
-            .map((x) => new mongoose.Types.ObjectId(x));
+            .filter((x: string) => mongoose.Types.ObjectId.isValid(x))
+            .map((x: string) => new mongoose.Types.ObjectId(x));
           if (objectIds.length === 0) {
-            return error(400, "INVALID_BULK_PAYLOAD", "No valid ids provided");
+            return res.status(400).json({ code: "INVALID_BULK_PAYLOAD", message: "No valid ids provided" });
           }
 
           const result = await MediaItem.deleteMany({
             _id: { $in: objectIds },
             user_id: userId,
           });
-          return {
-            statusCode: 200,
-            body: JSON.stringify({
-              deleted: Number(result.deletedCount || 0),
-              requested: ids.length,
-            }),
-          };
+          return res.status(200).json({
+            deleted: Number(result.deletedCount || 0),
+            requested: ids.length,
+          });
         }
 
         const postLimit = checkRateLimit(
@@ -245,28 +231,27 @@ export const handler: Handler = async (event) => {
             user_id: userId,
             retry_after_sec: postLimit.retryAfterSec,
           });
-          return error(
-            429,
-            "RATE_LIMITED",
-            `Too many write requests. Retry in ${postLimit.retryAfterSec}s`
-          );
+          return res.status(429).json({
+            code: "RATE_LIMITED",
+            message: `Too many write requests. Retry in ${postLimit.retryAfterSec}s`
+          });
         }
-        const isBulk = String(event.queryStringParameters?.bulk || "") === "1";
-        const parsed = JSON.parse(event.body || "{}");
+        
+        const isBulk = String(req.query.bulk || "") === "1";
+        const parsed = req.body || {};
 
         if (isBulk) {
           if (!Array.isArray(parsed)) {
-            return error(400, "INVALID_BULK_PAYLOAD", "Bulk payload must be an array");
+            return res.status(400).json({ code: "INVALID_BULK_PAYLOAD", message: "Bulk payload must be an array" });
           }
           if (parsed.length === 0) {
-            return { statusCode: 200, body: JSON.stringify({ inserted: 0, skipped: 0 }) };
+            return res.status(200).json({ inserted: 0, skipped: 0 });
           }
           if (parsed.length > 200) {
-            return error(
-              400,
-              "BULK_LIMIT_EXCEEDED",
-              "Bulk payload too large (max 200 items per request)"
-            );
+            return res.status(400).json({
+              code: "BULK_LIMIT_EXCEEDED",
+              message: "Bulk payload too large (max 200 items per request)"
+            });
           }
 
           const docs: Record<string, unknown>[] = [];
@@ -285,28 +270,23 @@ export const handler: Handler = async (event) => {
           }
 
           if (docs.length === 0) {
-            return { statusCode: 200, body: JSON.stringify({ inserted: 0, skipped }) };
+            return res.status(200).json({ inserted: 0, skipped });
           }
 
           const insertedDocs = await MediaItem.insertMany(docs, { ordered: false });
-          return {
-            statusCode: 201,
-            body: JSON.stringify({
-              inserted: insertedDocs.length,
-              skipped,
-            }),
-          };
+          return res.status(201).json({
+            inserted: insertedDocs.length,
+            skipped,
+          });
         }
 
         const raw = parsed as MediaPayload;
         const validated = validatePayload(raw, false);
         if (!validated.ok) {
-          return error(400, "INVALID_MEDIA_PAYLOAD", validated.message);
+          return res.status(400).json({ code: "INVALID_MEDIA_PAYLOAD", message: validated.message });
         }
 
-        const duplicateMode = String(
-          event.queryStringParameters?.duplicate_mode || "reject"
-        );
+        const duplicateMode = String(req.query.duplicate_mode || "reject");
         const normalizedTitle = String(validated.normalized.title || "").trim();
         const normalizedType = String(validated.normalized.media_type || "");
         const duplicate = await MediaItem.findOne({
@@ -322,21 +302,14 @@ export const handler: Handler = async (event) => {
               { ...validated.normalized, last_updated: new Date() },
               { new: true }
             );
-            if (!merged) return error(404, "NOT_FOUND", "Not found");
-            return {
-              statusCode: 200,
-              body: JSON.stringify({ merged: true, item: merged }),
-            };
+            if (!merged) return res.status(404).json({ code: "NOT_FOUND", message: "Not found" });
+            return res.status(200).json({ merged: true, item: merged });
           }
-          return {
-            statusCode: 409,
-            body: JSON.stringify({
-              code: "DUPLICATE_TITLE",
-              message:
-                "A similar title already exists for this type. Merge or keep both?",
-              existing_id: String(duplicate._id),
-            }),
-          };
+          return res.status(409).json({
+            code: "DUPLICATE_TITLE",
+            message: "A similar title already exists for this type. Merge or keep both?",
+            existing_id: String(duplicate._id),
+          });
         }
 
         const newItem = await MediaItem.create({
@@ -344,7 +317,7 @@ export const handler: Handler = async (event) => {
           user_id: userId,
           last_updated: new Date(),
         });
-        return { statusCode: 201, body: JSON.stringify(newItem) };
+        return res.status(201).json(newItem);
       }
       case "PUT": {
         const putLimit = checkRateLimit(
@@ -360,17 +333,16 @@ export const handler: Handler = async (event) => {
             user_id: userId,
             retry_after_sec: putLimit.retryAfterSec,
           });
-          return error(
-            429,
-            "RATE_LIMITED",
-            `Too many write requests. Retry in ${putLimit.retryAfterSec}s`
-          );
+          return res.status(429).json({
+            code: "RATE_LIMITED",
+            message: `Too many write requests. Retry in ${putLimit.retryAfterSec}s`
+          });
         }
-        if (!id) return error(400, "MISSING_ID", "Missing ID");
-        const raw = JSON.parse(event.body || "{}") as MediaPayload;
+        if (!id) return res.status(400).json({ code: "MISSING_ID", message: "Missing ID" });
+        const raw = (req.body || {}) as MediaPayload;
         const validated = validatePayload(raw, true);
         if (!validated.ok) {
-          return error(400, "INVALID_MEDIA_PAYLOAD", validated.message);
+          return res.status(400).json({ code: "INVALID_MEDIA_PAYLOAD", message: validated.message });
         }
 
         const updated = await MediaItem.findOneAndUpdate(
@@ -378,8 +350,8 @@ export const handler: Handler = async (event) => {
           validated.normalized,
           { new: true },
         );
-        if (!updated) return error(404, "NOT_FOUND", "Not found");
-        return { statusCode: 200, body: JSON.stringify(updated) };
+        if (!updated) return res.status(404).json({ code: "NOT_FOUND", message: "Not found" });
+        return res.status(200).json(updated);
       }
       case "DELETE": {
         const delLimit = checkRateLimit(
@@ -395,28 +367,27 @@ export const handler: Handler = async (event) => {
             user_id: userId,
             retry_after_sec: delLimit.retryAfterSec,
           });
-          return error(
-            429,
-            "RATE_LIMITED",
-            `Too many write requests. Retry in ${delLimit.retryAfterSec}s`
-          );
+          return res.status(429).json({
+            code: "RATE_LIMITED",
+            message: `Too many write requests. Retry in ${delLimit.retryAfterSec}s`
+          });
         }
-        if (!id) return error(400, "MISSING_ID", "Missing ID");
+        if (!id) return res.status(400).json({ code: "MISSING_ID", message: "Missing ID" });
         const deleted = await MediaItem.findOneAndDelete({
           _id: id,
           user_id: userId,
         });
-        if (!deleted) return error(404, "NOT_FOUND", "Not found");
-        return { statusCode: 200, body: JSON.stringify({ success: true }) };
+        if (!deleted) return res.status(404).json({ code: "NOT_FOUND", message: "Not found" });
+        return res.status(200).json({ success: true });
       }
       default:
-        return error(405, "METHOD_NOT_ALLOWED", "Method Not Allowed");
+        return res.status(405).json({ code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" });
     }
   } catch (err) {
     logInternalError("media_handler_error", err, {
       route: "media",
-      method: event.httpMethod || "unknown",
+      method: req.method || "unknown",
     });
-    return error(500, "MEDIA_INTERNAL_ERROR", "Internal Server Error");
+    return res.status(500).json({ code: "MEDIA_INTERNAL_ERROR", message: "Internal Server Error" });
   }
-};
+}
