@@ -24,7 +24,10 @@ const allowedStatuses = new Set([
   "Completed",
 ]);
 
-function validatePayload(payload: MediaPayload, partial = false) {
+function validatePayload(
+  payload: MediaPayload,
+  partial = false
+): { ok: true; normalized: MediaPayload } | { ok: false; message: string } {
   const normalized: MediaPayload = {};
 
   if (!partial || payload.title !== undefined) {
@@ -145,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ? { progress_pct: -1, last_updated: -1 }
                 : { last_updated: -1 };
 
-        const pipeline: Record<string, unknown>[] = [
+        const pipeline: mongoose.PipelineStage[] = [
           { $match: match },
           {
             $addFields: {
