@@ -76,7 +76,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         username: normalizedUsername,
         password_hash,
       });
-      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET!, {
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        logInternalError("auth_handler_error", new Error("JWT_SECRET is missing"), { route: "auth" });
+        return res.status(500).json({ code: "AUTH_INTERNAL_ERROR", message: "Server misconfiguration. Missing secret." });
+      }
+
+      const token = jwt.sign({ userId: user._id }, jwtSecret, {
         expiresIn: "30d",
       });
 
@@ -94,7 +100,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(401).json({ code: "INVALID_CREDENTIALS", message: "Invalid credentials" });
       }
 
-      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET!, {
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        logInternalError("auth_handler_error", new Error("JWT_SECRET is missing"), { route: "auth" });
+        return res.status(500).json({ code: "AUTH_INTERNAL_ERROR", message: "Server misconfiguration. Missing secret." });
+      }
+
+      const token = jwt.sign({ userId: user._id }, jwtSecret, {
         expiresIn: "30d",
       });
       
