@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { connectDB, User, MediaItem } from "./utils/db.js";
-import { handleOptions, setCors, jsonOk, jsonError } from "./utils/http.js";
-import { logInternalError } from "./utils/log.js";
+import { connectDB, User, MediaItem } from "./_utils/db.js";
+import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";
+import { logInternalError } from "./_utils/log.js";
 import mongoose from "mongoose";
 
 /**

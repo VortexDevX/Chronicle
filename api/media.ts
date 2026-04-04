@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { connectDB, MediaItem } from "./utils/db.js";
-import { verifyToken } from "./utils/auth.js";
+import { connectDB, MediaItem } from "./_utils/db.js";
+import { verifyToken } from "./_utils/auth.js";
 import mongoose from "mongoose";
-import { checkRateLimit, getClientIp } from "./utils/rateLimit.js";
-import { logInternalError, logSecurityEvent } from "./utils/log.js";
-import { handleOptions, setCors, jsonOk, jsonError } from "./utils/http.js";
+import { checkRateLimit, getClientIp } from "./_utils/rateLimit.js";
+import { logInternalError, logSecurityEvent } from "./_utils/log.js";
+import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";
 
 type MediaPayload = {
   title?: string;

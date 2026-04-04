@@ -1,6 +1,6 @@
 /** Metadata lookup — AniList + MAL/Jikan fallback. */
 
-import type { MediaLookup } from "../types/media.js";
+import type { MediaLookup } from "../../types/media.js";
 
 async function lookupAniList(
   title: string,

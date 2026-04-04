@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { connectDB, MediaItem, User } from "../utils/db.js";
+import { connectDB, MediaItem, User } from "../_utils/db.js";
 import {
   sendTelegram,
   sendTelegramToChat,
   escapeHtml,
-} from "../utils/notify.js";
-import { jsonOk, jsonError } from "../utils/http.js";
-import { logInternalError } from "../utils/log.js";
+} from "../_utils/notify.js";
+import { jsonOk, jsonError } from "../_utils/http.js";
+import { logInternalError } from "../_utils/log.js";
 
 /**
  * Vercel Cron — runs daily at 9AM UTC

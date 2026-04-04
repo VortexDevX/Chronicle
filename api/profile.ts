@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { connectDB, User } from "./utils/db.js";
-import { verifyToken } from "./utils/auth.js";
-import { handleOptions, setCors, jsonOk, jsonError } from "./utils/http.js";
-import { logInternalError } from "./utils/log.js";
+import { connectDB, User } from "./_utils/db.js";
+import { verifyToken } from "./_utils/auth.js";
+import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";
+import { logInternalError } from "./_utils/log.js";
 
 const MAX_DISPLAY_NAME = 50;
 const MAX_BIO = 300;
