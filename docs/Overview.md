@@ -110,7 +110,7 @@ Each media type is treated equally with shared core fields and format-specific p
 - Mongoose ODM
 - Environment-based connection handling
 
-### Authentication
+### Auth
 
 - JSON Web Tokens (JWT)
 - bcrypt for password hashing
@@ -119,7 +119,7 @@ Each media type is treated equally with shared core fields and format-specific p
 
 ## Architecture Overview
 
-```
+```txt
 
 Client (Vite Frontend)
 |

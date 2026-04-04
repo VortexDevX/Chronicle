@@ -3,6 +3,13 @@
   "buildCommand": "vite build",
   "devCommand": "vite",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/([^.]*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/checkChapters",
+      "schedule": "0 9 * * *"
+    }
   ]
 }

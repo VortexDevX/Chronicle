@@ -4,21 +4,20 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { checkRateLimit, getClientIp } from "./utils/rateLimit.js";
 import { logInternalError, logSecurityEvent } from "./utils/log.js";
+import { handleOptions, setCors, jsonOk, jsonError } from "./utils/http.js";
+import { getRequiredEnv } from "./utils/config.js";
+
+const MAX_USERNAME = 30;
+const MIN_USERNAME = 3;
+const MIN_PASSWORD = 6;
+const MAX_PASSWORD = 128;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,PATCH,DELETE,POST,PUT");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (handleOptions(req, res)) return;
+  setCors(req, res);
 
   if (req.method !== "POST") {
-    return res.status(405).json({ code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" });
+    return jsonError(res, "METHOD_NOT_ALLOWED", "Method Not Allowed", 405);
   }
 
   try {
@@ -29,9 +28,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const authLimit =
       action === "register"
-        ? checkRateLimit(`auth:register:${ip}`, 8, 15 * 60 * 1000)
-        : checkRateLimit(`auth:login:${ip}`, 18, 10 * 60 * 1000);
-    
+        ? await checkRateLimit(`auth:register:${ip}`, 8, 15 * 60 * 1000)
+        : await checkRateLimit(`auth:login:${ip}`, 18, 10 * 60 * 1000);
+
     if (!authLimit.allowed) {
       logSecurityEvent("rate_limit_block", {
         route: "auth",
@@ -39,36 +38,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ip,
         retry_after_sec: authLimit.retryAfterSec,
       });
-      return res.status(429).json({
-        code: "RATE_LIMITED",
-        message: `Too many attempts. Retry in ${authLimit.retryAfterSec}s`
-      });
+      return jsonError(
+        res,
+        "RATE_LIMITED",
+        `Too many attempts. Retry in ${authLimit.retryAfterSec}s`,
+        429,
+      );
     }
 
     await connectDB();
 
     if (!normalizedUsername || !normalizedPassword) {
-      return res.status(400).json({ code: "MISSING_CREDENTIALS", message: "Missing credentials" });
+      return jsonError(res, "MISSING_CREDENTIALS", "Missing credentials", 400);
     }
 
     if (action === "register") {
-      if (normalizedUsername.length < 3 || normalizedUsername.length > 30) {
-        return res.status(400).json({
-          code: "INVALID_USERNAME",
-          message: "Username must be between 3 and 30 characters"
-        });
+      if (
+        normalizedUsername.length < MIN_USERNAME ||
+        normalizedUsername.length > MAX_USERNAME
+      ) {
+        return jsonError(
+          res,
+          "INVALID_USERNAME",
+          `Username must be between ${MIN_USERNAME} and ${MAX_USERNAME} characters`,
+          400,
+        );
       }
 
-      if (normalizedPassword.length < 6) {
-        return res.status(400).json({
-          code: "WEAK_PASSWORD",
-          message: "Password must be at least 6 characters"
-        });
+      if (normalizedPassword.length < MIN_PASSWORD) {
+        return jsonError(
+          res,
+          "WEAK_PASSWORD",
+          `Password must be at least ${MIN_PASSWORD} characters`,
+          400,
+        );
+      }
+
+      if (normalizedPassword.length > MAX_PASSWORD) {
+        return jsonError(
+          res,
+          "WEAK_PASSWORD",
+          `Password must be at most ${MAX_PASSWORD} characters`,
+          400,
+        );
       }
 
       const existing = await User.findOne({ username: normalizedUsername });
       if (existing) {
-        return res.status(409).json({ code: "USERNAME_TAKEN", message: "Username taken" });
+        return jsonError(res, "USERNAME_TAKEN", "Username taken", 409);
       }
 
       const password_hash = await bcrypt.hash(normalizedPassword, 10);
@@ -76,46 +93,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         username: normalizedUsername,
         password_hash,
       });
-      const jwtSecret = process.env.JWT_SECRET;
-      if (!jwtSecret) {
-        logInternalError("auth_handler_error", new Error("JWT_SECRET is missing"), { route: "auth" });
-        return res.status(500).json({ code: "AUTH_INTERNAL_ERROR", message: "Server misconfiguration. Missing secret." });
+
+      let jwtSecret: string;
+      try {
+        jwtSecret = getRequiredEnv("JWT_SECRET");
+      } catch {
+        logInternalError("auth_handler_error", new Error("JWT_SECRET is missing"), {
+          route: "auth",
+        });
+        return jsonError(
+          res,
+          "AUTH_INTERNAL_ERROR",
+          "Server misconfiguration. Missing secret.",
+          500,
+        );
       }
 
       const token = jwt.sign({ userId: user._id }, jwtSecret, {
         expiresIn: "30d",
       });
 
-      return res.status(200).json({ token, username: normalizedUsername });
+      return jsonOk(res, { token, username: normalizedUsername });
     }
 
     if (action === "login") {
       const user = await User.findOne({ username: normalizedUsername });
       if (!user) {
-        return res.status(401).json({ code: "INVALID_CREDENTIALS", message: "Invalid credentials" });
+        return jsonError(res, "INVALID_CREDENTIALS", "Invalid credentials", 401);
       }
 
-      const isMatch = await bcrypt.compare(normalizedPassword, user.password_hash);
+      const isMatch = await bcrypt.compare(
+        normalizedPassword,
+        user.password_hash,
+      );
       if (!isMatch) {
-        return res.status(401).json({ code: "INVALID_CREDENTIALS", message: "Invalid credentials" });
+        return jsonError(res, "INVALID_CREDENTIALS", "Invalid credentials", 401);
       }
 
-      const jwtSecret = process.env.JWT_SECRET;
-      if (!jwtSecret) {
-        logInternalError("auth_handler_error", new Error("JWT_SECRET is missing"), { route: "auth" });
-        return res.status(500).json({ code: "AUTH_INTERNAL_ERROR", message: "Server misconfiguration. Missing secret." });
+      let jwtSecret: string;
+      try {
+        jwtSecret = getRequiredEnv("JWT_SECRET");
+      } catch {
+        logInternalError("auth_handler_error", new Error("JWT_SECRET is missing"), {
+          route: "auth",
+        });
+        return jsonError(
+          res,
+          "AUTH_INTERNAL_ERROR",
+          "Server misconfiguration. Missing secret.",
+          500,
+        );
       }
 
       const token = jwt.sign({ userId: user._id }, jwtSecret, {
         expiresIn: "30d",
       });
-      
-      return res.status(200).json({ token, username: normalizedUsername });
+
+      return jsonOk(res, { token, username: normalizedUsername });
     }
 
-    return res.status(400).json({ code: "INVALID_ACTION", message: "Invalid action" });
+    return jsonError(res, "INVALID_ACTION", "Invalid action", 400);
   } catch (err) {
     logInternalError("auth_handler_error", err, { route: "auth" });
-    return res.status(500).json({ code: "AUTH_INTERNAL_ERROR", message: "Internal Server Error" });
+    return jsonError(res, "AUTH_INTERNAL_ERROR", "Internal Server Error", 500);
   }
 }

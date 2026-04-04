@@ -4,6 +4,7 @@ import { verifyToken } from "./utils/auth.js";
 import mongoose from "mongoose";
 import { checkRateLimit, getClientIp } from "./utils/rateLimit.js";
 import { logInternalError, logSecurityEvent } from "./utils/log.js";
+import { handleOptions, setCors, jsonOk, jsonError } from "./utils/http.js";
 
 type MediaPayload = {
   title?: string;
@@ -13,7 +14,14 @@ type MediaPayload = {
   progress_total?: number;
   rating?: number;
   notes?: string;
+  source_id?: string | null;
+  source?: "mangadex" | "mal" | "anilist" | null;
+  external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
+  read_url?: string | null;
 };
+
+const MAX_TITLE_LENGTH = 200;
+const MAX_NOTES_LENGTH = 2000;
 
 const allowedTypes = new Set(["Anime", "Manhwa", "Donghua", "Light Novel"]);
 const allowedStatuses = new Set([
@@ -23,16 +31,39 @@ const allowedStatuses = new Set([
   "Dropped",
   "Completed",
 ]);
+const allowedSources = new Set(["mangadex", "mal", "anilist"]);
+const allowedExternalStatuses = new Set([
+  "ongoing",
+  "completed",
+  "hiatus",
+  "cancelled",
+]);
+
+/** Validate a URL using the URL constructor + protocol check. */
+function isValidHttpUrl(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 function validatePayload(
   payload: MediaPayload,
-  partial = false
+  partial = false,
 ): { ok: true; normalized: MediaPayload } | { ok: false; message: string } {
   const normalized: MediaPayload = {};
 
   if (!partial || payload.title !== undefined) {
     const title = String(payload.title || "").trim();
     if (!title) return { ok: false, message: "Title is required" };
+    if (title.length > MAX_TITLE_LENGTH) {
+      return {
+        ok: false,
+        message: `Title must be at most ${MAX_TITLE_LENGTH} characters`,
+      };
+    }
     normalized.title = title;
   }
 
@@ -70,7 +101,8 @@ function validatePayload(
 
   const currentForCheck =
     normalized.progress_current ?? payload.progress_current ?? 0;
-  const totalForCheck = normalized.progress_total ?? payload.progress_total ?? 0;
+  const totalForCheck =
+    normalized.progress_total ?? payload.progress_total ?? 0;
   if (
     Number(totalForCheck) > 0 &&
     Number(currentForCheck) > Number(totalForCheck)
@@ -90,7 +122,54 @@ function validatePayload(
   }
 
   if (payload.notes !== undefined) {
-    normalized.notes = String(payload.notes || "").trim();
+    const notes = String(payload.notes || "").trim();
+    if (notes.length > MAX_NOTES_LENGTH) {
+      return {
+        ok: false,
+        message: `Notes must be at most ${MAX_NOTES_LENGTH} characters`,
+      };
+    }
+    normalized.notes = notes;
+  }
+
+  // ── External source fields ──────────────────────────────────
+
+  if (payload.source_id !== undefined) {
+    normalized.source_id = payload.source_id
+      ? String(payload.source_id).trim().slice(0, 100)
+      : null;
+  }
+
+  if (payload.source !== undefined) {
+    if (payload.source !== null && !allowedSources.has(payload.source)) {
+      return { ok: false, message: "Invalid source" };
+    }
+    normalized.source = payload.source ?? null;
+  }
+
+  if (payload.external_status !== undefined) {
+    if (
+      payload.external_status !== null &&
+      !allowedExternalStatuses.has(payload.external_status)
+    ) {
+      return { ok: false, message: "Invalid external_status" };
+    }
+    normalized.external_status = payload.external_status ?? null;
+  }
+
+  if (payload.read_url !== undefined) {
+    if (payload.read_url === null || payload.read_url === "") {
+      normalized.read_url = null;
+    } else {
+      const url = String(payload.read_url).trim();
+      if (url && !isValidHttpUrl(url)) {
+        return {
+          ok: false,
+          message: "read_url must be a valid http/https URL",
+        };
+      }
+      normalized.read_url = url.slice(0, 500);
+    }
   }
 
   return { ok: true, normalized };
@@ -100,25 +179,29 @@ function escapeRegex(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Validate a string is a valid MongoDB ObjectId. */
+function isValidObjectId(id: string): boolean {
+  return mongoose.Types.ObjectId.isValid(id);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,PATCH,DELETE,POST,PUT");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
-  );
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (handleOptions(req, res)) return;
+  setCors(req, res);
 
   try {
     await connectDB();
     const userId = verifyToken(req.headers.authorization);
-    if (!userId) return res.status(401).json({ code: "UNAUTHORIZED", message: "Unauthorized" });
+    if (!userId) {
+      return jsonError(res, "UNAUTHORIZED", "Unauthorized", 401);
+    }
     const ip = getClientIp(req);
 
     const id = req.query.id as string | undefined;
+
+    // Validate id if provided
+    if (id && !isValidObjectId(id)) {
+      return jsonError(res, "INVALID_ID", "Invalid ID format", 400);
+    }
 
     switch (req.method) {
       case "GET": {
@@ -126,7 +209,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const mediaType = String(req.query.media_type || "").trim();
         const status = String(req.query.status || "").trim();
         const sortBy = String(req.query.sort_by || "last_updated");
-        const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+        const page = Math.max(
+          1,
+          parseInt(String(req.query.page || "1"), 10) || 1,
+        );
         const limit = Math.min(
           100,
           Math.max(1, parseInt(String(req.query.limit || "24"), 10) || 24),
@@ -135,8 +221,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const userObjectId = new mongoose.Types.ObjectId(userId);
         const match: Record<string, unknown> = { user_id: userObjectId };
-        if (search) match.title = { $regex: search, $options: "i" };
-        if (mediaType && allowedTypes.has(mediaType)) match.media_type = mediaType;
+        if (search) match.title = { $regex: escapeRegex(search), $options: "i" };
+        if (mediaType && allowedTypes.has(mediaType))
+          match.media_type = mediaType;
         if (status && allowedStatuses.has(status)) match.status = status;
 
         const sortStage: Record<string, 1 | -1> =
@@ -172,7 +259,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           MediaItem.countDocuments(match),
         ]);
 
-        return res.status(200).json({
+        return jsonOk(res, {
           items,
           total,
           page,
@@ -183,10 +270,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "POST": {
         const isBulkDelete = String(req.query.bulk_delete || "") === "1";
         if (isBulkDelete) {
-          const bulkDeleteLimit = checkRateLimit(
+          const bulkDeleteLimit = await checkRateLimit(
             `media:bulk_delete:${userId}:${ip}`,
             40,
-            15 * 60 * 1000
+            15 * 60 * 1000,
           );
           if (!bulkDeleteLimit.allowed) {
             logSecurityEvent("rate_limit_block", {
@@ -197,45 +284,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               user_id: userId,
               retry_after_sec: bulkDeleteLimit.retryAfterSec,
             });
-            return res.status(429).json({
-              code: "RATE_LIMITED",
-              message: `Too many bulk delete requests. Retry in ${bulkDeleteLimit.retryAfterSec}s`
-            });
+            return jsonError(
+              res,
+              "RATE_LIMITED",
+              `Too many bulk delete requests. Retry in ${bulkDeleteLimit.retryAfterSec}s`,
+              429,
+            );
           }
 
           const parsed = req.body || {};
           const ids = Array.isArray(parsed.ids) ? parsed.ids : [];
           if (ids.length === 0) {
-            return res.status(400).json({ code: "INVALID_BULK_PAYLOAD", message: "ids must be a non-empty array" });
+            return jsonError(
+              res,
+              "INVALID_BULK_PAYLOAD",
+              "ids must be a non-empty array",
+              400,
+            );
           }
           if (ids.length > 500) {
-            return res.status(400).json({
-              code: "BULK_LIMIT_EXCEEDED",
-              message: "Bulk delete payload too large (max 500 ids per request)"
-            });
+            return jsonError(
+              res,
+              "BULK_LIMIT_EXCEEDED",
+              "Bulk delete payload too large (max 500 ids per request)",
+              400,
+            );
           }
 
           const objectIds = ids
-            .filter((x: string) => mongoose.Types.ObjectId.isValid(x))
+            .filter((x: string) => isValidObjectId(x))
             .map((x: string) => new mongoose.Types.ObjectId(x));
           if (objectIds.length === 0) {
-            return res.status(400).json({ code: "INVALID_BULK_PAYLOAD", message: "No valid ids provided" });
+            return jsonError(
+              res,
+              "INVALID_BULK_PAYLOAD",
+              "No valid ids provided",
+              400,
+            );
           }
 
           const result = await MediaItem.deleteMany({
             _id: { $in: objectIds },
             user_id: userId,
           });
-          return res.status(200).json({
+          return jsonOk(res, {
             deleted: Number(result.deletedCount || 0),
             requested: ids.length,
           });
         }
 
-        const postLimit = checkRateLimit(
+        const postLimit = await checkRateLimit(
           `media:post:${userId}:${ip}`,
           600,
-          15 * 60 * 1000
+          15 * 60 * 1000,
         );
         if (!postLimit.allowed) {
           logSecurityEvent("rate_limit_block", {
@@ -245,27 +346,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             user_id: userId,
             retry_after_sec: postLimit.retryAfterSec,
           });
-          return res.status(429).json({
-            code: "RATE_LIMITED",
-            message: `Too many write requests. Retry in ${postLimit.retryAfterSec}s`
-          });
+          return jsonError(
+            res,
+            "RATE_LIMITED",
+            `Too many write requests. Retry in ${postLimit.retryAfterSec}s`,
+            429,
+          );
         }
-        
+
         const isBulk = String(req.query.bulk || "") === "1";
         const parsed = req.body || {};
 
         if (isBulk) {
           if (!Array.isArray(parsed)) {
-            return res.status(400).json({ code: "INVALID_BULK_PAYLOAD", message: "Bulk payload must be an array" });
+            return jsonError(
+              res,
+              "INVALID_BULK_PAYLOAD",
+              "Bulk payload must be an array",
+              400,
+            );
           }
           if (parsed.length === 0) {
-            return res.status(200).json({ inserted: 0, skipped: 0 });
+            return jsonOk(res, { inserted: 0, skipped: 0 });
           }
           if (parsed.length > 200) {
-            return res.status(400).json({
-              code: "BULK_LIMIT_EXCEEDED",
-              message: "Bulk payload too large (max 200 items per request)"
-            });
+            return jsonError(
+              res,
+              "BULK_LIMIT_EXCEEDED",
+              "Bulk payload too large (max 200 items per request)",
+              400,
+            );
           }
 
           const docs: Record<string, unknown>[] = [];
@@ -284,29 +394,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           if (docs.length === 0) {
-            return res.status(200).json({ inserted: 0, skipped });
+            return jsonOk(res, { inserted: 0, skipped });
           }
 
-          const insertedDocs = await MediaItem.insertMany(docs, { ordered: false });
-          return res.status(201).json({
-            inserted: insertedDocs.length,
-            skipped,
+          const insertedDocs = await MediaItem.insertMany(docs, {
+            ordered: false,
           });
+          return jsonOk(res, { inserted: insertedDocs.length, skipped }, 201);
         }
 
         const raw = parsed as MediaPayload;
         const validated = validatePayload(raw, false);
         if (!validated.ok) {
-          return res.status(400).json({ code: "INVALID_MEDIA_PAYLOAD", message: validated.message });
+          return jsonError(
+            res,
+            "INVALID_MEDIA_PAYLOAD",
+            validated.message,
+            400,
+          );
         }
 
         const duplicateMode = String(req.query.duplicate_mode || "reject");
-        const normalizedTitle = String(validated.normalized.title || "").trim();
+        const normalizedTitle = String(validated.normalized.title || "")
+          .trim()
+          .replace(/\s+/g, " ");
         const normalizedType = String(validated.normalized.media_type || "");
         const duplicate = await MediaItem.findOne({
           user_id: userId,
           media_type: normalizedType,
-          title: { $regex: `^${escapeRegex(normalizedTitle)}$`, $options: "i" },
+          title: {
+            $regex: `^${escapeRegex(normalizedTitle)}$`,
+            $options: "i",
+          },
         });
 
         if (duplicate && duplicateMode !== "keep_both") {
@@ -314,16 +433,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const merged = await MediaItem.findOneAndUpdate(
               { _id: duplicate._id, user_id: userId },
               { ...validated.normalized, last_updated: new Date() },
-              { new: true }
+              { new: true },
             );
-            if (!merged) return res.status(404).json({ code: "NOT_FOUND", message: "Not found" });
-            return res.status(200).json({ merged: true, item: merged });
+            if (!merged) {
+              return jsonError(res, "NOT_FOUND", "Not found", 404);
+            }
+            return jsonOk(res, { merged: true, item: merged });
           }
-          return res.status(409).json({
-            code: "DUPLICATE_TITLE",
-            message: "A similar title already exists for this type. Merge or keep both?",
-            existing_id: String(duplicate._id),
-          });
+          return jsonError(
+            res,
+            "DUPLICATE_TITLE",
+            "A similar title already exists for this type. Merge or keep both?",
+            409,
+          );
         }
 
         const newItem = await MediaItem.create({
@@ -331,13 +453,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           user_id: userId,
           last_updated: new Date(),
         });
-        return res.status(201).json(newItem);
+        return jsonOk(res, newItem, 201);
       }
       case "PUT": {
-        const putLimit = checkRateLimit(
+        const putLimit = await checkRateLimit(
           `media:put:${userId}:${ip}`,
           180,
-          15 * 60 * 1000
+          15 * 60 * 1000,
         );
         if (!putLimit.allowed) {
           logSecurityEvent("rate_limit_block", {
@@ -347,16 +469,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             user_id: userId,
             retry_after_sec: putLimit.retryAfterSec,
           });
-          return res.status(429).json({
-            code: "RATE_LIMITED",
-            message: `Too many write requests. Retry in ${putLimit.retryAfterSec}s`
-          });
+          return jsonError(
+            res,
+            "RATE_LIMITED",
+            `Too many write requests. Retry in ${putLimit.retryAfterSec}s`,
+            429,
+          );
         }
-        if (!id) return res.status(400).json({ code: "MISSING_ID", message: "Missing ID" });
+        if (!id) {
+          return jsonError(res, "MISSING_ID", "Missing ID", 400);
+        }
         const raw = (req.body || {}) as MediaPayload;
         const validated = validatePayload(raw, true);
         if (!validated.ok) {
-          return res.status(400).json({ code: "INVALID_MEDIA_PAYLOAD", message: validated.message });
+          return jsonError(
+            res,
+            "INVALID_MEDIA_PAYLOAD",
+            validated.message,
+            400,
+          );
         }
 
         const updated = await MediaItem.findOneAndUpdate(
@@ -364,14 +495,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           validated.normalized,
           { new: true },
         );
-        if (!updated) return res.status(404).json({ code: "NOT_FOUND", message: "Not found" });
-        return res.status(200).json(updated);
+        if (!updated) {
+          return jsonError(res, "NOT_FOUND", "Not found", 404);
+        }
+        return jsonOk(res, updated);
       }
       case "DELETE": {
-        const delLimit = checkRateLimit(
+        const delLimit = await checkRateLimit(
           `media:delete:${userId}:${ip}`,
           80,
-          15 * 60 * 1000
+          15 * 60 * 1000,
         );
         if (!delLimit.allowed) {
           logSecurityEvent("rate_limit_block", {
@@ -381,27 +514,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             user_id: userId,
             retry_after_sec: delLimit.retryAfterSec,
           });
-          return res.status(429).json({
-            code: "RATE_LIMITED",
-            message: `Too many write requests. Retry in ${delLimit.retryAfterSec}s`
-          });
+          return jsonError(
+            res,
+            "RATE_LIMITED",
+            `Too many write requests. Retry in ${delLimit.retryAfterSec}s`,
+            429,
+          );
         }
-        if (!id) return res.status(400).json({ code: "MISSING_ID", message: "Missing ID" });
+        if (!id) {
+          return jsonError(res, "MISSING_ID", "Missing ID", 400);
+        }
         const deleted = await MediaItem.findOneAndDelete({
           _id: id,
           user_id: userId,
         });
-        if (!deleted) return res.status(404).json({ code: "NOT_FOUND", message: "Not found" });
-        return res.status(200).json({ success: true });
+        if (!deleted) {
+          return jsonError(res, "NOT_FOUND", "Not found", 404);
+        }
+        return jsonOk(res, { success: true });
       }
       default:
-        return res.status(405).json({ code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" });
+        return jsonError(res, "METHOD_NOT_ALLOWED", "Method Not Allowed", 405);
     }
   } catch (err) {
     logInternalError("media_handler_error", err, {
       route: "media",
       method: req.method || "unknown",
     });
-    return res.status(500).json({ code: "MEDIA_INTERNAL_ERROR", message: "Internal Server Error" });
+    return jsonError(res, "MEDIA_INTERNAL_ERROR", "Internal Server Error", 500);
   }
 }
