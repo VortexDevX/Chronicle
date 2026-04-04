@@ -3,6 +3,8 @@
  * Thin bootstrap: imports modules and initializes the app.
  */
 
+import "./style.css";
+
 import { state, loadCoverCache } from "./state/store.js";
 import { renderApp } from "./ui/renderApp.js";
 import { fetchMedia } from "./api/media.js";

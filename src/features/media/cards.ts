@@ -79,11 +79,13 @@ export function renderMediaCards(): void {
       const isAnime = m.media_type === "Anime" || m.media_type === "Donghua";
       const cachedCover = getCachedCover(m.title);
       let thumbHtml = "";
-      if (isAnime) {
-        if (cachedCover) {
-          thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url(${cachedCover})"></div>`;
-        } else {
-          thumbHtml = `<div class="card-thumb" data-cover-id="${m._id}"></div>`;
+      
+      if (cachedCover && isAnime) {
+        thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url(${cachedCover})"></div>`;
+      } else {
+        // Render fallback empty thumb for non-anime or missing covers
+        thumbHtml = `<div class="card-thumb" data-cover-id="${m._id}"></div>`;
+        if (isAnime) {
           queueCoverFetch(m.title, m._id);
         }
       }

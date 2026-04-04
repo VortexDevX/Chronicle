@@ -118,23 +118,48 @@ function renderAuthScreen(app: HTMLElement): void {
 
 function renderDashboard(app: HTMLElement): void {
   app.innerHTML = `
-    <div class="container">
-      <header>
-        <h2>Chronicle</h2>
-        <div class="header-right">
-          <button id="btn-import" class="btn-ghost" title="Import JSON/CSV/Excel">↑ Import</button>
-          <div class="export-menu-wrap">
-            <button id="btn-export" class="btn-ghost" title="Export data">↓ Export</button>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="sidebar-brand-icon">CH</div>
+          <h1>Chronicle</h1>
+        </div>
+        <div class="sidebar-nav">
+          <button id="btn-import" class="sidebar-link">
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+             Import
+          </button>
+          <div class="export-menu-wrap" style="width: 100%;">
+            <button id="btn-export" class="sidebar-link">
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+               Export
+            </button>
             <div class="export-menu" id="export-menu">
               <button id="btn-export-json" class="btn-ghost">Export JSON</button>
               <button id="btn-export-csv" class="btn-ghost">Export CSV</button>
               <button id="btn-export-by-type" class="btn-ghost">Export by Type</button>
             </div>
           </div>
-          <span class="header-user">${escapeHtml(state.username)}</span>
-          <button id="btn-logout" class="btn-ghost">Logout</button>
         </div>
-      </header>
+        <div class="sidebar-spacer"></div>
+        <div class="sidebar-footer">
+          <div class="sidebar-user">
+            <div class="sidebar-user-avatar">${escapeHtml(state.username).substring(0, 2)}</div>
+            <div class="sidebar-user-info">
+              <div class="sidebar-user-name">${escapeHtml(state.username)}</div>
+              <div class="sidebar-user-role">Member</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div class="topbar-title">Library</div>
+          <div class="topbar-actions">
+            <button id="btn-logout" class="btn-ghost">Logout</button>
+          </div>
+        </header>
+        <div class="page-content">
       <div id="stats-host">${renderStats()}</div>
       <div class="controls">
         <div class="search-wrapper">
@@ -188,7 +213,9 @@ function renderDashboard(app: HTMLElement): void {
         <button id="btn-load-more" class="btn-ghost">Load more</button>
       </div>
       <button id="btn-add-fab" class="btn-fab" aria-label="Add Entry">＋</button>
-    </div>
+      </div>
+    </main>
+  </div>
   `;
 
   // ── Wire up event handlers ───────────────────────────────────
