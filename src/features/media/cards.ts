@@ -80,19 +80,14 @@ export function renderMediaCards(): void {
       let thumbHtml = "";
       
       if (m.custom_cover_url) {
-        thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url(${m.custom_cover_url})"></div>`;
+        thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url('${m.custom_cover_url}')"></div>`;
       } else if (m.media_type === "Manhwa" && m.mangadex_id) {
-        const mdCover = getCachedCover(`md-${m.mangadex_id}`);
-        if (mdCover) {
-          thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url(${mdCover})"></div>`;
-        } else {
-          thumbHtml = `<div class="card-thumb" data-cover-id="${m._id}"></div>`;
-          queueCoverFetch(m.title, m._id, m.mangadex_id);
-        }
+        const proxiedCover = `/api/cover?mangadex_id=${encodeURIComponent(m.mangadex_id)}`;
+        thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url('${proxiedCover}')"></div>`;
       } else {
         const cachedCover = getCachedCover(m.title);
         if (cachedCover && isAnime) {
-          thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url(${cachedCover})"></div>`;
+          thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url('${cachedCover}')"></div>`;
         } else {
           thumbHtml = `<div class="card-thumb" data-cover-id="${m._id}"></div>`;
           if (isAnime) {
