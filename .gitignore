@@ -7,3 +7,5 @@
 .env
 .vercel
 .env*.local
+
+.agents/

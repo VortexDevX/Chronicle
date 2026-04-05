@@ -7,6 +7,7 @@ import {
 } from "../_utils/notify.js";
 import { jsonOk, jsonError } from "../_utils/http.js";
 import { logInternalError } from "../_utils/log.js";
+import * as cheerio from "cheerio";
 
 /**
  * Vercel Cron — runs daily at 9AM UTC
@@ -14,9 +15,9 @@ import { logInternalError } from "../_utils/log.js";
  *
  * For each Manhwa entry that:
  *   - has status "Watching/Reading"
- *   - has a source_id (MangaDex UUID)
+ *   - has a tracker_url set
  *
- * Checks MangaDex for the latest English chapter.
+ * Scrapes the tracker URL for the latest chapter number.
  * If latest chapter number > progress_current, queues a notification.
  *
  * Notifications are grouped per-user:
@@ -30,27 +31,63 @@ import { logInternalError } from "../_utils/log.js";
 const MAX_USERS = 50;
 const MAX_ENTRIES_PER_RUN = 200;
 
-// MangaDex chapter fetch — returns latest English chapter number or null
-async function fetchLatestChapter(mangaId: string): Promise<number | null> {
-  try {
-    const url = new URL("https://api.mangadex.org/chapter");
-    url.searchParams.set("manga", mangaId);
-    url.searchParams.set("translatedLanguage[]", "en");
-    url.searchParams.set("order[publishAt]", "desc");
-    url.searchParams.set("limit", "1");
-    url.searchParams.set("contentRating[]", "safe");
-    url.searchParams.append("contentRating[]", "suggestive");
-    url.searchParams.append("contentRating[]", "erotica");
+// Scrape a tracker URL to find the latest chapter number
+const BROWSER_HEADERS: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.5",
+  Referer: "https://www.google.com/",
+};
 
-    const res = await fetch(url.toString());
+async function scrapeTrackerUrl(
+  trackerUrl: string,
+): Promise<number | null> {
+  try {
+    const res = await fetch(trackerUrl, {
+      headers: BROWSER_HEADERS,
+      redirect: "follow",
+    });
     if (!res.ok) return null;
 
-    const json = await res.json();
-    const chapter = json.data?.[0]?.attributes?.chapter;
-    if (!chapter) return null;
+    const html = await res.text();
+    const $ = cheerio.load(html);
 
-    const parsed = parseFloat(chapter);
-    return Number.isFinite(parsed) ? parsed : null;
+    const chapterNumbers: number[] = [];
+
+    // Strategy 1 (most reliable): Extract chapter numbers from link URLs
+    // e.g. /chapter/83, /chapter-83, /ch-83
+    $("a[href]").each((_i, el) => {
+      const href = $(el).attr("href") || "";
+      const urlMatch = href.match(/\/chapter[/-](\d+(?:\.\d+)?)/i);
+      if (urlMatch) {
+        const num = parseFloat(urlMatch[1]);
+        if (Number.isFinite(num) && num > 0 && num < 100000) {
+          chapterNumbers.push(num);
+        }
+      }
+    });
+
+    if (chapterNumbers.length > 0) {
+      return Math.max(...chapterNumbers);
+    }
+
+    // Strategy 2 (fallback): Scan individual element text (avoids date smearing)
+    $("a, li, span, div").each((_i, el) => {
+      const text = $(el).clone().children().remove().end().text().trim();
+      if (text.length > 80) return; // skip large blocks
+      const m = text.match(/(?:chapter|ch\.?|ep\.?)\s*[:#.]?\s*(\d+(?:\.\d+)?)/i);
+      if (m) {
+        const num = parseFloat(m[1]);
+        if (Number.isFinite(num) && num > 0 && num < 100000) {
+          chapterNumbers.push(num);
+        }
+      }
+    });
+
+    if (chapterNumbers.length === 0) return null;
+    return Math.max(...chapterNumbers);
   } catch {
     return null;
   }
@@ -78,13 +115,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     await connectDB();
 
-    // Fetch all Manhwa entries that are actively being read and have a MangaDex source_id
+    // Fetch all Manhwa entries that are actively being read and have a tracker URL
     const entries = await MediaItem.find({
       media_type: "Manhwa",
       status: "Watching/Reading",
-      source_id: { $exists: true, $ne: null },
+      tracker_url: { $exists: true, $nin: [null, ""] },
     })
-      .select("title progress_current source_id user_id")
+      .select("title progress_current tracker_url user_id")
       .limit(MAX_ENTRIES_PER_RUN)
       .lean();
 
@@ -130,7 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updates: ChapterUpdate[] = [];
 
       for (const entry of userEntries) {
-        const latest = await fetchLatestChapter(entry.source_id as string);
+        const latest = await scrapeTrackerUrl((entry as any).tracker_url as string);
         totalChecked++;
 
         if (latest !== null && latest > (entry.progress_current as number)) {
@@ -141,7 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
 
-        // Respect MangaDex rate limit
+        // Rate limit between requests
         await sleep(300);
       }
 

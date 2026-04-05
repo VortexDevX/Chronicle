@@ -66,19 +66,14 @@ const mediaSchema = new mongoose.Schema(
     notes: { type: String },
     last_updated: { type: Date, default: Date.now },
 
-    // ── External source fields ──────────────────────────────────
-    source_id: { type: String, default: null },
-    source: {
-      type: String,
-      enum: ["mangadex", "mal", "anilist", null],
-      default: null,
-    },
+    // ── External tracking fields ─────────────────────────────────
     external_status: {
       type: String,
       enum: ["ongoing", "completed", "hiatus", "cancelled", null],
       default: null,
     },
     read_url: { type: String, default: null },
+    tracker_url: { type: String, default: null },
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },
 );
@@ -86,7 +81,6 @@ const mediaSchema = new mongoose.Schema(
 // --- Indexes ---
 mediaSchema.index({ user_id: 1, last_updated: -1 });
 mediaSchema.index({ user_id: 1, media_type: 1 });
-mediaSchema.index({ user_id: 1, media_type: 1, source_id: 1 });
 
 // Auto-update last_updated field
 mediaSchema.pre("findOneAndUpdate", function (next) {

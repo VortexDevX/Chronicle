@@ -14,10 +14,9 @@ type MediaPayload = {
   progress_total?: number;
   rating?: number;
   notes?: string;
-  source_id?: string | null;
-  source?: "mangadex" | "mal" | "anilist" | null;
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   read_url?: string | null;
+  tracker_url?: string | null;
 };
 
 const MAX_TITLE_LENGTH = 200;
@@ -31,7 +30,6 @@ const allowedStatuses = new Set([
   "Dropped",
   "Completed",
 ]);
-const allowedSources = new Set(["mangadex", "mal", "anilist"]);
 const allowedExternalStatuses = new Set([
   "ongoing",
   "completed",
@@ -132,20 +130,7 @@ function validatePayload(
     normalized.notes = notes;
   }
 
-  // ── External source fields ──────────────────────────────────
-
-  if (payload.source_id !== undefined) {
-    normalized.source_id = payload.source_id
-      ? String(payload.source_id).trim().slice(0, 100)
-      : null;
-  }
-
-  if (payload.source !== undefined) {
-    if (payload.source !== null && !allowedSources.has(payload.source)) {
-      return { ok: false, message: "Invalid source" };
-    }
-    normalized.source = payload.source ?? null;
-  }
+  // ── External tracking fields ─────────────────────────────────
 
   if (payload.external_status !== undefined) {
     if (
@@ -169,6 +154,21 @@ function validatePayload(
         };
       }
       normalized.read_url = url.slice(0, 500);
+    }
+  }
+
+  if (payload.tracker_url !== undefined) {
+    if (payload.tracker_url === null || payload.tracker_url === "") {
+      normalized.tracker_url = null;
+    } else {
+      const url = String(payload.tracker_url).trim();
+      if (url && !isValidHttpUrl(url)) {
+        return {
+          ok: false,
+          message: "tracker_url must be a valid http/https URL",
+        };
+      }
+      normalized.tracker_url = url.slice(0, 500);
     }
   }
 

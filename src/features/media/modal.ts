@@ -41,6 +41,12 @@ export function openModal(item?: MediaItem): void {
   if (readUrlInput) {
     readUrlInput.value = (item as any)?.read_url || "";
   }
+  const trackerUrlInput = document.getElementById(
+    "media-tracker-url",
+  ) as HTMLInputElement | null;
+  if (trackerUrlInput) {
+    trackerUrlInput.value = item?.tracker_url || "";
+  }
 
   // Reset save button state
   const saveBtn = modal.querySelector(".btn-primary") as HTMLButtonElement;
@@ -93,6 +99,7 @@ export function openModal(item?: MediaItem): void {
     if (result.total && Number(totalInput.value || "0") <= 0) {
       totalInput.value = String(result.total);
     }
+
     showToast(`Filled from ${result.source}`, "success");
     updateLookupState();
     newLookupBtn.textContent = originalText;
@@ -155,6 +162,15 @@ export function setupMediaFormHandler(): void {
       if (readUrlInput) {
         const readUrl = readUrlInput.value.trim();
         if (readUrl) data.read_url = readUrl;
+      }
+
+      // Include tracker_url if the field exists
+      const trackerUrlInput = document.getElementById(
+        "media-tracker-url",
+      ) as HTMLInputElement | null;
+      if (trackerUrlInput) {
+        const trackerUrl = trackerUrlInput.value.trim();
+        if (trackerUrl) data.tracker_url = trackerUrl;
       }
 
       if (
