@@ -122,8 +122,8 @@ export async function processCoverQueue(): Promise<void> {
       setCachedCover(cacheKey, null);
     }
 
-    // Rate limit
-    await new Promise((r) => setTimeout(r, 1100));
+    // Rate limit: 1100ms for Jikan (strict 3 req/sec), 250ms for MangaDex (5 req/sec cap limit)
+    await new Promise((r) => setTimeout(r, mangadexId ? 250 : 1100));
   }
 
   coverProcessing = false;

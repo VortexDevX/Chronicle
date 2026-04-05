@@ -28,8 +28,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const authLimit =
       action === "register"
-        ? await checkRateLimit(`auth:register:${ip}`, 8, 15 * 60 * 1000)
-        : await checkRateLimit(`auth:login:${ip}`, 18, 10 * 60 * 1000);
+        ? await checkRateLimit(`auth:register:${ip}`, 40, 15 * 60 * 1000)
+        : await checkRateLimit(`auth:login:${ip}`, 100, 10 * 60 * 1000);
 
     if (!authLimit.allowed) {
       logSecurityEvent("rate_limit_block", {

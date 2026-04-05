@@ -11,6 +11,7 @@ export async function fetchMedia(
     state.page = 1;
     if (!background) {
       state.media = [];
+      state.total = 0;
       state.loading = true;
     }
     state.hasMore = false;

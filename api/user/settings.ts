@@ -4,7 +4,7 @@ import {
   jsonError,
   handleOptions,
   setCors,
-} from "../_utils/response.js";
+} from "../_utils/http.js";
 import { connectDB } from "../_utils/db.js";
 import { verifyToken } from "../_utils/auth.js";
 import { User } from "../_utils/db.js";
@@ -27,8 +27,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return jsonOk(res, {
-        telegram_chat_id: user.telegram_chat_id || "",
-        notifications_enabled: user.notifications_enabled || false,
+        ok: true,
+        data: {
+          telegram_chat_id: (user as any).telegram_chat_id || "",
+          notifications_enabled: (user as any).notifications_enabled || false,
+        },
       });
     }
 
@@ -56,8 +59,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return jsonOk(res, {
-        telegram_chat_id: updated.telegram_chat_id || "",
-        notifications_enabled: updated.notifications_enabled || false,
+        ok: true,
+        data: {
+          telegram_chat_id: (updated as any).telegram_chat_id || "",
+          notifications_enabled: (updated as any).notifications_enabled || false,
+        },
       });
     }
 

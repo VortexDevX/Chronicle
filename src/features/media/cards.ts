@@ -151,9 +151,17 @@ export function renderMediaCards(): void {
     loadMoreBtn.onclick = async () => {
       if (state.loadingMore || !state.hasMore) return;
       state.page += 1;
-      await fetchMedia(false);
-      renderStatsHost();
-      renderMediaCards();
+      try {
+        const request = fetchMedia(false);
+        renderMediaCards();
+        await request;
+        renderStatsHost();
+        renderMediaCards();
+      } catch {
+        state.page = Math.max(1, state.page - 1);
+        renderMediaCards();
+        showToast("Failed to load more entries.", "error");
+      }
     };
   }
 }

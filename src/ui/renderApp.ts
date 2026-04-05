@@ -89,13 +89,19 @@ function renderAuthScreen(app: HTMLElement): void {
       localStorage.setItem("token", res.token);
       localStorage.setItem("username", res.username);
 
-      // Fetch media and render dashboard
+      renderApp();
+
       try {
-        await fetchMedia();
+        const request = fetchMedia();
+        renderStatsHost();
+        renderMediaCards();
+        await request;
       } catch {
         // handled
       }
-      renderApp();
+
+      renderStatsHost();
+      renderMediaCards();
     } catch (err: any) {
       const serverMsg = err?.message || "";
       errorEl.textContent =
@@ -278,10 +284,17 @@ function renderDashboard(app: HTMLElement): void {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(async () => {
       state.search = (e.target as HTMLInputElement).value;
-      await fetchMedia(true);
-      renderStatsHost();
-      renderMediaCards();
-    }, 150);
+      try {
+        const request = fetchMedia(true);
+        renderStatsHost();
+        renderMediaCards();
+        await request;
+        renderStatsHost();
+        renderMediaCards();
+      } catch {
+        showToast("Failed to load your entries. Please try again.", "error");
+      }
+    }, 300);
   });
 
   // Filter & sort
@@ -295,9 +308,16 @@ function renderDashboard(app: HTMLElement): void {
             ? "filterStatus"
             : "sortBy";
       (state as any)[key] = target.value;
-      await fetchMedia(true);
-      renderStatsHost();
-      renderMediaCards();
+      try {
+        const request = fetchMedia(true);
+        renderStatsHost();
+        renderMediaCards();
+        await request;
+        renderStatsHost();
+        renderMediaCards();
+      } catch {
+        showToast("Failed to load your entries. Please try again.", "error");
+      }
     });
   });
 

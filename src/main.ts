@@ -26,17 +26,23 @@ setupSettingsGlobalHandlers();
 
 async function init() {
   loadCoverCache();
+  renderApp();
+
   if (state.token) {
     try {
-      await fetchMedia();
+      const request = fetchMedia();
+      renderStatsHost();
+      renderMediaCards();
+      await request;
     } catch {
       // Handled by apiFetch -> logout() on 401
     }
-    renderApp();
+  }
+
+  renderApp();
+  if (state.token) {
     renderStatsHost();
     renderMediaCards();
-  } else {
-    renderApp();
   }
 }
 

@@ -9,6 +9,8 @@ import { showToast } from "../../ui/toast.js";
 import { state } from "../../state/store.js";
 import { apiFetch } from "../../api/client.js";
 import { fetchMedia } from "../../api/media.js";
+import { renderStatsHost } from "../media/stats.js";
+import { renderMediaCards } from "../media/cards.js";
 
 // ── Export ──────────────────────────────────────────────────────────
 
@@ -284,7 +286,11 @@ export function setupImportHandler(): void {
           imported > 0 ? "success" : "error",
         );
 
-        if (imported > 0) fetchMedia(true);
+        if (imported > 0) {
+          await fetchMedia(true, true);
+          renderStatsHost();
+          renderMediaCards();
+        }
       } catch (err: any) {
         showToast(err?.message || "Failed to import file.", "error");
       }

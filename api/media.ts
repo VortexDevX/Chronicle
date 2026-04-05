@@ -17,6 +17,8 @@ type MediaPayload = {
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   read_url?: string | null;
   tracker_url?: string | null;
+  mangadex_id?: string | null;
+  custom_cover_url?: string | null;
 };
 
 const MAX_TITLE_LENGTH = 200;
@@ -172,11 +174,47 @@ function validatePayload(
     }
   }
 
+  if (payload.mangadex_id !== undefined) {
+    if (payload.mangadex_id === null || payload.mangadex_id === "") {
+      normalized.mangadex_id = null;
+    } else {
+      const id = String(payload.mangadex_id).trim();
+      // Basic UUID-ish format check (MangaDex uses UUIDs)
+      if (id.length > 100) {
+        return { ok: false, message: "mangadex_id is too long" };
+      }
+      normalized.mangadex_id = id;
+    }
+  }
+
+  if (payload.custom_cover_url !== undefined) {
+    if (payload.custom_cover_url === null || payload.custom_cover_url === "") {
+      normalized.custom_cover_url = null;
+    } else {
+      const url = String(payload.custom_cover_url).trim();
+      if (url && !isValidHttpUrl(url)) {
+        return {
+          ok: false,
+          message: "custom_cover_url must be a valid http/https URL",
+        };
+      }
+      normalized.custom_cover_url = url.slice(0, 500);
+    }
+  }
+
   return { ok: true, normalized };
 }
 
 function escapeRegex(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeQueryValue(
+  value: string | string[] | undefined,
+  fallback = "",
+): string {
+  const raw = Array.isArray(value) ? value.join(" ") : String(value || fallback);
+  return raw.replace(/\+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 /** Validate a string is a valid MongoDB ObjectId. */
@@ -205,10 +243,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     switch (req.method) {
       case "GET": {
-        const search = String(req.query.search || "").trim();
-        const mediaType = String(req.query.media_type || "").trim();
-        const status = String(req.query.status || "").trim();
-        const sortBy = String(req.query.sort_by || "last_updated");
+        const search = normalizeQueryValue(req.query.search);
+        const mediaType = normalizeQueryValue(req.query.media_type);
+        const status = normalizeQueryValue(req.query.status);
+        const sortBy = normalizeQueryValue(req.query.sort_by, "last_updated");
         const page = Math.max(
           1,
           parseInt(String(req.query.page || "1"), 10) || 1,
@@ -272,7 +310,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (isBulkDelete) {
           const bulkDeleteLimit = await checkRateLimit(
             `media:bulk_delete:${userId}:${ip}`,
-            40,
+            300,
             15 * 60 * 1000,
           );
           if (!bulkDeleteLimit.allowed) {
@@ -335,7 +373,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const postLimit = await checkRateLimit(
           `media:post:${userId}:${ip}`,
-          600,
+          3000,
           15 * 60 * 1000,
         );
         if (!postLimit.allowed) {
@@ -458,7 +496,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "PUT": {
         const putLimit = await checkRateLimit(
           `media:put:${userId}:${ip}`,
-          180,
+          3000,
           15 * 60 * 1000,
         );
         if (!putLimit.allowed) {
@@ -503,7 +541,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "DELETE": {
         const delLimit = await checkRateLimit(
           `media:delete:${userId}:${ip}`,
-          80,
+          3000,
           15 * 60 * 1000,
         );
         if (!delLimit.allowed) {
