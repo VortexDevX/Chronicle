@@ -101,6 +101,7 @@ type ChapterUpdate = {
   title: string;
   latest: number;
   current: number;
+  tracker_url: string;
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -175,6 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             title: entry.title as string,
             latest,
             current: entry.progress_current as number,
+            tracker_url: (entry as any).tracker_url as string,
           });
         }
 
@@ -198,18 +200,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const username = user?.username || "Unknown";
 
       // Build message lines
-      const lines = updates.map(({ title, latest, current }) => {
+      const lines = updates.map(({ title, latest, current, tracker_url }) => {
         const unread = Math.floor(latest - current);
-        const unreadStr = unread > 0 ? ` (+${unread} unread)` : "";
-        return `📖 <b>${escapeHtml(title)}</b> — Ch. ${latest}${unreadStr}`;
+        const unreadStr = unread > 0 ? ` (+${unread})` : "";
+        return `➤ <a href="${escapeHtml(tracker_url)}">${escapeHtml(title)}</a>\nChapter ${latest}${unreadStr}`;
       });
 
       const message = [
-        `<b>📚 Chronicle — New Chapters for ${escapeHtml(username)}</b>`,
+        `━━━━ 🔔 <b>${escapeHtml(username)} Updates</b> ━━━━`,
         ``,
-        ...lines,
+        lines.join("\n\n"),
         ``,
-        `<i>${updates.length} update${updates.length !== 1 ? "s" : ""} found</i>`,
+        `━━ <i>✨ Total: ${updates.length} update${updates.length !== 1 ? "s" : ""}</i> ━━`,
       ].join("\n");
 
       // Per-user notification if enabled
@@ -231,14 +233,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (globalFallbackUpdates.length > 0) {
       const allLines: string[] = [];
       for (const { username, updates } of globalFallbackUpdates) {
-        allLines.push(`<b>— ${escapeHtml(username)} —</b>`);
-        for (const { title, latest, current } of updates) {
+        allLines.push(`👤 <b>${escapeHtml(username)}</b>\n`);
+        const userLines = updates.map(({ title, latest, current, tracker_url }) => {
           const unread = Math.floor(latest - current);
-          const unreadStr = unread > 0 ? ` (+${unread} unread)` : "";
-          allLines.push(
-            `📖 <b>${escapeHtml(title)}</b> — Ch. ${latest}${unreadStr}`,
-          );
-        }
+          const unreadStr = unread > 0 ? ` (+${unread})` : "";
+          return `➤ <a href="${escapeHtml(tracker_url)}">${escapeHtml(title)}</a>\nChapter ${latest}${unreadStr}`;
+        });
+        allLines.push(userLines.join("\n\n"));
         allLines.push("");
       }
 
@@ -248,10 +249,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
 
       const globalMessage = [
-        `<b>📚 Chronicle — New Chapters Available</b>`,
+        `━━━━ 🔔 <b>Chronicle Global Updates</b> ━━━━`,
         ``,
         ...allLines,
-        `<i>${totalUpdates} update${totalUpdates !== 1 ? "s" : ""} across ${globalFallbackUpdates.length} user${globalFallbackUpdates.length !== 1 ? "s" : ""}</i>`,
+        `━━ <i>✨ Total: ${totalUpdates} update${totalUpdates !== 1 ? "s" : ""}</i> ━━`,
       ].join("\n");
 
       const ok = await sendTelegram(globalMessage);
