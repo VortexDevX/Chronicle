@@ -10,6 +10,7 @@ import { logout } from "../api/auth.js";
 import { showToast } from "./toast.js";
 import { showConfirm } from "./modals.js";
 import { apiFetch } from "../api/client.js";
+import { attachSettingsButtonListener } from "../features/settings.js";
 import {
   exportJSON,
   exportCSV,
@@ -121,7 +122,7 @@ function renderDashboard(app: HTMLElement): void {
     <div class="shell">
       <aside class="sidebar">
         <div class="sidebar-brand">
-          <div class="sidebar-brand-icon">CH</div>
+          <img src="/favicon.svg" alt="logo" width="32" height="32" class="sidebar-brand-logo" />
           <h1>Chronicle</h1>
         </div>
         <div class="sidebar-nav">
@@ -156,6 +157,7 @@ function renderDashboard(app: HTMLElement): void {
         <header class="topbar">
           <div class="topbar-title">Library</div>
           <div class="topbar-actions">
+            <button id="btn-settings" class="btn-ghost" title="Settings">⚙️</button>
             <button id="btn-logout" class="btn-ghost">Logout</button>
           </div>
         </header>
@@ -219,6 +221,8 @@ function renderDashboard(app: HTMLElement): void {
   `;
 
   // ── Wire up event handlers ───────────────────────────────────
+
+  attachSettingsButtonListener();
 
   document.getElementById("btn-logout")?.addEventListener("click", () => {
     logout();

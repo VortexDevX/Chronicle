@@ -103,8 +103,11 @@ a {
   border-right: var(--border-width) solid var(--border);
   display: flex;
   flex-direction: column;
-  position: sticky;
+  position: fixed;
+  z-index: 100;
   top: 0;
+  left: 0;
+  bottom: 0;
   height: 100vh;
 }
 
@@ -215,6 +218,7 @@ a {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  margin-left: 280px;
 }
 
 .topbar {
@@ -682,6 +686,10 @@ dialog::backdrop {
     position: static;
     border-right: none;
     border-bottom: var(--border-width) solid var(--border);
+  }
+
+  .main {
+    margin-left: 0;
   }
 
   .sidebar-brand h1 { font-size: 1.5rem; }

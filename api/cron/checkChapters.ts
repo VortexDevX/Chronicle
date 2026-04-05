@@ -41,15 +41,16 @@ const BROWSER_HEADERS: Record<string, string> = {
   Referer: "https://www.google.com/",
 };
 
-async function scrapeTrackerUrl(
-  trackerUrl: string,
-): Promise<number | null> {
+async function scrapeTrackerUrl(trackerUrl: string): Promise<number | null> {
   try {
     const res = await fetch(trackerUrl, {
       headers: BROWSER_HEADERS,
       redirect: "follow",
     });
-    if (!res.ok) return null;
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
 
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -86,10 +87,12 @@ async function scrapeTrackerUrl(
       }
     });
 
-    if (chapterNumbers.length === 0) return null;
+    if (chapterNumbers.length === 0) {
+      throw new Error("No chapter numbers found in DOM");
+    }
     return Math.max(...chapterNumbers);
-  } catch {
-    return null;
+  } catch (error: any) {
+    throw new Error(`Scraper failed: ${error.message}`);
   }
 }
 
@@ -161,22 +164,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ── Check chapters for each entry ────────────────────────────
 
     const updatesByUser = new Map<string, ChapterUpdate[]>();
+    const errorsByUser = new Map<string, { title: string; message: string }[]>();
     let totalChecked = 0;
 
     for (const uid of userIds) {
       const userEntries = byUser.get(uid) || [];
       const updates: ChapterUpdate[] = [];
+      const errors: { title: string; message: string }[] = [];
 
       for (const entry of userEntries) {
-        const latest = await scrapeTrackerUrl((entry as any).tracker_url as string);
-        totalChecked++;
+        try {
+          const latest = await scrapeTrackerUrl((entry as any).tracker_url as string);
+          totalChecked++;
 
-        if (latest !== null && latest > (entry.progress_current as number)) {
-          updates.push({
+          if (latest !== null && latest > (entry.progress_current as number)) {
+            updates.push({
+              title: entry.title as string,
+              latest,
+              current: entry.progress_current as number,
+              tracker_url: (entry as any).tracker_url as string,
+            });
+          }
+        } catch (err: any) {
+          errors.push({
             title: entry.title as string,
-            latest,
-            current: entry.progress_current as number,
-            tracker_url: (entry as any).tracker_url as string,
+            message: err.message,
           });
         }
 
@@ -187,15 +199,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (updates.length > 0) {
         updatesByUser.set(uid, updates);
       }
+      if (errors.length > 0) {
+        errorsByUser.set(uid, errors);
+      }
     }
 
     // ── Send per-user notifications ──────────────────────────────
 
     let usersNotified = 0;
     let failures = 0;
-    const globalFallbackUpdates: { username: string; updates: ChapterUpdate[] }[] = [];
+    const globalFallbackUpdates: { username: string; updates: ChapterUpdate[]; errors: { title: string; message: string }[] }[] = [];
 
-    for (const [uid, updates] of updatesByUser) {
+    for (const uid of new Set([...updatesByUser.keys(), ...errorsByUser.keys()])) {
+      const updates = updatesByUser.get(uid) || [];
+      const errors = errorsByUser.get(uid) || [];
       const user = userMap.get(uid) as any;
       const username = user?.username || "Unknown";
 
@@ -206,13 +223,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return `➤ <a href="${escapeHtml(tracker_url)}">${escapeHtml(title)}</a>\nChapter ${latest}${unreadStr}`;
       });
 
-      const message = [
+      const messageParts = [
         `━━━━ 🔔 <b>${escapeHtml(username)} Updates</b> ━━━━`,
-        ``,
-        lines.join("\n\n"),
-        ``,
-        `━━ <i>✨ Total: ${updates.length} update${updates.length !== 1 ? "s" : ""}</i> ━━`,
-      ].join("\n");
+      ];
+
+      if (updates.length > 0) {
+        messageParts.push(``);
+        messageParts.push(lines.join("\n\n"));
+      }
+
+      if (errors.length > 0) {
+        messageParts.push(``);
+        messageParts.push(`⚠️ <b>Tracker Errors:</b>`);
+        errors.forEach(e => {
+          messageParts.push(`• <i>${escapeHtml(e.title)}</i>: ${e.message}`);
+        });
+      }
+
+      messageParts.push(``);
+      messageParts.push(`━━ <i>✨ Total: ${updates.length} update${updates.length !== 1 ? "s" : ""}</i> ━━`);
+
+      const message = messageParts.join("\n");
 
       // Per-user notification if enabled
       if (user?.notifications_enabled && user?.telegram_chat_id) {
@@ -224,7 +255,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       } else {
         // Queue for global fallback
-        globalFallbackUpdates.push({ username, updates });
+        globalFallbackUpdates.push({ username, updates, errors });
       }
     }
 
@@ -232,21 +263,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (globalFallbackUpdates.length > 0) {
       const allLines: string[] = [];
-      for (const { username, updates } of globalFallbackUpdates) {
+      let totalUpdates = 0;
+
+      for (const { username, updates, errors } of globalFallbackUpdates) {
         allLines.push(`👤 <b>${escapeHtml(username)}</b>\n`);
-        const userLines = updates.map(({ title, latest, current, tracker_url }) => {
-          const unread = Math.floor(latest - current);
-          const unreadStr = unread > 0 ? ` (+${unread})` : "";
-          return `➤ <a href="${escapeHtml(tracker_url)}">${escapeHtml(title)}</a>\nChapter ${latest}${unreadStr}`;
-        });
-        allLines.push(userLines.join("\n\n"));
+        
+        if (updates.length > 0) {
+          totalUpdates += updates.length;
+          const userLines = updates.map(({ title, latest, current, tracker_url }) => {
+            const unread = Math.floor(latest - current);
+            const unreadStr = unread > 0 ? ` (+${unread})` : "";
+            return `➤ <a href="${escapeHtml(tracker_url)}">${escapeHtml(title)}</a>\nChapter ${latest}${unreadStr}`;
+          });
+          allLines.push(userLines.join("\n\n"));
+        }
+
+        if (errors.length > 0) {
+          allLines.push( updates.length > 0 ? `\n⚠️ <i>Errors:</i>` : `⚠️ <i>Errors:</i>` );
+          errors.forEach(e => {
+            allLines.push(`• <i>${escapeHtml(e.title)}</i>: ${e.message}`);
+          });
+        }
+
         allLines.push("");
       }
-
-      const totalUpdates = globalFallbackUpdates.reduce(
-        (sum, g) => sum + g.updates.length,
-        0,
-      );
 
       const globalMessage = [
         `━━━━ 🔔 <b>Chronicle Global Updates</b> ━━━━`,

@@ -22,12 +22,13 @@ export async function apiFetch(
     let message = "Request failed";
     let code = "";
     try {
-      const payload = await res.json();
+      const text = await res.text();
+      message = text || message;
+      const payload = JSON.parse(text);
       message = payload?.message || payload?.code || message;
       code = payload?.code || "";
     } catch {
-      const text = await res.text();
-      message = text || message;
+      // Keep whatever string we extracted from text
     }
     const err = new Error(message) as Error & {
       code?: string;

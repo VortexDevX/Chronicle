@@ -77,16 +77,27 @@ export function renderMediaCards(): void {
         : "";
 
       const isAnime = m.media_type === "Anime" || m.media_type === "Donghua";
-      const cachedCover = getCachedCover(m.title);
       let thumbHtml = "";
       
-      if (cachedCover && isAnime) {
-        thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url(${cachedCover})"></div>`;
+      if (m.custom_cover_url) {
+        thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url(${m.custom_cover_url})"></div>`;
+      } else if (m.media_type === "Manhwa" && m.mangadex_id) {
+        const mdCover = getCachedCover(`md-${m.mangadex_id}`);
+        if (mdCover) {
+          thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url(${mdCover})"></div>`;
+        } else {
+          thumbHtml = `<div class="card-thumb" data-cover-id="${m._id}"></div>`;
+          queueCoverFetch(m.title, m._id, m.mangadex_id);
+        }
       } else {
-        // Render fallback empty thumb for non-anime or missing covers
-        thumbHtml = `<div class="card-thumb" data-cover-id="${m._id}"></div>`;
-        if (isAnime) {
-          queueCoverFetch(m.title, m._id);
+        const cachedCover = getCachedCover(m.title);
+        if (cachedCover && isAnime) {
+          thumbHtml = `<div class="card-thumb thumb-loaded" data-cover-id="${m._id}" style="background-image:url(${cachedCover})"></div>`;
+        } else {
+          thumbHtml = `<div class="card-thumb" data-cover-id="${m._id}"></div>`;
+          if (isAnime) {
+            queueCoverFetch(m.title, m._id);
+          }
         }
       }
 

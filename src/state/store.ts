@@ -27,10 +27,10 @@ const COVER_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COVER_CACHE_MAX = 600;
 
 export const coverCache = new Map<string, CoverCacheEntry>();
-export let jikanQueue: { title: string; id: string }[] = [];
-export let jikanProcessing = false;
-export function setJikanProcessing(val: boolean) {
-  jikanProcessing = val;
+export let coverQueue: { title: string; id: string; mangadexId?: string }[] = [];
+export let coverProcessing = false;
+export function setCoverProcessing(val: boolean) {
+  coverProcessing = val;
 }
 
 export function loadCoverCache(): void {
@@ -77,50 +77,64 @@ export function setCachedCover(title: string, url: string | null): void {
   persistCoverCache();
 }
 
-export async function processJikanQueue(): Promise<void> {
-  if (jikanProcessing || jikanQueue.length === 0) return;
-  jikanProcessing = true;
+export async function processCoverQueue(): Promise<void> {
+  if (coverProcessing || coverQueue.length === 0) return;
+  coverProcessing = true;
 
-  while (jikanQueue.length > 0) {
-    const { title, id } = jikanQueue.shift()!;
-    if (getCachedCover(title) !== undefined) continue;
+  while (coverQueue.length > 0) {
+    const { title, id, mangadexId } = coverQueue.shift()!;
+    const cacheKey = mangadexId ? `md-${mangadexId}` : title;
+    
+    if (getCachedCover(cacheKey) !== undefined) continue;
 
     try {
-      const res = await fetch(
-        `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`,
-      );
-      if (res.ok) {
-        const json = await res.json();
-        const imageUrl =
-          json.data?.[0]?.images?.jpg?.large_image_url || null;
-        setCachedCover(title, imageUrl);
+      let imageUrl: string | null = null;
+      
+      if (mangadexId) {
+        // Fetch from MangaDex
+        const res = await fetch(`https://api.mangadex.org/manga/${mangadexId}?includes[]=cover_art`);
+        if (res.ok) {
+          const json = await res.json();
+          const coverArt = json.data?.relationships?.find((r: any) => r.type === "cover_art");
+          if (coverArt?.attributes?.fileName) {
+            imageUrl = `https://uploads.mangadex.org/covers/${mangadexId}/${coverArt.attributes.fileName}.512.jpg`;
+          }
+        }
+      } else {
+        // Fetch from Jikan (Anime)
+        const res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`);
+        if (res.ok) {
+          const json = await res.json();
+          imageUrl = json.data?.[0]?.images?.jpg?.large_image_url || null;
+        }
+      }
+      
+      setCachedCover(cacheKey, imageUrl);
 
-        // Update the specific card thumbnail if element exists
-        const thumbEl = document.querySelector(
-          `[data-cover-id="${id}"]`,
-        ) as HTMLElement;
-        if (thumbEl && imageUrl) {
+      if (imageUrl) {
+        const thumbEl = document.querySelector(`[data-cover-id="${id}"]`) as HTMLElement;
+        if (thumbEl) {
           thumbEl.style.backgroundImage = `url(${imageUrl})`;
           thumbEl.classList.add("thumb-loaded");
         }
-      } else {
-        setCachedCover(title, null);
       }
     } catch {
-      setCachedCover(title, null);
+      setCachedCover(cacheKey, null);
     }
 
-    // Rate limit: 1 request per second (Jikan limit)
+    // Rate limit
     await new Promise((r) => setTimeout(r, 1100));
   }
 
-  jikanProcessing = false;
+  coverProcessing = false;
 }
 
-export function queueCoverFetch(title: string, id: string): void {
-  if (getCachedCover(title) !== undefined) return;
-  if (!jikanQueue.some((q) => q.title === title)) {
-    jikanQueue.push({ title, id });
-    processJikanQueue();
+export function queueCoverFetch(title: string, id: string, mangadexId?: string): void {
+  const cacheKey = mangadexId ? `md-${mangadexId}` : title;
+  if (getCachedCover(cacheKey) !== undefined) return;
+  
+  if (!coverQueue.some((q) => (mangadexId ? q.mangadexId === mangadexId : q.title === title))) {
+    coverQueue.push({ title, id, mangadexId });
+    processCoverQueue();
   }
 }

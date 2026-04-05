@@ -13,6 +13,8 @@ export interface MediaItem {
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   read_url?: string | null;
   tracker_url?: string | null;
+  mangadex_id?: string | null;
+  custom_cover_url?: string | null;
 }
 
 export type ImportRow = {

@@ -74,6 +74,8 @@ const mediaSchema = new mongoose.Schema(
     },
     read_url: { type: String, default: null },
     tracker_url: { type: String, default: null },
+    mangadex_id: { type: String, default: null },
+    custom_cover_url: { type: String, default: null },
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },
 );

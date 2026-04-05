@@ -13,12 +13,14 @@ import { setupMediaFormHandler } from "./features/media/modal.js";
 import { setupImportHandler } from "./features/import-export/index.js";
 import { renderStatsHost } from "./features/media/stats.js";
 import { renderMediaCards } from "./features/media/cards.js";
+import { setupSettingsGlobalHandlers } from "./features/settings.js";
 
 // ── One-time setup ─────────────────────────────────────────────────
 
 setupCardEventDelegation();
 setupMediaFormHandler();
 setupImportHandler();
+setupSettingsGlobalHandlers();
 
 // ── App initialization ─────────────────────────────────────────────
 

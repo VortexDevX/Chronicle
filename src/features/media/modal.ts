@@ -47,6 +47,18 @@ export function openModal(item?: MediaItem): void {
   if (trackerUrlInput) {
     trackerUrlInput.value = item?.tracker_url || "";
   }
+  const mangadexIdInput = document.getElementById(
+    "media-mangadex-id",
+  ) as HTMLInputElement | null;
+  if (mangadexIdInput) {
+    mangadexIdInput.value = item?.mangadex_id || "";
+  }
+  const customCoverUrlInput = document.getElementById(
+    "media-custom-cover-url",
+  ) as HTMLInputElement | null;
+  if (customCoverUrlInput) {
+    customCoverUrlInput.value = item?.custom_cover_url || "";
+  }
 
   // Reset save button state
   const saveBtn = modal.querySelector(".btn-primary") as HTMLButtonElement;
@@ -171,6 +183,23 @@ export function setupMediaFormHandler(): void {
       if (trackerUrlInput) {
         const trackerUrl = trackerUrlInput.value.trim();
         if (trackerUrl) data.tracker_url = trackerUrl;
+      }
+
+      // Include new thumbnail override fields
+      const mangadexIdInput = document.getElementById(
+        "media-mangadex-id",
+      ) as HTMLInputElement | null;
+      if (mangadexIdInput) {
+        const mangadexId = mangadexIdInput.value.trim();
+        if (mangadexId) data.mangadex_id = mangadexId;
+      }
+
+      const customCoverUrlInput = document.getElementById(
+        "media-custom-cover-url",
+      ) as HTMLInputElement | null;
+      if (customCoverUrlInput) {
+        const customCoverUrl = customCoverUrlInput.value.trim();
+        if (customCoverUrl) data.custom_cover_url = customCoverUrl;
       }
 
       if (

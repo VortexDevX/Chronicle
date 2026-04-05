@@ -1,48 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1e2231" />
-      <stop offset="100%" stop-color="#0c0e14" />
-    </linearGradient>
-    <linearGradient id="book-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#8ba4ff" />
-      <stop offset="100%" stop-color="#6c8cff" />
-    </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="12" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
-    </filter>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" fill="#0f0f0f" />
   
-  <!-- Foundation -->
-  <rect width="512" height="512" rx="128" fill="url(#bg-grad)" />
+  <rect x="15" y="15" width="70" height="70" fill="#00ffff" />
+  <rect x="25" y="25" width="50" height="50" fill="#ff00ff" />
+  <rect x="35" y="35" width="30" height="30" fill="#ffff00" />
   
-  <!-- Stylized Book Icon -->
-  <g transform="translate(116, 116) scale(0.55)">
-    <!-- Book Depth/Spine -->
-    <rect x="0" y="20" width="80" height="480" rx="20" fill="#4a69d4" />
-    
-    <!-- Main Book Face -->
-    <path d="M40 0h360c44 0 80 36 80 80v320c0 44-36 80-80 80H40V0z" fill="url(#book-grad)" filter="url(#glow)" />
-    
-    <!-- "Glass" Highlight -->
-    <path d="M40 0h360c44 0 80 36 80 80v20H40V0z" fill="#ffffff" opacity="0.15" />
-    
-    <!-- Progress Indicator Marks -->
-    <g transform="translate(100, 120)">
-      <rect width="280" height="24" rx="12" fill="#ffffff" opacity="0.9" />
-      <rect y="64" width="220" height="24" rx="12" fill="#ffffff" opacity="0.5" />
-      <rect y="128" width="180" height="24" rx="12" fill="#ffffff" opacity="0.3" />
-      
-      <!-- Progress Accent -->
-      <path d="M0 256h280v32H0z" fill="#ffffff" opacity="0.1" />
-      <rect y="256" width="140" height="32" rx="4" fill="#ffffff" opacity="0.8" />
-    </g>
-    
-    <!-- Bookmark -->
-    <path d="M400 0v180l-40-24-40 24V0h80z" fill="#ffffff" opacity="0.85" />
-  </g>
+  <text x="50" y="65" font-family="monospace" font-size="40" font-weight="900" 
+        fill="#0f0f0f" text-anchor="middle" letter-spacing="-4">
+    CH
+  </text>
   
-  <!-- Corner Shine -->
-  <path d="M512 128C512 57.3 454.7 0 384 0L128 0C198.7 0 256 57.3 256 128L256 384C256 454.7 313.3 512 384 512L512 512L512 128Z" fill="#ffffff" opacity="0.03" />
+  <path d="M 0,0 L 20,20 M 100,0 L 80,20 M 0,100 L 20,80 M 100,100 L 80,80" 
+        stroke="#0f0f0f" stroke-width="4" />
 </svg>

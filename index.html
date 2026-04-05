@@ -165,6 +165,28 @@
               placeholder="Inscribe your thoughts..."
             ></textarea>
           </div>
+
+          <details class="thumbnail-overrides">
+            <summary>Thumbnail Overrides</summary>
+            <div class="form-group" style="margin-top: 12px;">
+              <label for="media-mangadex-id">MangaDex ID <small style="opacity:0.5">(for Manhwa images)</small></label>
+              <input
+                type="text"
+                id="media-mangadex-id"
+                placeholder="00000000-0000-0000-0000-000000000000"
+                autocomplete="off"
+              />
+            </div>
+            <div class="form-group">
+              <label for="media-custom-cover-url">Custom Image URL <small style="opacity:0.5">(for Novels/Manual)</small></label>
+              <input
+                type="url"
+                id="media-custom-cover-url"
+                placeholder="https://..."
+                autocomplete="off"
+              />
+            </div>
+          </details>
         </div>
         <div class="modal-actions">
           <button
@@ -232,6 +254,32 @@
           Export
         </button>
       </div>
+    </dialog>
+
+    <dialog id="settings-modal" aria-labelledby="settings-title" class="dialog-sm">
+      <form id="settings-form" method="dialog">
+        <div class="modal-header">
+          <h3 id="settings-title">User Settings</h3>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="settings-telegram-id">Telegram Chat ID</label>
+            <input
+              type="text"
+              id="settings-telegram-id"
+              placeholder="Enter your numeric chat ID"
+            />
+          </div>
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="settings-notifications" style="width: auto;"/>
+            <label for="settings-notifications" style="margin: 0; padding-bottom: 0;">Enable Notifications</label>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" onclick="document.getElementById('settings-modal').close()">Cancel</button>
+          <button type="submit" class="btn-primary" id="settings-save">Save changes</button>
+        </div>
+      </form>
     </dialog>
 
     <div id="toast-container" aria-live="polite"></div>
