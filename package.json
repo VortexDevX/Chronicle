@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "vercel-dev": "vercel dev",
+    "cron:check": "tsx --env-file=.env scripts/runCron.ts",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

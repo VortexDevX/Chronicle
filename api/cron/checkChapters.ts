@@ -10,8 +10,8 @@ import { logInternalError } from "../_utils/log.js";
 import * as cheerio from "cheerio";
 
 /**
- * Vercel Cron — runs daily at 9AM UTC
- * Schedule set in vercel.json: "0 9 * * *"
+ * Vercel Cron — runs daily at 9AM IST
+ * Schedule set in vercel.json: "30 3 * * *" (03:30 UTC = 09:00 IST)
  *
  * For each Manhwa entry that:
  *   - has status "Watching/Reading"
@@ -41,6 +41,122 @@ const BROWSER_HEADERS: Record<string, string> = {
   Referer: "https://www.google.com/",
 };
 
+type ScraperRule = {
+  hosts: string[];
+  selectors: string[];
+};
+
+const SCRAPER_RULES: ScraperRule[] = [
+  {
+    hosts: ["arenascan.com", "www.arenascan.com"],
+    selectors: [".eplister li a", ".eph-num a", ".bxcl ul li a"],
+  },
+  {
+    hosts: ["magicemperor.xyz", "www.magicemperor.xyz"],
+    selectors: [".wp-manga-chapter a", ".listing-chapters_wrap li a"],
+  },
+  {
+    hosts: ["w14.levelingwithgods.com", "levelingwithgods.com"],
+    selectors: ['a[href*="/manga/"][href*="chapter-"]'],
+  },
+  {
+    hosts: ["w2.infinitelevelup.com", "infinitelevelup.com"],
+    selectors: ['a[href*="/manga/"][href*="chapter-"]'],
+  },
+];
+
+const GENERIC_CHAPTER_SELECTORS = [
+  '.wp-manga-chapter a',
+  '.listing-chapters_wrap li a',
+  '.eplister li a',
+  '.eph-num a',
+  '.bxcl ul li a',
+  'a[href*="chapter-"]',
+  'a[href*="/chapter/"]',
+];
+
+function getRuleForHost(host: string): ScraperRule | undefined {
+  return SCRAPER_RULES.find((rule) => rule.hosts.includes(host));
+}
+
+function extractChapterNumberFromText(text: string): number | null {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized || normalized.includes("{{")) return null;
+
+  const match = normalized.match(
+    /(?:chapter|chap(?:ter)?|ch\.?|episode|ep\.?)\s*[:#.\-]?\s*(\d+(?:\.\d+)?)/i,
+  );
+  if (!match) return null;
+
+  const num = parseFloat(match[1]);
+  if (!Number.isFinite(num) || num <= 0 || num >= 10000) return null;
+  return num;
+}
+
+function extractChapterNumberFromHref(href: string, baseUrl: string): number | null {
+  try {
+    const parsed = new URL(href, baseUrl);
+    const path = decodeURIComponent(parsed.pathname).toLowerCase();
+    const match = path.match(
+      /(?:chapter|chap|ch|episode|ep)[-/](\d+(?:\.\d+)?)(?:\/)?$/i,
+    );
+    if (!match) return null;
+
+    const num = parseFloat(match[1]);
+    if (!Number.isFinite(num) || num <= 0 || num >= 10000) return null;
+    return num;
+  } catch {
+    return null;
+  }
+}
+
+function collectChapterNumbers(
+  $: cheerio.CheerioAPI,
+  trackerUrl: string,
+  selectors: string[],
+): number[] {
+  const seen = new Set<string>();
+  const numbers: number[] = [];
+  const trackerHost = new URL(trackerUrl).host;
+
+  for (const selector of selectors) {
+    $(selector).each((_i, el) => {
+      const node = $(el);
+      const href = node.attr("href") || node.find("a").attr("href") || "";
+      const text = node.text().replace(/\s+/g, " ").trim();
+      const key = `${href}::${text}`;
+      if (!text || text.includes("{{") || seen.has(key)) return;
+      seen.add(key);
+
+      if (href) {
+        try {
+          const parsedHref = new URL(href, trackerUrl);
+          if (parsedHref.host !== trackerHost) return;
+        } catch {
+          return;
+        }
+      }
+
+      const fromHref = href ? extractChapterNumberFromHref(href, trackerUrl) : null;
+      if (fromHref !== null) {
+        numbers.push(fromHref);
+        return;
+      }
+
+      const fromText = extractChapterNumberFromText(text);
+      if (fromText !== null) {
+        numbers.push(fromText);
+      }
+    });
+
+    if (numbers.length > 0) {
+      return numbers;
+    }
+  }
+
+  return numbers;
+}
+
 async function scrapeTrackerUrl(trackerUrl: string): Promise<number | null> {
   try {
     const res = await fetch(trackerUrl, {
@@ -54,38 +170,14 @@ async function scrapeTrackerUrl(trackerUrl: string): Promise<number | null> {
 
     const html = await res.text();
     const $ = cheerio.load(html);
+    const host = new URL(res.url).host;
+    const preferredSelectors =
+      getRuleForHost(host)?.selectors || GENERIC_CHAPTER_SELECTORS;
+    let chapterNumbers = collectChapterNumbers($, res.url, preferredSelectors);
 
-    const chapterNumbers: number[] = [];
-
-    // Strategy 1 (most reliable): Extract chapter numbers from link URLs
-    // e.g. /chapter/83, /chapter-83, /ch-83
-    $("a[href]").each((_i, el) => {
-      const href = $(el).attr("href") || "";
-      const urlMatch = href.match(/\/chapter[/-](\d+(?:\.\d+)?)/i);
-      if (urlMatch) {
-        const num = parseFloat(urlMatch[1]);
-        if (Number.isFinite(num) && num > 0 && num < 100000) {
-          chapterNumbers.push(num);
-        }
-      }
-    });
-
-    if (chapterNumbers.length > 0) {
-      return Math.max(...chapterNumbers);
+    if (chapterNumbers.length === 0 && preferredSelectors !== GENERIC_CHAPTER_SELECTORS) {
+      chapterNumbers = collectChapterNumbers($, res.url, GENERIC_CHAPTER_SELECTORS);
     }
-
-    // Strategy 2 (fallback): Scan individual element text (avoids date smearing)
-    $("a, li, span, div").each((_i, el) => {
-      const text = $(el).clone().children().remove().end().text().trim();
-      if (text.length > 80) return; // skip large blocks
-      const m = text.match(/(?:chapter|ch\.?|ep\.?)\s*[:#.]?\s*(\d+(?:\.\d+)?)/i);
-      if (m) {
-        const num = parseFloat(m[1]);
-        if (Number.isFinite(num) && num > 0 && num < 100000) {
-          chapterNumbers.push(num);
-        }
-      }
-    });
 
     if (chapterNumbers.length === 0) {
       throw new Error("No chapter numbers found in DOM");
@@ -108,6 +200,10 @@ type ChapterUpdate = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "GET") {
+    return jsonError(res, "METHOD_NOT_ALLOWED", "Method Not Allowed", 405);
+  }
+
   // Vercel Cron sends Authorization header with CRON_SECRET
   const authHeader = req.headers.authorization;
   const cronSecret = process.env.CRON_SECRET;
@@ -117,6 +213,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    console.log("cron_check_chapters_start", {
+      at: new Date().toISOString(),
+      user_agent: req.headers["user-agent"] || "",
+      request_id: req.headers["x-vercel-id"] || "",
+    });
+
     await connectDB();
 
     // Fetch all Manhwa entries that are actively being read and have a tracker URL
@@ -300,7 +402,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       else failures += globalFallbackUpdates.length;
     }
 
-    return jsonOk(res, {
+    const payload = {
       checked: totalChecked,
       users_scanned: userIds.length,
       users_notified: usersNotified,
@@ -311,7 +413,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return [user?.username || uid, updates];
         }),
       ),
+    };
+
+    console.log("cron_check_chapters_complete", {
+      at: new Date().toISOString(),
+      checked: payload.checked,
+      users_scanned: payload.users_scanned,
+      users_notified: payload.users_notified,
+      failures: payload.failures,
     });
+
+    return jsonOk(res, payload);
   } catch (err) {
     logInternalError("cron_check_chapters", err, { route: "cron/checkChapters" });
     return jsonError(res, "CRON_ERROR", "Internal server error", 500);
