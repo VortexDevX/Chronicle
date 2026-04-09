@@ -56,12 +56,20 @@ const SCRAPER_RULES: ScraperRule[] = [
     selectors: [".wp-manga-chapter a", ".listing-chapters_wrap li a"],
   },
   {
+    hosts: ["magicemperors.com", "www.magicemperors.com"],
+    selectors: [".last-chapter a", ".scroll-sm a", ".item a"],
+  },
+  {
     hosts: ["w14.levelingwithgods.com", "levelingwithgods.com"],
-    selectors: ['a[href*="/manga/"][href*="chapter-"]'],
+    selectors: ['a[href*="chapter-"]', 'a[href*="/manga/"]'],
   },
   {
     hosts: ["w2.infinitelevelup.com", "infinitelevelup.com"],
     selectors: ['a[href*="/manga/"][href*="chapter-"]'],
+  },
+  {
+    hosts: ["manhuafast.com", "www.manhuafast.com"],
+    selectors: [".wp-manga-chapter a", ".listing-chapters_wrap li a", 'a[href*="/chapter-"]'],
   },
 ];
 
@@ -97,9 +105,9 @@ function extractChapterNumberFromHref(href: string, baseUrl: string): number | n
   try {
     const parsed = new URL(href, baseUrl);
     const path = decodeURIComponent(parsed.pathname).toLowerCase();
-    const match = path.match(
-      /(?:chapter|chap|ch|episode|ep)[-/](\d+(?:\.\d+)?)(?:\/)?$/i,
-    );
+    const match = path.match(/(?:^|[/-])(?:chapter|chap|ch|episode|ep)-?\/?(\d+(?:\.\d+)?)(?:\/)?$/i)
+      || path.match(/(?:chapter|chap|ch|episode|ep)-(\d+(?:\.\d+)?)(?:\/)?$/i)
+      || path.match(/(?:chapter|chap|ch|episode|ep)\/(\d+(?:\.\d+)?)(?:\/)?$/i);
     if (!match) return null;
 
     const num = parseFloat(match[1]);
@@ -108,6 +116,21 @@ function extractChapterNumberFromHref(href: string, baseUrl: string): number | n
   } catch {
     return null;
   }
+}
+
+async function fetchManhuafastChapters(trackerUrl: string): Promise<string> {
+  const ajaxUrl = new URL("ajax/chapters/", trackerUrl).toString();
+  const res = await fetch(ajaxUrl, {
+    method: "POST",
+    headers: BROWSER_HEADERS,
+    redirect: "follow",
+  });
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+
+  return res.text();
 }
 
 function collectChapterNumbers(
@@ -159,24 +182,27 @@ function collectChapterNumbers(
 
 async function scrapeTrackerUrl(trackerUrl: string): Promise<number | null> {
   try {
-    const res = await fetch(trackerUrl, {
+    const initialRes = await fetch(trackerUrl, {
       headers: BROWSER_HEADERS,
       redirect: "follow",
     });
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    if (!initialRes.ok) {
+      throw new Error(`HTTP ${initialRes.status}: ${initialRes.statusText}`);
     }
 
-    const html = await res.text();
+    const resolvedUrl = initialRes.url;
+    const host = new URL(resolvedUrl).host;
+    const html = host === "manhuafast.com" || host === "www.manhuafast.com"
+      ? await fetchManhuafastChapters(resolvedUrl)
+      : await initialRes.text();
     const $ = cheerio.load(html);
-    const host = new URL(res.url).host;
     const preferredSelectors =
       getRuleForHost(host)?.selectors || GENERIC_CHAPTER_SELECTORS;
-    let chapterNumbers = collectChapterNumbers($, res.url, preferredSelectors);
+    let chapterNumbers = collectChapterNumbers($, resolvedUrl, preferredSelectors);
 
     if (chapterNumbers.length === 0 && preferredSelectors !== GENERIC_CHAPTER_SELECTORS) {
-      chapterNumbers = collectChapterNumbers($, res.url, GENERIC_CHAPTER_SELECTORS);
+      chapterNumbers = collectChapterNumbers($, resolvedUrl, GENERIC_CHAPTER_SELECTORS);
     }
 
     if (chapterNumbers.length === 0) {

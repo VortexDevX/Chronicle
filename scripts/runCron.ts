@@ -1,5 +1,19 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { config as loadEnv } from "dotenv";
 import checkChaptersHandler from "../api/cron/checkChapters.js";
+
+const envPath = resolve(process.cwd(), ".env");
+const envLocalPath = resolve(process.cwd(), ".env.local");
+
+if (existsSync(envPath)) {
+  loadEnv({ path: envPath });
+}
+
+if (existsSync(envLocalPath)) {
+  loadEnv({ path: envLocalPath, override: true });
+}
 
 type HeaderValue = string | string[] | number | undefined;
 
