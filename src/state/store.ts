@@ -20,10 +20,11 @@ export const state = {
   selectedIds: new Set<string>(),
 };
 
-// ── Cover Image Cache (Jikan API) ────────────────────────────────
+// ── Cover Image Cache ────────────────────────────────────────────
 
-const COVER_CACHE_KEY = "chronicle:cover-cache:v2";
+const COVER_CACHE_KEY = "chronicle:cover-cache:v3";
 const COVER_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const COVER_CACHE_NULL_TTL_MS = 1000 * 60 * 30;
 const COVER_CACHE_MAX = 600;
 
 export const coverCache = new Map<string, CoverCacheEntry>();
@@ -41,7 +42,8 @@ export function loadCoverCache(): void {
     const now = Date.now();
     Object.entries(parsed).forEach(([title, entry]) => {
       if (!entry || typeof entry.ts !== "number") return;
-      if (now - entry.ts > COVER_CACHE_TTL_MS) return;
+      const ttl = entry.url ? COVER_CACHE_TTL_MS : COVER_CACHE_NULL_TTL_MS;
+      if (now - entry.ts > ttl) return;
       coverCache.set(title, { url: entry.url ?? null, ts: entry.ts });
     });
   } catch {
@@ -65,8 +67,10 @@ export function persistCoverCache(): void {
 export function getCachedCover(title: string): string | null | undefined {
   const entry = coverCache.get(title);
   if (!entry) return undefined;
-  if (Date.now() - entry.ts > COVER_CACHE_TTL_MS) {
+  const ttl = entry.url ? COVER_CACHE_TTL_MS : COVER_CACHE_NULL_TTL_MS;
+  if (Date.now() - entry.ts > ttl) {
     coverCache.delete(title);
+    persistCoverCache();
     return undefined;
   }
   return entry.url;
