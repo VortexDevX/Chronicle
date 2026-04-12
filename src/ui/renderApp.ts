@@ -13,7 +13,7 @@ import { apiFetch } from "../api/client.js";
 import { attachSettingsButtonListener } from "../features/settings.js";
 import {
   exportJSON,
-  exportCSV,
+  exportAllCSV,
   openExportTypeDialog,
   triggerImport,
 } from "../features/import-export/index.js";
@@ -251,13 +251,21 @@ function renderDashboard(app: HTMLElement): void {
     e.stopPropagation();
     document.getElementById("export-menu")?.classList.toggle("open");
   });
-  document.getElementById("btn-export-json")?.addEventListener("click", () => {
+  document.getElementById("btn-export-json")?.addEventListener("click", async () => {
     document.getElementById("export-menu")?.classList.remove("open");
-    exportJSON();
+    try {
+      await exportJSON();
+    } catch {
+      showToast("Failed to export JSON.", "error");
+    }
   });
-  document.getElementById("btn-export-csv")?.addEventListener("click", () => {
+  document.getElementById("btn-export-csv")?.addEventListener("click", async () => {
     document.getElementById("export-menu")?.classList.remove("open");
-    exportCSV();
+    try {
+      await exportAllCSV();
+    } catch {
+      showToast("Failed to export CSV.", "error");
+    }
   });
   document
     .getElementById("btn-export-by-type")

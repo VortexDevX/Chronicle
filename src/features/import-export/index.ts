@@ -14,8 +14,31 @@ import { renderMediaCards } from "../media/cards.js";
 
 // ── Export ──────────────────────────────────────────────────────────
 
-export function exportJSON(): void {
-  const payload = state.media.map(
+async function fetchAllExportItems(mediaType?: string): Promise<MediaItem[]> {
+  const items: MediaItem[] = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const query = new URLSearchParams({
+      page: String(page),
+      limit: "100",
+      sort_by: "title",
+    });
+    if (mediaType) query.set("media_type", mediaType);
+
+    const payload = await apiFetch(`/media?${query.toString()}`);
+    const batch = Array.isArray(payload) ? payload : payload.items || [];
+    items.push(...batch);
+    hasMore = Array.isArray(payload) ? false : Boolean(payload.has_more);
+    page += 1;
+  }
+
+  return items;
+}
+
+function buildJsonPayload(items: MediaItem[]) {
+  return items.map(
     ({
       title,
       media_type,
@@ -36,6 +59,11 @@ export function exportJSON(): void {
       last_updated,
     }),
   );
+}
+
+export async function exportJSON(): Promise<void> {
+  const items = await fetchAllExportItems();
+  const payload = buildJsonPayload(items);
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
   });
@@ -70,7 +98,7 @@ function toExportRows(items: MediaItem[]) {
 }
 
 export function exportCSV(
-  items: MediaItem[] = state.media,
+  items: MediaItem[],
   filename?: string,
 ): void {
   const { headers, rows } = toExportRows(items);
@@ -78,6 +106,11 @@ export function exportCSV(
   const blob = new Blob([csv], { type: "text/csv" });
   downloadBlob(blob, filename || `chronicle-export-${dateStamp()}.csv`);
   showToast(`Exported ${items.length} entries as CSV`, "success");
+}
+
+export async function exportAllCSV(): Promise<void> {
+  const items = await fetchAllExportItems();
+  exportCSV(items);
 }
 
 export async function exportXLSX(
@@ -141,7 +174,7 @@ export function openExportTypeDialog(): void {
   newConfirm.addEventListener("click", async () => {
     const mediaType = typeSelect.value;
     const format = formatSelect.value;
-    const scoped = state.media.filter((m) => m.media_type === mediaType);
+    const scoped = await fetchAllExportItems(mediaType);
 
     if (scoped.length === 0) {
       showToast(`No ${mediaType} entries to export.`, "error");
