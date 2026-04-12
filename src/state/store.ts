@@ -101,11 +101,11 @@ export async function processCoverQueue(): Promise<void> {
           }
         }
       } else {
-        // Fetch from Jikan (Anime)
-        const res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`);
+        // Fetch anime covers via server-side proxy (AniList first, Jikan fallback)
+        const res = await fetch(`/api/anime-cover?title=${encodeURIComponent(title)}`);
         if (res.ok) {
           const json = await res.json();
-          imageUrl = json.data?.[0]?.images?.jpg?.large_image_url || null;
+          imageUrl = json?.imageUrl || null;
         }
       }
       
