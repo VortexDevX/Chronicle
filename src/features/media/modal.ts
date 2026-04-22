@@ -1,13 +1,12 @@
-/** Media add/edit modal logic. */
-
+/** Media add/edit modal logic – Phase 3 (uses service + store) */
 import type { MediaItem } from "../../types/media.js";
+import { store } from "../../state/store.js";
 import { showToast } from "../../ui/toast.js";
 import { showConfirm } from "../../ui/modals.js";
 import { lookupMediaMeta } from "../lookup/index.js";
+import { fetchMedia } from "../../services/media.js";
+import { updateMedia } from "../../services/media.js";
 import { apiFetch } from "../../api/client.js";
-import { fetchMedia } from "../../api/media.js";
-import { renderStatsHost } from "./stats.js";
-import { renderMediaCards } from "./cards.js";
 
 export function openModal(item?: MediaItem): void {
   const modal = document.getElementById("media-modal") as HTMLDialogElement;
@@ -38,29 +37,25 @@ export function openModal(item?: MediaItem): void {
     item?.rating?.toString() || "";
   (document.getElementById("media-notes") as HTMLTextAreaElement).value =
     item?.notes || "";
-  if (readUrlInput) {
-    readUrlInput.value = (item as any)?.read_url || "";
-  }
+
+  if (readUrlInput) readUrlInput.value = (item as any)?.read_url || "";
+
   const trackerUrlInput = document.getElementById(
     "media-tracker-url",
   ) as HTMLInputElement | null;
-  if (trackerUrlInput) {
-    trackerUrlInput.value = item?.tracker_url || "";
-  }
+  if (trackerUrlInput) trackerUrlInput.value = item?.tracker_url || "";
+
   const mangadexIdInput = document.getElementById(
     "media-mangadex-id",
   ) as HTMLInputElement | null;
-  if (mangadexIdInput) {
-    mangadexIdInput.value = item?.mangadex_id || "";
-  }
+  if (mangadexIdInput) mangadexIdInput.value = item?.mangadex_id || "";
+
   const customCoverUrlInput = document.getElementById(
     "media-custom-cover-url",
   ) as HTMLInputElement | null;
-  if (customCoverUrlInput) {
+  if (customCoverUrlInput)
     customCoverUrlInput.value = item?.custom_cover_url || "";
-  }
 
-  // Reset save button state
   const saveBtn = modal.querySelector(".btn-primary") as HTMLButtonElement;
   if (saveBtn) {
     saveBtn.disabled = false;
@@ -83,7 +78,6 @@ export function openModal(item?: MediaItem): void {
         : "Lookup uses AniList first, then MAL fallback to auto-fill title and chapters/volumes."
       : "Lookup is not available for Light Novel.";
   };
-
   updateLookupState();
   typeInput.onchange = updateLookupState;
 
@@ -94,7 +88,6 @@ export function openModal(item?: MediaItem): void {
       titleInput.focus();
       return;
     }
-
     const originalText = newLookupBtn.textContent || "Lookup";
     newLookupBtn.disabled = true;
     newLookupBtn.innerHTML = `<span class="spinner"></span>`;
@@ -111,20 +104,15 @@ export function openModal(item?: MediaItem): void {
     if (result.total && Number(totalInput.value || "0") <= 0) {
       totalInput.value = String(result.total);
     }
-
     showToast(`Filled from ${result.source}`, "success");
     updateLookupState();
     newLookupBtn.textContent = originalText;
   });
 
   modal.showModal();
-
-  setTimeout(() => {
-    titleInput?.focus();
-  }, 50);
+  setTimeout(() => titleInput?.focus(), 50);
 }
 
-/** Set up the media form submit handler (called once on init). */
 export function setupMediaFormHandler(): void {
   document
     .getElementById("media-form")
@@ -139,9 +127,8 @@ export function setupMediaFormHandler(): void {
       const data: Record<string, unknown> = {
         title: (document.getElementById("media-title") as HTMLInputElement)
           .value,
-        media_type: (
-          document.getElementById("media-type") as HTMLSelectElement
-        ).value,
+        media_type: (document.getElementById("media-type") as HTMLSelectElement)
+          .value,
         status: (document.getElementById("media-status") as HTMLSelectElement)
           .value,
         progress_current: parseInt(
@@ -153,9 +140,8 @@ export function setupMediaFormHandler(): void {
           10,
         ),
         progress_total: parseInt(
-          (
-            document.getElementById("media-progress-total") as HTMLInputElement
-          ).value,
+          (document.getElementById("media-progress-total") as HTMLInputElement)
+            .value,
           10,
         ),
         rating:
@@ -167,40 +153,29 @@ export function setupMediaFormHandler(): void {
           .value,
       };
 
-      // Include read_url if the field exists
       const readUrlInput = document.getElementById(
         "media-read-url",
       ) as HTMLInputElement | null;
-      if (readUrlInput) {
-        const readUrl = readUrlInput.value.trim();
-        if (readUrl) data.read_url = readUrl;
-      }
+      if (readUrlInput && readUrlInput.value.trim())
+        data.read_url = readUrlInput.value.trim();
 
-      // Include tracker_url if the field exists
       const trackerUrlInput = document.getElementById(
         "media-tracker-url",
       ) as HTMLInputElement | null;
-      if (trackerUrlInput) {
-        const trackerUrl = trackerUrlInput.value.trim();
-        if (trackerUrl) data.tracker_url = trackerUrl;
-      }
+      if (trackerUrlInput && trackerUrlInput.value.trim())
+        data.tracker_url = trackerUrlInput.value.trim();
 
-      // Include new thumbnail override fields
       const mangadexIdInput = document.getElementById(
         "media-mangadex-id",
       ) as HTMLInputElement | null;
-      if (mangadexIdInput) {
-        const mangadexId = mangadexIdInput.value.trim();
-        if (mangadexId) data.mangadex_id = mangadexId;
-      }
+      if (mangadexIdInput && mangadexIdInput.value.trim())
+        data.mangadex_id = mangadexIdInput.value.trim();
 
       const customCoverUrlInput = document.getElementById(
         "media-custom-cover-url",
       ) as HTMLInputElement | null;
-      if (customCoverUrlInput) {
-        const customCoverUrl = customCoverUrlInput.value.trim();
-        if (customCoverUrl) data.custom_cover_url = customCoverUrl;
-      }
+      if (customCoverUrlInput && customCoverUrlInput.value.trim())
+        data.custom_cover_url = customCoverUrlInput.value.trim();
 
       if (
         (data.progress_total as number) > 0 &&
@@ -224,10 +199,7 @@ export function setupMediaFormHandler(): void {
 
       try {
         if (id) {
-          await apiFetch(`/media?id=${id}`, {
-            method: "PUT",
-            body: JSON.stringify(data),
-          });
+          await updateMedia(id, data);
         } else {
           try {
             await createEntry();
@@ -239,36 +211,10 @@ export function setupMediaFormHandler(): void {
                 "Duplicate found",
                 "A similar title exists for this type. Merge into existing entry or keep both?",
                 async () => {
-                  try {
-                    await createEntry("merge");
-                    (
-                      document.getElementById(
-                        "media-modal",
-                      ) as HTMLDialogElement
-                    ).close();
-                    showToast("Entry merged", "success");
-                    await fetchMedia(true, true);
-                    renderStatsHost();
-                    renderMediaCards();
-                  } catch {
-                    showToast("Failed to merge duplicate entry.", "error");
-                  }
+                  await createEntry("merge");
                 },
                 async () => {
-                  try {
-                    await createEntry("keep_both");
-                    (
-                      document.getElementById(
-                        "media-modal",
-                      ) as HTMLDialogElement
-                    ).close();
-                    showToast("Entry added (kept both)", "success");
-                    await fetchMedia(true, true);
-                    renderStatsHost();
-                    renderMediaCards();
-                  } catch {
-                    showToast("Failed to save duplicate entry.", "error");
-                  }
+                  await createEntry("keep_both");
                 },
               );
               return;
@@ -276,13 +222,10 @@ export function setupMediaFormHandler(): void {
             throw err;
           }
         }
-        (
-          document.getElementById("media-modal") as HTMLDialogElement
-        ).close();
+
+        (document.getElementById("media-modal") as HTMLDialogElement).close();
         showToast(id ? "Entry updated" : "Entry added", "success");
         await fetchMedia(true, true);
-        renderStatsHost();
-        renderMediaCards();
       } catch {
         showToast("Failed to save. Please try again.", "error");
         saveBtn.disabled = false;

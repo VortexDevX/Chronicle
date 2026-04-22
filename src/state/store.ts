@@ -1,11 +1,12 @@
-/** Application state store. */
+/** Application state store – reactive Store + cover cache */
+import { Store, type AppState } from "./core.js";
+import type { CoverCacheEntry } from "../types/media.js";
 
-import type { MediaItem, CoverCacheEntry } from "../types/media.js";
-
-export const state = {
+// ── Create the single store instance ─────────────────────────────
+const initialState: AppState = {
   token: localStorage.getItem("token") || "",
   username: localStorage.getItem("username") || "",
-  media: [] as MediaItem[],
+  media: [],
   search: "",
   filterType: "",
   filterStatus: "",
@@ -18,18 +19,23 @@ export const state = {
   total: 0,
   bulkMode: false,
   selectedIds: new Set<string>(),
+  globalStats: null,
 };
 
-// ── Cover Image Cache ────────────────────────────────────────────
+export const store = new Store(initialState);
+export { store as state }; // ← temporary alias so old files still work
 
+// ── Cover Image Cache (your original code, unchanged) ─────────────
 const COVER_CACHE_KEY = "chronicle:cover-cache:v3";
 const COVER_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COVER_CACHE_NULL_TTL_MS = 1000 * 60 * 30;
 const COVER_CACHE_MAX = 600;
 
 export const coverCache = new Map<string, CoverCacheEntry>();
-export let coverQueue: { title: string; id: string; mangadexId?: string }[] = [];
+export let coverQueue: { title: string; id: string; mangadexId?: string }[] =
+  [];
 export let coverProcessing = false;
+
 export function setCoverProcessing(val: boolean) {
   coverProcessing = val;
 }
@@ -84,39 +90,39 @@ export function setCachedCover(title: string, url: string | null): void {
 export async function processCoverQueue(): Promise<void> {
   if (coverProcessing || coverQueue.length === 0) return;
   coverProcessing = true;
-
   while (coverQueue.length > 0) {
     const { title, id, mangadexId } = coverQueue.shift()!;
     const cacheKey = mangadexId ? `md-${mangadexId}` : title;
-    
     if (getCachedCover(cacheKey) !== undefined) continue;
-
     try {
       let imageUrl: string | null = null;
-      
       if (mangadexId) {
-        // Fetch from MangaDex
-        const res = await fetch(`https://api.mangadex.org/manga/${mangadexId}?includes[]=cover_art`);
+        const res = await fetch(
+          `https://api.mangadex.org/manga/${mangadexId}?includes[]=cover_art`,
+        );
         if (res.ok) {
           const json = await res.json();
-          const coverArt = json.data?.relationships?.find((r: any) => r.type === "cover_art");
+          const coverArt = json.data?.relationships?.find(
+            (r: any) => r.type === "cover_art",
+          );
           if (coverArt?.attributes?.fileName) {
             imageUrl = `https://uploads.mangadex.org/covers/${mangadexId}/${coverArt.attributes.fileName}.512.jpg`;
           }
         }
       } else {
-        // Fetch anime covers via server-side proxy (AniList first, Jikan fallback)
-        const res = await fetch(`/api/anime-cover?title=${encodeURIComponent(title)}`);
+        const res = await fetch(
+          `/api/anime-cover?title=${encodeURIComponent(title)}`,
+        );
         if (res.ok) {
           const json = await res.json();
           imageUrl = json?.imageUrl || null;
         }
       }
-      
       setCachedCover(cacheKey, imageUrl);
-
       if (imageUrl) {
-        const thumbEl = document.querySelector(`[data-cover-id="${id}"]`) as HTMLElement;
+        const thumbEl = document.querySelector(
+          `[data-cover-id="${id}"]`,
+        ) as HTMLElement;
         if (thumbEl) {
           thumbEl.style.backgroundImage = `url(${imageUrl})`;
           thumbEl.classList.add("thumb-loaded");
@@ -125,19 +131,23 @@ export async function processCoverQueue(): Promise<void> {
     } catch {
       setCachedCover(cacheKey, null);
     }
-
-    // Rate limit: 1100ms for Jikan (strict 3 req/sec), 250ms for MangaDex (5 req/sec cap limit)
     await new Promise((r) => setTimeout(r, mangadexId ? 250 : 1100));
   }
-
   coverProcessing = false;
 }
 
-export function queueCoverFetch(title: string, id: string, mangadexId?: string): void {
+export function queueCoverFetch(
+  title: string,
+  id: string,
+  mangadexId?: string,
+): void {
   const cacheKey = mangadexId ? `md-${mangadexId}` : title;
   if (getCachedCover(cacheKey) !== undefined) return;
-  
-  if (!coverQueue.some((q) => (mangadexId ? q.mangadexId === mangadexId : q.title === title))) {
+  if (
+    !coverQueue.some((q) =>
+      mangadexId ? q.mangadexId === mangadexId : q.title === title,
+    )
+  ) {
     coverQueue.push({ title, id, mangadexId });
     processCoverQueue();
   }

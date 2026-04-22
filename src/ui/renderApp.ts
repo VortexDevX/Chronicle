@@ -1,32 +1,38 @@
-/** Main application render — orchestrates the entire UI. */
-
-import { state } from "../state/store.js";
+/** Main application render – shell only (Phase 3 - static bounds) */
+import { store } from "../state/store.js";
 import { escapeHtml } from "../utils/format.js";
-import { renderStats, renderStatsHost } from "../features/media/stats.js";
-import { renderMediaCards } from "../features/media/cards.js";
-import { openModal } from "../features/media/modal.js";
-import { fetchMedia } from "../api/media.js";
 import { logout } from "../api/auth.js";
 import { showToast } from "./toast.js";
-import { showConfirm } from "./modals.js";
-import { apiFetch } from "../api/client.js";
 import { attachSettingsButtonListener } from "../features/settings.js";
+import { renderControls } from "./components/controls.js";
+import { renderMediaCards } from "./components/mediaCards.js";
+import { renderStatsHost } from "./components/stats.js";
+import { renderBulkBar } from "./components/bulkBar.js";
 import {
   exportJSON,
   exportAllCSV,
   openExportTypeDialog,
   triggerImport,
 } from "../features/import-export/index.js";
+import { fetchMedia } from "../services/media.js";
 
 export function renderApp(): void {
   const app = document.getElementById("app")!;
+  const state = store.get();
+
+  // Ensure we don't duplicate listeners by checking a custom attribute
+  if (app.getAttribute("data-initialized") === "true" && state.token) {
+    return; // Already rendered shell
+  }
 
   if (!state.token) {
+    app.removeAttribute("data-initialized");
     renderAuthScreen(app);
     return;
   }
 
   renderDashboard(app);
+  app.setAttribute("data-initialized", "true");
 }
 
 function renderAuthScreen(app: HTMLElement): void {
@@ -59,56 +65,56 @@ function renderAuthScreen(app: HTMLElement): void {
       (e.submitter as HTMLButtonElement) ||
       form.querySelector("[data-action='login']");
     const action = clickedBtn?.getAttribute("data-action") || "login";
-    const username = (
-      document.getElementById("auth-user") as HTMLInputElement
-    ).value;
-    const password = (
-      document.getElementById("auth-pass") as HTMLInputElement
-    ).value;
+    const username = (document.getElementById("auth-user") as HTMLInputElement).value;
+    const password = (document.getElementById("auth-pass") as HTMLInputElement).value;
     const errorEl = document.getElementById("auth-error")!;
-
     const buttons = form.querySelectorAll("button");
+
     buttons.forEach((b) => {
       b.disabled = true;
-      if (b.getAttribute("data-action") === action) {
+      if (b.getAttribute("data-action") === action)
         b.innerHTML = `<span class="spinner"></span>`;
-      }
     });
     errorEl.textContent = "";
 
     try {
-      const { login: doLogin, register: doRegister } = await import(
-        "../api/auth.js"
-      );
+      const { login: doLogin, register: doRegister } =
+        await import("../api/auth.js");
       const res =
         action === "register"
           ? await doRegister(username, password)
           : await doLogin(username, password);
-      state.token = res.token;
-      state.username = res.username;
+
+      store.set(() => ({
+        token: res.token,
+        username: res.username,
+        media: [],
+        search: "",
+        filterType: "",
+        filterStatus: "",
+        sortBy: "last_updated",
+        loading: false,
+        loadingMore: false,
+        page: 1,
+        limit: 24,
+        hasMore: false,
+        total: 0,
+        bulkMode: false,
+        selectedIds: new Set<string>(),
+        globalStats: null,
+      }));
+
       localStorage.setItem("token", res.token);
       localStorage.setItem("username", res.username);
 
-      renderApp();
-
-      try {
-        const request = fetchMedia();
-        renderStatsHost();
-        renderMediaCards();
-        await request;
-      } catch {
-        // handled
-      }
-
-      renderStatsHost();
-      renderMediaCards();
+      await fetchMedia();
     } catch (err: any) {
       const serverMsg = err?.message || "";
       errorEl.textContent =
         serverMsg ||
         (action === "register"
           ? "Registration failed. Username may be taken."
-          : "Login failed. Check your credentials.");
+          : "Login failed.");
       buttons.forEach((b) => {
         b.disabled = false;
         const act = b.getAttribute("data-action");
@@ -118,12 +124,15 @@ function renderAuthScreen(app: HTMLElement): void {
     }
   });
 
-  setTimeout(() => {
-    (document.getElementById("auth-user") as HTMLInputElement)?.focus();
-  }, 50);
+  setTimeout(
+    () => (document.getElementById("auth-user") as HTMLInputElement)?.focus(),
+    50
+  );
 }
 
 function renderDashboard(app: HTMLElement): void {
+  const state = store.get();
+
   app.innerHTML = `
     <div class="shell">
       <aside class="sidebar">
@@ -132,12 +141,29 @@ function renderDashboard(app: HTMLElement): void {
           <h1>Chronicle</h1>
         </div>
         <div class="sidebar-nav">
+          <button id="btn-sidebar-add" class="btn-primary" style="width: 100%; margin-bottom: 12px; display: flex; justify-content: flex-start; padding: 12px 16px; align-items: center; gap: 12px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add Entry
+          </button>
+          <div style="display:flex; flex-direction:column; gap:4px; margin-bottom: 12px;">
+            <button id="btn-sidebar-home" class="btn-ghost" style="width: 100%; display: flex; justify-content: flex-start; padding: 12px 16px; align-items: center; gap: 12px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+              Library
+            </button>
+            <button id="btn-sidebar-analytics" class="btn-ghost" style="width: 100%; display: flex; justify-content: flex-start; padding: 12px 16px; align-items: center; gap: 12px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+              Analytics
+            </button>
+          </div>
+          <div class="sidebar-divider" style="height: 1px; background: var(--border); margin: 8px 0;"></div>
+          
           <button id="btn-import" class="sidebar-link">
              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
              Import
           </button>
+          
           <div class="export-menu-wrap" style="width: 100%;">
-            <button id="btn-export" class="sidebar-link">
+            <button id="btn-export" class="sidebar-link" style="width: 100%;">
                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                Export
             </button>
@@ -154,97 +180,51 @@ function renderDashboard(app: HTMLElement): void {
             <div class="sidebar-user-avatar">${escapeHtml(state.username).substring(0, 2)}</div>
             <div class="sidebar-user-info">
               <div class="sidebar-user-name">${escapeHtml(state.username)}</div>
-              <div class="sidebar-user-role">Member</div>
             </div>
+          </div>
+          <div class="sidebar-user-actions" style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 4px;">
+            <button id="btn-settings" class="btn-ghost" style="flex: 1; align-items:center; justify-content: center; padding: 10px; font-size:0.85rem;" title="Settings">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" style="margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              Settings
+            </button>
+            <button id="btn-logout" class="btn-ghost" style="flex: 1; align-items:center; justify-content: center; padding: 10px; font-size:0.85rem;" title="Logout">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" style="margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+              Logout
+            </button>
           </div>
         </div>
       </aside>
       <main class="main">
         <header class="topbar">
+          <button id="btn-mobile-menu" class="btn-ghost mobile-only-btn" aria-label="Open Menu">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
           <div class="topbar-title">Library</div>
-          <div class="topbar-actions">
-            <button id="btn-settings" class="btn-ghost" title="Settings">⚙️</button>
-            <button id="btn-logout" class="btn-ghost">Logout</button>
-          </div>
+          <button id="btn-mobile-add" class="btn-ghost mobile-only-btn" aria-label="Add Entry">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
         </header>
         <div class="page-content">
-      <div id="stats-host">${renderStats()}</div>
-      <div class="controls">
-        <div class="search-wrapper">
-          <input type="text" id="search" placeholder="Search titles..." value="${escapeHtml(state.search)}">
+          <div id="controls-host"></div>
+          <div id="stats-host"></div>
+          <div id="bulk-bar-host"></div>
+          <div id="media-grid" class="grid"></div>
+          <div class="load-more-wrap">
+            <button id="btn-load-more" class="btn-ghost">Load more</button>
+          </div>
+          <button id="btn-add-fab" class="btn-fab" aria-label="Add Entry">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
         </div>
-        <select id="filter-type" aria-label="Filter by type">
-          <option value="">All Types</option>
-          <option value="Anime" ${state.filterType === "Anime" ? "selected" : ""}>Anime</option>
-          <option value="Manhwa" ${state.filterType === "Manhwa" ? "selected" : ""}>Manhwa</option>
-          <option value="Donghua" ${state.filterType === "Donghua" ? "selected" : ""}>Donghua</option>
-          <option value="Light Novel" ${state.filterType === "Light Novel" ? "selected" : ""}>Light Novel</option>
-        </select>
-        <select id="filter-status" aria-label="Filter by status">
-          <option value="">All Statuses</option>
-          <option value="Watching/Reading" ${state.filterStatus === "Watching/Reading" ? "selected" : ""}>Watching/Reading</option>
-          <option value="Planned" ${state.filterStatus === "Planned" ? "selected" : ""}>Planned</option>
-          <option value="On Hold" ${state.filterStatus === "On Hold" ? "selected" : ""}>On Hold</option>
-          <option value="Dropped" ${state.filterStatus === "Dropped" ? "selected" : ""}>Dropped</option>
-          <option value="Completed" ${state.filterStatus === "Completed" ? "selected" : ""}>Completed</option>
-        </select>
-        <select id="sort-by" aria-label="Sort order">
-          <option value="last_updated" ${state.sortBy === "last_updated" ? "selected" : ""}>Recently Updated</option>
-          <option value="progress" ${state.sortBy === "progress" ? "selected" : ""}>Progress %</option>
-          <option value="rating" ${state.sortBy === "rating" ? "selected" : ""}>Rating</option>
-          <option value="title" ${state.sortBy === "title" ? "selected" : ""}>Title A–Z</option>
-        </select>
-        <button id="btn-bulk-mode" class="btn-ghost" title="Bulk actions">${state.bulkMode ? "Done" : "Bulk"}</button>
-        <button class="btn-primary" id="btn-add">+ Add Entry</button>
-      </div>
-      ${
-        state.bulkMode
-          ? `<div class="bulk-bar">
-              <span class="bulk-count">${state.selectedIds.size} selected</span>
-              <button id="btn-bulk-select-all" class="btn-ghost">Select loaded</button>
-              <button id="btn-bulk-clear" class="btn-ghost">Clear</button>
-              <select id="bulk-status" aria-label="Bulk status">
-                <option value="Watching/Reading">Watching/Reading</option>
-                <option value="Planned">Planned</option>
-                <option value="On Hold">On Hold</option>
-                <option value="Dropped">Dropped</option>
-                <option value="Completed">Completed</option>
-              </select>
-              <button id="btn-bulk-status" class="btn-ghost">Apply Status</button>
-              <button id="btn-bulk-increment" class="btn-ghost">+1 Progress</button>
-              <button id="btn-bulk-delete" class="btn-danger">Delete Selected</button>
-            </div>`
-          : ""
-      }
-      <div id="media-grid" class="grid"></div>
-      <div class="load-more-wrap">
-        <button id="btn-load-more" class="btn-ghost">Load more</button>
-      </div>
-      <button id="btn-add-fab" class="btn-fab" aria-label="Add Entry">＋</button>
-      </div>
-    </main>
-  </div>
+      </main>
+    </div>
   `;
-
-  // ── Wire up event handlers ───────────────────────────────────
 
   attachSettingsButtonListener();
 
-  document.getElementById("btn-logout")?.addEventListener("click", () => {
-    logout();
-    renderApp();
-  });
-  document
-    .getElementById("btn-add")
-    ?.addEventListener("click", () => openModal());
-  document
-    .getElementById("btn-add-fab")
-    ?.addEventListener("click", () => openModal());
-  document.getElementById("btn-bulk-mode")?.addEventListener("click", () => {
-    state.bulkMode = !state.bulkMode;
-    if (!state.bulkMode) state.selectedIds.clear();
-    renderApp();
-  });
+  // Topbar and Sidebar actions
+  document.getElementById("btn-logout")?.addEventListener("click", () => logout());
+  document.getElementById("btn-import")?.addEventListener("click", triggerImport);
 
   // Export menu
   document.getElementById("btn-export")?.addEventListener("click", (e) => {
@@ -253,6 +233,7 @@ function renderDashboard(app: HTMLElement): void {
   });
   document.getElementById("btn-export-json")?.addEventListener("click", async () => {
     document.getElementById("export-menu")?.classList.remove("open");
+    showToast("Exporting JSON... Please wait.", "success");
     try {
       await exportJSON();
     } catch {
@@ -261,183 +242,79 @@ function renderDashboard(app: HTMLElement): void {
   });
   document.getElementById("btn-export-csv")?.addEventListener("click", async () => {
     document.getElementById("export-menu")?.classList.remove("open");
+    showToast("Exporting CSV... Please wait.", "success");
     try {
       await exportAllCSV();
     } catch {
       showToast("Failed to export CSV.", "error");
     }
   });
-  document
-    .getElementById("btn-export-by-type")
-    ?.addEventListener("click", () => {
+  document.getElementById("btn-export-by-type")?.addEventListener("click", () => {
+    document.getElementById("export-menu")?.classList.remove("open");
+    openExportTypeDialog();
+  });
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    if (!target.closest("#btn-export")) {
       document.getElementById("export-menu")?.classList.remove("open");
-      openExportTypeDialog();
-    });
-  document.addEventListener(
-    "click",
-    () => {
-      document.getElementById("export-menu")?.classList.remove("open");
-    },
-    { once: true },
-  );
-
-  // Import
-  document
-    .getElementById("btn-import")
-    ?.addEventListener("click", triggerImport);
-
-  // Search with debounce
-  let searchTimeout: ReturnType<typeof setTimeout>;
-  document.getElementById("search")?.addEventListener("input", (e) => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(async () => {
-      state.search = (e.target as HTMLInputElement).value;
-      try {
-        const request = fetchMedia(true);
-        renderStatsHost();
-        renderMediaCards();
-        await request;
-        renderStatsHost();
-        renderMediaCards();
-      } catch {
-        showToast("Failed to load your entries. Please try again.", "error");
+    }
+    
+    const sidebar = document.querySelector(".sidebar");
+    if (sidebar?.classList.contains("open")) {
+      if (!target.closest(".sidebar") && !target.closest("#btn-mobile-menu")) {
+        sidebar.classList.remove("open");
       }
-    }, 300);
+    }
+  });
+  
+  // Mobile Topbar Actions
+  document.getElementById("btn-mobile-menu")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    document.querySelector(".sidebar")?.classList.toggle("open");
   });
 
-  // Filter & sort
-  ["filter-type", "filter-status", "sort-by"].forEach((id) => {
-    document.getElementById(id)?.addEventListener("change", async (e) => {
-      const target = e.target as HTMLSelectElement;
-      const key =
-        id === "filter-type"
-          ? "filterType"
-          : id === "filter-status"
-            ? "filterStatus"
-            : "sortBy";
-      (state as any)[key] = target.value;
-      try {
-        const request = fetchMedia(true);
-        renderStatsHost();
-        renderMediaCards();
-        await request;
-        renderStatsHost();
-        renderMediaCards();
-      } catch {
-        showToast("Failed to load your entries. Please try again.", "error");
-      }
-    });
-  });
+  const openAppModal = async () => {
+    const { openModal } = await import("../features/media/modal.js");
+    openModal();
+  };
 
+  document.getElementById("btn-mobile-add")?.addEventListener("click", openAppModal);
+  document.getElementById("btn-sidebar-add")?.addEventListener("click", openAppModal);
+  
+  // Floating Action Button
+  document.getElementById("btn-add-fab")?.addEventListener("click", openAppModal);
+
+  // Routing Toggles
+  const showLibrary = () => {
+    document.getElementById("media-grid")!.style.display = "grid";
+    document.getElementById("controls-host")!.style.display = "block";
+    document.getElementById("bulk-bar-host")!.style.display = "block";
+    const loadBtn = document.getElementById("btn-load-more");
+    if (loadBtn && loadBtn.parentElement) loadBtn.parentElement.style.display = "flex";
+    document.querySelector(".topbar-title")!.textContent = "Chronicle";
+    document.getElementById("stats-host")!.style.display = "none";
+    if (window.innerWidth <= 768) document.querySelector(".sidebar")?.classList.remove("open");
+  };
+  const showAnalytics = () => {
+    document.getElementById("media-grid")!.style.display = "none";
+    document.getElementById("controls-host")!.style.display = "none";
+    document.getElementById("bulk-bar-host")!.style.display = "none";
+    const loadBtn = document.getElementById("btn-load-more");
+    if (loadBtn && loadBtn.parentElement) loadBtn.parentElement.style.display = "none";
+    document.querySelector(".topbar-title")!.textContent = "Analytics Dashboard";
+    document.getElementById("stats-host")!.style.display = "block";
+    if (window.innerWidth <= 768) document.querySelector(".sidebar")?.classList.remove("open");
+  };
+
+  document.getElementById("btn-sidebar-home")?.addEventListener("click", showLibrary);
+  document.getElementById("btn-sidebar-analytics")?.addEventListener("click", showAnalytics);
+  
+  // Set default route
+  showLibrary();
+
+  // Force-render components onto the fresh DOM
+  renderControls();
   renderMediaCards();
-
-  // ── Bulk action handlers ──────────────────────────────────────
-
-  if (state.bulkMode) {
-    document
-      .getElementById("btn-bulk-select-all")
-      ?.addEventListener("click", () => {
-        state.media.forEach((m) => state.selectedIds.add(m._id));
-        renderApp();
-      });
-    document.getElementById("btn-bulk-clear")?.addEventListener("click", () => {
-      state.selectedIds.clear();
-      renderApp();
-    });
-    document
-      .getElementById("btn-bulk-status")
-      ?.addEventListener("click", async () => {
-        const status = (
-          document.getElementById("bulk-status") as HTMLSelectElement
-        ).value;
-        const ids = Array.from(state.selectedIds);
-        if (ids.length === 0) return showToast("No entries selected.", "error");
-
-        const updates = await Promise.allSettled(
-          ids.map((id) =>
-            apiFetch(`/media?id=${id}`, {
-              method: "PUT",
-              body: JSON.stringify({ status }),
-            }),
-          ),
-        );
-        const ok = updates.filter((r) => r.status === "fulfilled").length;
-        const fail = updates.length - ok;
-        showToast(
-          `Updated ${ok} entries${fail ? `, ${fail} failed` : ""}`,
-          ok > 0 ? "success" : "error",
-        );
-        state.selectedIds.clear();
-        state.bulkMode = false;
-        await fetchMedia(true, true);
-        renderApp();
-      });
-    document
-      .getElementById("btn-bulk-increment")
-      ?.addEventListener("click", async () => {
-        const ids = Array.from(state.selectedIds);
-        if (ids.length === 0) return showToast("No entries selected.", "error");
-
-        const updates = await Promise.allSettled(
-          ids.map((id) => {
-            const item = state.media.find((m) => m._id === id);
-            if (!item) return Promise.resolve(null);
-            return apiFetch(`/media?id=${id}`, {
-              method: "PUT",
-              body: JSON.stringify({
-                progress_current: item.progress_current + 1,
-              }),
-            });
-          }),
-        );
-        const ok = updates.filter((r) => r.status === "fulfilled").length;
-        const fail = updates.length - ok;
-        showToast(
-          `Incremented ${ok} entries${fail ? `, ${fail} failed` : ""}`,
-          ok > 0 ? "success" : "error",
-        );
-        state.selectedIds.clear();
-        state.bulkMode = false;
-        await fetchMedia(true, true);
-        renderApp();
-      });
-    document
-      .getElementById("btn-bulk-delete")
-      ?.addEventListener("click", () => {
-        const ids = Array.from(state.selectedIds);
-        if (ids.length === 0) return showToast("No entries selected.", "error");
-
-        showConfirm(
-          "Delete selected entries?",
-          `${ids.length} entries will be permanently removed.`,
-          async () => {
-            let ok = 0;
-            let fail = 0;
-            const CHUNK = 500;
-            for (let i = 0; i < ids.length; i += CHUNK) {
-              const chunk = ids.slice(i, i + CHUNK);
-              try {
-                const res = await apiFetch("/media?bulk_delete=1", {
-                  method: "POST",
-                  body: JSON.stringify({ ids: chunk }),
-                });
-                ok += Number(res?.deleted || 0);
-                const requested = Number(res?.requested || chunk.length);
-                fail += Math.max(0, requested - Number(res?.deleted || 0));
-              } catch {
-                fail += chunk.length;
-              }
-            }
-            showToast(
-              `Deleted ${ok} entries${fail ? `, ${fail} failed` : ""}`,
-              ok > 0 ? "success" : "error",
-            );
-            state.selectedIds.clear();
-            state.bulkMode = false;
-            await fetchMedia(true, true);
-            renderApp();
-          },
-        );
-      });
-  }
+  renderBulkBar();
+  renderStatsHost();
 }

@@ -1,5 +1,4 @@
-/** Metadata lookup — AniList + MAL/Jikan fallback. */
-
+/** Metadata lookup — AniList + MAL/Jikan fallback (Phase 3) */
 import type { MediaLookup } from "../../types/media.js";
 
 async function lookupAniList(
@@ -8,7 +7,6 @@ async function lookupAniList(
 ): Promise<MediaLookup | null> {
   const anilistType =
     mediaType === "Anime" || mediaType === "Donghua" ? "ANIME" : "MANGA";
-
   const query = `
     query ($search: String, $type: MediaType) {
       Media(search: $search, type: $type) {
@@ -28,6 +26,7 @@ async function lookupAniList(
       variables: { search: title, type: anilistType },
     }),
   });
+
   if (!res.ok) return null;
   const json = await res.json();
   const media = json?.data?.Media;
@@ -80,8 +79,9 @@ export async function lookupMediaMeta(
     const aniList = await lookupAniList(title, mediaType);
     if (aniList) return aniList;
   } catch {
-    // Try fallback source next
+    // fallback
   }
+
   try {
     return await lookupMALViaJikan(title, mediaType);
   } catch {

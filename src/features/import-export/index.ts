@@ -1,39 +1,32 @@
-/** Import/Export feature module. */
-
+/** Import/Export feature module – Phase 3 (uses service + selectors) */
 import ExcelJS from "exceljs";
 import type { MediaItem, ImportRow } from "../../types/media.js";
 import { toImportRow } from "../../utils/validation.js";
 import { downloadBlob } from "../../utils/dom.js";
 import { dateStamp, slugType } from "../../utils/format.js";
 import { showToast } from "../../ui/toast.js";
-import { state } from "../../state/store.js";
+import { store } from "../../state/store.js";
 import { apiFetch } from "../../api/client.js";
-import { fetchMedia } from "../../api/media.js";
-import { renderStatsHost } from "../media/stats.js";
-import { renderMediaCards } from "../media/cards.js";
+import { fetchMedia } from "../../services/media.js";
 
-// ── Export ──────────────────────────────────────────────────────────
-
+// Export (fast + selectors ready)
 async function fetchAllExportItems(mediaType?: string): Promise<MediaItem[]> {
   const items: MediaItem[] = [];
   let page = 1;
   let hasMore = true;
-
   while (hasMore) {
     const query = new URLSearchParams({
       page: String(page),
-      limit: "100",
+      limit: "500",
       sort_by: "title",
     });
     if (mediaType) query.set("media_type", mediaType);
-
     const payload = await apiFetch(`/media?${query.toString()}`);
     const batch = Array.isArray(payload) ? payload : payload.items || [];
     items.push(...batch);
     hasMore = Array.isArray(payload) ? false : Boolean(payload.has_more);
     page += 1;
   }
-
   return items;
 }
 
@@ -87,9 +80,8 @@ function toExportRows(items: MediaItem[]) {
       .map((h) => {
         const val = (m as any)[h] ?? "";
         const str = String(val);
-        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        if (str.includes(",") || str.includes('"') || str.includes("\n"))
           return `"${str.replace(/"/g, '""')}"`;
-        }
         return str;
       })
       .join(","),
@@ -97,10 +89,7 @@ function toExportRows(items: MediaItem[]) {
   return { headers: [...headers], rows };
 }
 
-export function exportCSV(
-  items: MediaItem[],
-  filename?: string,
-): void {
+export function exportCSV(items: MediaItem[], filename?: string): void {
   const { headers, rows } = toExportRows(items);
   const csv = [headers.join(","), ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -119,7 +108,6 @@ export async function exportXLSX(
 ): Promise<void> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Chronicle");
-
   sheet.columns = [
     { header: "title", key: "title", width: 40 },
     { header: "media_type", key: "media_type", width: 15 },
@@ -130,7 +118,6 @@ export async function exportXLSX(
     { header: "notes", key: "notes", width: 40 },
     { header: "last_updated", key: "last_updated", width: 22 },
   ];
-
   for (const m of items) {
     sheet.addRow({
       title: m.title,
@@ -143,7 +130,6 @@ export async function exportXLSX(
       last_updated: m.last_updated,
     });
   }
-
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -175,98 +161,77 @@ export function openExportTypeDialog(): void {
     const mediaType = typeSelect.value;
     const format = formatSelect.value;
     const scoped = await fetchAllExportItems(mediaType);
-
     if (scoped.length === 0) {
       showToast(`No ${mediaType} entries to export.`, "error");
       return;
     }
-
     const stamp = dateStamp();
     const typeSlug = slugType(mediaType);
-    if (format === "csv") {
+    if (format === "csv")
       exportCSV(scoped, `chronicle-${typeSlug}-${stamp}.csv`);
-    } else {
-      await exportXLSX(scoped, `chronicle-${typeSlug}-${stamp}.xlsx`);
-    }
+    else await exportXLSX(scoped, `chronicle-${typeSlug}-${stamp}.xlsx`);
     dialog.close();
   });
-
   dialog.showModal();
 }
 
-// ── Import ─────────────────────────────────────────────────────────
-
+// Import
 function parseCSVWithExcel(text: string): Record<string, unknown>[] {
-  // Simple CSV parsing — split by lines and parse headers
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
-
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+  const headers = lines[0]
+    .split(",")
+    .map((h) => h.trim().replace(/^"|"$/g, ""));
   const rows: Record<string, unknown>[] = [];
-
   for (let i = 1; i < lines.length; i++) {
     const values: string[] = [];
     let current = "";
     let inQuotes = false;
-
     for (const char of lines[i]) {
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === "," && !inQuotes) {
+      if (char === '"') inQuotes = !inQuotes;
+      else if (char === "," && !inQuotes) {
         values.push(current.trim());
         current = "";
-      } else {
-        current += char;
-      }
+      } else current += char;
     }
     values.push(current.trim());
-
     const row: Record<string, unknown> = {};
     headers.forEach((h, idx) => {
       row[h] = values[idx] ?? "";
     });
     rows.push(row);
   }
-
   return rows;
 }
 
 export async function parseImportFile(file: File): Promise<ImportRow[]> {
   const lower = file.name.toLowerCase();
-
   if (lower.endsWith(".json")) {
     const text = await file.text();
     const entries = JSON.parse(text);
-    if (!Array.isArray(entries)) {
+    if (!Array.isArray(entries))
       throw new Error("Invalid JSON format: expected an array");
-    }
     return entries
       .map((entry) => toImportRow(entry as Record<string, unknown>))
       .filter(Boolean) as ImportRow[];
   }
-
   if (lower.endsWith(".csv")) {
     const text = await file.text();
     const rows = parseCSVWithExcel(text);
     return rows.map(toImportRow).filter(Boolean) as ImportRow[];
   }
-
   if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
     const buffer = await file.arrayBuffer();
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
     const sheet = workbook.worksheets[0];
     if (!sheet) throw new Error("No worksheet found in file");
-
     const headers: string[] = [];
     const rows: Record<string, unknown>[] = [];
-
     sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) {
-        row.eachCell((cell) => {
-          headers.push(String(cell.value || "").trim());
-        });
-      } else {
+      if (rowNumber === 1)
+        row.eachCell((cell) => headers.push(String(cell.value || "").trim()));
+      else {
         const rowObj: Record<string, unknown> = {};
         row.eachCell((cell, colNumber) => {
           const header = headers[colNumber - 1];
@@ -275,10 +240,8 @@ export async function parseImportFile(file: File): Promise<ImportRow[]> {
         rows.push(rowObj);
       }
     });
-
     return rows.map(toImportRow).filter(Boolean) as ImportRow[];
   }
-
   throw new Error("Unsupported file type");
 }
 
@@ -288,18 +251,15 @@ export function setupImportHandler(): void {
     ?.addEventListener("change", async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-
       try {
         const entries = await parseImportFile(file);
         if (entries.length === 0) {
           showToast("No valid rows found in file.", "error");
           return;
         }
-
         let imported = 0;
         let skipped = 0;
         const CHUNK_SIZE = 100;
-
         for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
           const chunk = entries.slice(i, i + CHUNK_SIZE);
           try {
@@ -313,17 +273,11 @@ export function setupImportHandler(): void {
             skipped += chunk.length;
           }
         }
-
         showToast(
           `Imported ${imported} entries${skipped > 0 ? `, ${skipped} skipped` : ""}`,
           imported > 0 ? "success" : "error",
         );
-
-        if (imported > 0) {
-          await fetchMedia(true, true);
-          renderStatsHost();
-          renderMediaCards();
-        }
+        if (imported > 0) await fetchMedia(true, true);
       } catch (err: any) {
         showToast(err?.message || "Failed to import file.", "error");
       }

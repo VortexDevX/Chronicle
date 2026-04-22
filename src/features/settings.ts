@@ -1,15 +1,16 @@
+/** Settings feature – Phase 3 (uses store only) */
+import { store } from "../state/store.js";
 import { apiFetch } from "../api/client.js";
 import { showToast } from "../ui/toast.js";
 
 export function setupSettingsGlobalHandlers() {
   const modal = document.getElementById("settings-modal") as HTMLDialogElement;
   const form = document.getElementById("settings-form") as HTMLFormElement;
-
   const inputId = document.getElementById(
-    "settings-telegram-id"
+    "settings-telegram-id",
   ) as HTMLInputElement;
   const inputNotifications = document.getElementById(
-    "settings-notifications"
+    "settings-notifications",
   ) as HTMLInputElement;
   const btnSave = document.getElementById("settings-save") as HTMLButtonElement;
 
@@ -40,7 +41,7 @@ export function setupSettingsGlobalHandlers() {
         showToast(message || "Failed to save settings", "error");
       }
     } catch (e: any) {
-      showToast(e.message, "error");
+      showToast(e.message || "Failed to save settings", "error");
     } finally {
       btnSave.disabled = false;
       btnSave.textContent = "Save changes";
@@ -51,19 +52,23 @@ export function setupSettingsGlobalHandlers() {
 export function attachSettingsButtonListener() {
   const btnSettings = document.getElementById("btn-settings");
   const modal = document.getElementById("settings-modal") as HTMLDialogElement;
-  
+
   if (!btnSettings || !modal) return;
 
   btnSettings.addEventListener("click", async () => {
     const inputId = document.getElementById(
-      "settings-telegram-id"
+      "settings-telegram-id",
     ) as HTMLInputElement;
     const inputNotifications = document.getElementById(
-      "settings-notifications"
+      "settings-notifications",
     ) as HTMLInputElement;
-    const btnSave = document.getElementById("settings-save") as HTMLButtonElement;
+    const btnSave = document.getElementById(
+      "settings-save",
+    ) as HTMLButtonElement;
 
+    modal.showModal(); // Show immediately!
     btnSave.disabled = true;
+
     try {
       const { ok, data, message } = await apiFetch("/user/settings");
       if (ok && data) {
@@ -73,10 +78,9 @@ export function attachSettingsButtonListener() {
         showToast(message || "Failed to load settings", "error");
       }
     } catch (e: any) {
-      showToast(e.message, "error");
+      showToast(e.message || "Failed to load settings", "error");
     } finally {
       btnSave.disabled = false;
-      modal.showModal();
     }
   });
 }

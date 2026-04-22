@@ -1,48 +1,34 @@
 /**
  * Chronicle — Personal Media Tracker
- * Thin bootstrap: imports modules and initializes the app.
+ * Clean bootstrap using the new reactive system (Phase 3)
  */
-
 import "./style.css";
-
-import { state, loadCoverCache } from "./state/store.js";
-import { renderApp } from "./ui/renderApp.js";
-import { fetchMedia } from "./api/media.js";
+import { loadCoverCache, store } from "./state/store.js";
+import { mountApp } from "./ui/root.js";
 import { setupCardEventDelegation } from "./features/media/cards.js";
 import { setupMediaFormHandler } from "./features/media/modal.js";
 import { setupImportHandler } from "./features/import-export/index.js";
-import { renderStatsHost } from "./features/media/stats.js";
-import { renderMediaCards } from "./features/media/cards.js";
 import { setupSettingsGlobalHandlers } from "./features/settings.js";
 
-// ── One-time setup ─────────────────────────────────────────────────
-
+// ── One-time setup (event delegation only) ─────────────────────────────
 setupCardEventDelegation();
 setupMediaFormHandler();
 setupImportHandler();
 setupSettingsGlobalHandlers();
 
-// ── App initialization ─────────────────────────────────────────────
-
+// ── App initialization ─────────────────────────────────────────────────
 async function init() {
   loadCoverCache();
-  renderApp();
+  mountApp(); // ← selective rendering starts here
 
-  if (state.token) {
+  // Initial data load if already logged in
+  if (store.get().token) {
+    const { fetchMedia } = await import("./services/media.js");
     try {
-      const request = fetchMedia();
-      renderStatsHost();
-      renderMediaCards();
-      await request;
-    } catch {
-      // Handled by apiFetch -> logout() on 401
+      await fetchMedia();
+    } catch (err) {
+      console.error("Initial fetchMedia failed:", err);
     }
-  }
-
-  renderApp();
-  if (state.token) {
-    renderStatsHost();
-    renderMediaCards();
   }
 }
 

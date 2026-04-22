@@ -1,6 +1,6 @@
-/** Media API helpers – now uses reactive store (Phase 1) */
+/** Media service layer — all business logic and API calls live here (Phase 2) */
 import { store } from "../state/store.js";
-import { apiFetch } from "./client.js";
+import { apiFetch } from "../api/client.js";
 
 export async function fetchMedia(
   reset = true,
@@ -49,13 +49,20 @@ export async function fetchMedia(
       };
     });
 
-    // Clean up selected IDs that no longer exist
     store.updateSelectedIds((set) => {
       const available = new Set(store.get().media.map((m) => m._id));
       set.forEach((id) => {
         if (!available.has(id)) set.delete(id);
       });
     });
+
+    // Fire & Forget Stats Update
+    apiFetch(`/stats`)
+      .then((data) => {
+        if (data) store.set((prev) => ({ ...prev, globalStats: data }));
+      })
+      .catch((err) => console.error("Stats fetch failed:", err));
+
   } catch (err) {
     console.error(err);
     throw new Error("Failed to load your entries. Please try again.");
@@ -67,3 +74,20 @@ export async function fetchMedia(
     }));
   }
 }
+
+export async function updateMedia(
+  id: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  await apiFetch(`/media?id=${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  await fetchMedia(true, true);
+}
+
+export async function deleteMedia(id: string): Promise<void> {
+  await apiFetch(`/media?id=${id}`, { method: "DELETE" });
+  await fetchMedia(true, true);
+}
+
