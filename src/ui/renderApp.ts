@@ -45,7 +45,7 @@ function renderAuthScreen(app: HTMLElement): void {
     <div class="auth-bg">
       <div class="auth-container">
         <div class="auth-brand">
-          <img src="/favicon.svg" alt="Chronicle logo" width="48" height="48" class="auth-brand-logo" />
+          <img src="/favicon.png" alt="Chronicle logo" width="48" height="48" class="auth-brand-logo" />
           <h1 class="auth-brand-name">Chronicle</h1>
         </div>
         <p class="auth-subtitle">Track your anime, manhwa, donghua &amp; light novels</p>
@@ -163,7 +163,7 @@ function renderDashboard(app: HTMLElement): void {
       <aside class="sidebar" role="navigation" aria-label="Main navigation">
 
         <div class="sidebar-brand">
-          <img src="/favicon.svg" alt="Chronicle logo" width="32" height="32" class="sidebar-brand-logo" />
+          <img src="/favicon.png" alt="Chronicle logo" width="32" height="32" class="sidebar-brand-logo" />
           <h1>Chronicle</h1>
         </div>
 
