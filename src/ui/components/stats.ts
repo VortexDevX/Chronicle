@@ -1,13 +1,14 @@
 import Chart from "chart.js/auto";
 import { store } from "../../state/store.js";
+import { selectors } from "../../state/selectors.js";
 import { escapeHtml } from "../../utils/format.js";
 import { apiFetch } from "../../api/client.js";
 
 let chartInstances: Chart[] = [];
 
 export function renderStats(): string {
-  const stats = store.get().globalStats;
-  if (!stats) return `<div class="spinner" style="margin: 40px auto;"></div>`;
+  const state = store.get();
+  const stats = state.globalStats || selectors.getStats();
 
   const total = stats.total;
   if (total === 0) {
@@ -90,7 +91,7 @@ export function renderStats(): string {
               Your most consumed format is <strong>${escapeHtml(String(topFormat[0]))}</strong> (${topFormat[1]} entries).
             </div>
             <div class="analytics-insight-item">
-              Your average library rating sits at a strictly measured <strong>★ ${stats.avgRating}</strong>.
+              Your average library rating sits at <strong>★ ${stats.avgRating}</strong>.
             </div>
             <div class="analytics-insight-item">
               You've dropped ${stats.dropped || 0} series out of ${total} total tracked records.
@@ -114,16 +115,17 @@ export function renderStatsHost(): void {
   const host = document.getElementById("stats-host");
   if (!host) return;
 
-  // Destroy old charts to prevent memory leak and canvas reuse errors
+  // Destroy old charts to prevent memory leak / canvas reuse errors
   chartInstances.forEach((chart) => chart.destroy());
   chartInstances = [];
 
   host.innerHTML = renderStats();
 
-  const stats = store.get().globalStats;
-  if (!stats || stats.total === 0) return;
+  const state = store.get();
+  const stats = state.globalStats || selectors.getStats();
+  if (stats.total === 0) return;
 
-  // Chart Global Defaults for Dark Theme
+  // Chart global defaults for dark theme
   Chart.defaults.color = "#8b949e";
   Chart.defaults.font.family = "'Outfit', sans-serif";
   const tooltip = (Chart.defaults as any).plugins?.tooltip;
@@ -135,7 +137,7 @@ export function renderStatsHost(): void {
     tooltip.borderWidth = 1;
   }
 
-  // Render Status Donut
+  // Status donut
   const ctxStatus = document.getElementById(
     "chart-status",
   ) as HTMLCanvasElement;
@@ -151,8 +153,8 @@ export function renderStatsHost(): void {
                 stats.watching,
                 stats.completed,
                 stats.planned,
-                stats.onHold || 0,
-                stats.dropped || 0,
+                stats.onHold,
+                stats.dropped,
               ],
               backgroundColor: [
                 "#38bdf8",
@@ -170,16 +172,14 @@ export function renderStatsHost(): void {
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { position: "right" },
-          },
+          plugins: { legend: { position: "right" } },
           cutout: "70%",
         },
       }),
     );
   }
 
-  // Render Type Bar
+  // Type bar
   const ctxType = document.getElementById("chart-type") as HTMLCanvasElement;
   if (ctxType) {
     const sortedTypes = Object.entries(stats.byType).sort(
@@ -202,24 +202,16 @@ export function renderStatsHost(): void {
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-          },
+          plugins: { legend: { display: false } },
           scales: {
-            y: {
-              beginAtZero: true,
-              grid: { color: "rgba(255,255,255,0.05)" },
-            },
-            x: {
-              grid: { display: false },
-            },
+            y: { beginAtZero: true, grid: { color: "rgba(255,255,255,0.05)" } },
+            x: { grid: { display: false } },
           },
         },
       }),
     );
   }
 
-  // Fetch recent activity async
   setTimeout(loadRecentActivity, 0);
 }
 
@@ -235,23 +227,22 @@ async function loadRecentActivity() {
           '<div style="color:var(--text-secondary); text-align:center;">No recent archival events.</div>';
         return;
       }
-
       listHost.innerHTML = res.data.items
         .map(
           (item: any) => `
-        <div class="analytics-activity-item">
-          <div class="activity-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;" title="${escapeHtml(item.title)}">
-            ${escapeHtml(item.title)}
+          <div class="analytics-activity-item">
+            <div class="activity-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%;" title="${escapeHtml(item.title)}">
+              ${escapeHtml(item.title)}
+            </div>
+            <div class="activity-meta">
+              ${item.status === "Completed" ? '<span style="color:var(--green)">Completed</span>' : "Updated"}
+            </div>
           </div>
-          <div class="activity-meta">
-            ${item.status === "Completed" ? '<span style="color:var(--green)">Completed</span>' : "Updated"}
-          </div>
-        </div>
-      `,
+        `,
         )
         .join("");
     }
-  } catch (err) {
+  } catch {
     const listHost = document.getElementById("analytics-recent-list");
     if (listHost)
       listHost.innerHTML =

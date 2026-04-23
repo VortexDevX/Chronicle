@@ -15,7 +15,7 @@ import {
   openExportTypeDialog,
   triggerImport,
 } from "../features/import-export/index.js";
-import { fetchMedia } from "../services/media.js";
+import { fetchMedia, fetchStats } from "../services/media.js";
 
 function setDisplay(id: string, value: string): void {
   const el = document.getElementById(id);
@@ -385,7 +385,7 @@ function renderDashboard(app: HTMLElement): void {
     setActiveNav("btn-sidebar-home");
     closeMobileSidebar();
   };
-  const showAnalytics = () => {
+  const showAnalytics = async () => {
     setDisplay("media-grid", "none");
     setDisplay("controls-host", "none");
     setDisplay("bulk-bar-host", "none");
@@ -396,6 +396,11 @@ function renderDashboard(app: HTMLElement): void {
     setDisplay("stats-host", "block");
     setActiveNav("btn-sidebar-analytics");
     closeMobileSidebar();
+    // ← re-render charts every time analytics is opened
+    if (!store.get().globalStats) {
+      await fetchStats();
+    }
+    renderStatsHost();
   };
   document
     .getElementById("btn-sidebar-home")

@@ -95,3 +95,12 @@ export async function deleteMedia(id: string): Promise<void> {
   await apiFetch(`/media?id=${id}`, { method: "DELETE" });
   await fetchMedia(true, true);
 }
+
+export async function fetchStats(): Promise<void> {
+  try {
+    const data = await apiFetch(`/stats`);
+    if (data) store.set((prev) => ({ ...prev, globalStats: data }));
+  } catch (err) {
+    console.error("Stats fetch failed:", err);
+  }
+}
