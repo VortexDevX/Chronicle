@@ -6,19 +6,21 @@ export async function fetchMedia(
   reset = true,
   background = false,
 ): Promise<void> {
-  if (reset) {
-    store.set((prev) => ({
-      ...prev,
-      page: 1,
-      media: background ? prev.media : [],
-      total: background ? prev.total : 0,
-      loading: !background,
-      hasMore: false,
-      loadingMore: false,
-    }));
-  } else {
-    store.set((prev) => ({ ...prev, loadingMore: true }));
-  }
+  // Single loading set — covers both reset and load-more cases
+  store.set((prev) => ({
+    ...prev,
+    ...(reset
+      ? {
+          page: 1,
+          media: background ? prev.media : [],
+          total: background ? prev.total : 0,
+          hasMore: false,
+          loading: !background,
+          mediaRev: background ? prev.mediaRev : prev.mediaRev + 1,
+        }
+      : {}),
+    loadingMore: !reset,
+  }));
 
   try {
     const current = store.get();
@@ -34,11 +36,13 @@ export async function fetchMedia(
     const payload = await apiFetch(`/media?${query.toString()}`);
     const items = Array.isArray(payload) ? payload : payload.items || [];
 
+    // Single data set — includes loading cleanup
     store.set((prev) => {
       const newMedia = reset ? items : [...prev.media, ...items];
       return {
         ...prev,
         media: newMedia,
+        mediaRev: prev.mediaRev + 1,
         total: Array.isArray(payload)
           ? items.length
           : payload.total || items.length,
@@ -46,6 +50,8 @@ export async function fetchMedia(
         page: Array.isArray(payload)
           ? prev.page
           : Number(payload.page || prev.page),
+        loading: false,
+        loadingMore: false,
       };
     });
 
@@ -62,32 +68,30 @@ export async function fetchMedia(
         if (data) store.set((prev) => ({ ...prev, globalStats: data }));
       })
       .catch((err) => console.error("Stats fetch failed:", err));
-
   } catch (err) {
     console.error(err);
-    throw new Error("Failed to load your entries. Please try again.");
-  } finally {
     store.set((prev) => ({
       ...prev,
       loading: false,
       loadingMore: false,
     }));
+    throw new Error("Failed to load your entries. Please try again.");
   }
 }
 
 export async function updateMedia(
   id: string,
   payload: Record<string, unknown>,
+  refetch = true,
 ): Promise<void> {
   await apiFetch(`/media?id=${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
-  await fetchMedia(true, true);
+  if (refetch) await fetchMedia(true, true);
 }
 
 export async function deleteMedia(id: string): Promise<void> {
   await apiFetch(`/media?id=${id}`, { method: "DELETE" });
   await fetchMedia(true, true);
 }
-

@@ -24,6 +24,24 @@ export function setupCardEventDelegation(): void {
 
   document.addEventListener("click", async (e) => {
     const target = e.target as HTMLElement;
+
+    // ── Toggle card actions on touch / click on card body ──
+    const card = target.closest(".card") as HTMLElement | null;
+    if (
+      card &&
+      !target.closest(".card-actions") &&
+      !target.closest(".bulk-select") &&
+      !target.closest(".btn-increment")
+    ) {
+      // On mobile, toggle action visibility
+      if (window.innerWidth <= 768) {
+        document.querySelectorAll(".card.card-actions-visible").forEach((c) => {
+          if (c !== card) c.classList.remove("card-actions-visible");
+        });
+        card.classList.toggle("card-actions-visible");
+      }
+    }
+
     const id = target.getAttribute("data-id");
     if (!id) return;
 

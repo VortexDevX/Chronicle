@@ -14,21 +14,19 @@ export function mountApp(): void {
   // Re-render the entire shell when auth state changes (login/logout)
   store.subscribe(
     (state) => state.token,
-    () => renderApp()
+    () => renderApp(),
   );
+
+  // Stats — only re-render when globalStats changes (handled in stats.ts)
+  // Removed redundant media→statsHost subscription
 
   // Selective updates — only re-render what changed
   store.subscribe(
-    (state) => ({ media: state.media }), // Stats dependency
-    () => renderStatsHost()
-  );
-
-  store.subscribe(
     (state) => ({
       bulkMode: state.bulkMode,
-      selectedIds: Array.from(state.selectedIds)
+      selectedIds: Array.from(state.selectedIds),
     }),
-    () => renderBulkBar()
+    () => renderBulkBar(),
   );
 
   store.subscribe(
@@ -36,24 +34,24 @@ export function mountApp(): void {
       filterType: state.filterType,
       filterStatus: state.filterStatus,
       sortBy: state.sortBy,
-      bulkMode: state.bulkMode
+      bulkMode: state.bulkMode,
     }),
-    () => renderControls()
+    () => renderControls(),
   );
 
   store.subscribe(
     (state) => ({
-      media: state.media,
+      mediaRev: state.mediaRev,
       search: state.search,
       filterType: state.filterType,
       filterStatus: state.filterStatus,
       sortBy: state.sortBy,
       bulkMode: state.bulkMode,
-      selectedIds: Array.from(state.selectedIds), // Convert Set to Array for JSON.stringify to work!
+      selectedIds: Array.from(state.selectedIds),
       loading: state.loading,
       loadingMore: state.loadingMore,
-      hasMore: state.hasMore
+      hasMore: state.hasMore,
     }),
-    () => renderMediaCards()
+    () => renderMediaCards(),
   );
 }

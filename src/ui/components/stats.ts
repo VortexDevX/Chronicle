@@ -7,8 +7,8 @@ let chartInstances: Chart[] = [];
 
 export function renderStats(): string {
   const stats = store.get().globalStats;
-  if (!stats) return `<div class="spinner" style="margin: 40px auto;"></div>`; 
-  
+  if (!stats) return `<div class="spinner" style="margin: 40px auto;"></div>`;
+
   const total = stats.total;
   if (total === 0) {
     return `
@@ -19,13 +19,14 @@ export function renderStats(): string {
     `;
   }
 
-  // Find max format
   const formatEntries = Object.entries(stats.byType);
-  const topFormat = formatEntries.length > 0 
-    ? formatEntries.reduce((a, b) => a[1] > b[1] ? a : b) 
-    : ["Unknown", 0];
+  const topFormat =
+    formatEntries.length > 0
+      ? formatEntries.reduce((a, b) => (a[1] > b[1] ? a : b))
+      : ["Unknown", 0];
 
-  const completionRate = total > 0 ? Math.round((stats.completed / total) * 100) : 0;
+  const completionRate =
+    total > 0 ? Math.round((stats.completed / total) * 100) : 0;
 
   return `
     <div class="analytics-dashboard">
@@ -33,7 +34,6 @@ export function renderStats(): string {
         <h2>Analytics Dashboard</h2>
       </div>
 
-      <!-- Summary Row -->
       <div class="analytics-summary-grid">
         <div class="analytics-card" style="border-top: 4px solid var(--violet)">
           <div class="analytics-card-title">Total Library</div>
@@ -64,7 +64,6 @@ export function renderStats(): string {
         </div>
       </div>
 
-      <!-- Primary Charts Row -->
       <div class="analytics-charts-row">
         <div class="analytics-chart-box">
           <h3>Status Distribution</h3>
@@ -80,7 +79,6 @@ export function renderStats(): string {
         </div>
       </div>
 
-      <!-- Secondary Row -->
       <div class="analytics-tertiary-row">
         <div class="analytics-chart-box">
           <h3>Library Insights</h3>
@@ -117,7 +115,7 @@ export function renderStatsHost(): void {
   if (!host) return;
 
   // Destroy old charts to prevent memory leak and canvas reuse errors
-  chartInstances.forEach(chart => chart.destroy());
+  chartInstances.forEach((chart) => chart.destroy());
   chartInstances = [];
 
   host.innerHTML = renderStats();
@@ -138,63 +136,87 @@ export function renderStatsHost(): void {
   }
 
   // Render Status Donut
-  const ctxStatus = document.getElementById("chart-status") as HTMLCanvasElement;
+  const ctxStatus = document.getElementById(
+    "chart-status",
+  ) as HTMLCanvasElement;
   if (ctxStatus) {
-    chartInstances.push(new Chart(ctxStatus, {
-      type: "doughnut",
-      data: {
-        labels: ["Active", "Completed", "Planned", "On Hold", "Dropped"],
-        datasets: [{
-          data: [stats.watching, stats.completed, stats.planned, stats.onHold || 0, stats.dropped || 0],
-          backgroundColor: ["#38bdf8", "#34d399", "#a78bfa", "#fbbf24", "#f87171"],
-          borderColor: "#0d1117",
-          borderWidth: 2,
-          hoverOffset: 4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: "right" }
+    chartInstances.push(
+      new Chart(ctxStatus, {
+        type: "doughnut",
+        data: {
+          labels: ["Active", "Completed", "Planned", "On Hold", "Dropped"],
+          datasets: [
+            {
+              data: [
+                stats.watching,
+                stats.completed,
+                stats.planned,
+                stats.onHold || 0,
+                stats.dropped || 0,
+              ],
+              backgroundColor: [
+                "#38bdf8",
+                "#34d399",
+                "#a78bfa",
+                "#fbbf24",
+                "#f87171",
+              ],
+              borderColor: "#0d1117",
+              borderWidth: 2,
+              hoverOffset: 4,
+            },
+          ],
         },
-        cutout: "70%"
-      }
-    }));
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "right" },
+          },
+          cutout: "70%",
+        },
+      }),
+    );
   }
 
   // Render Type Bar
   const ctxType = document.getElementById("chart-type") as HTMLCanvasElement;
   if (ctxType) {
-    const sortedTypes = Object.entries(stats.byType).sort((a, b) => b[1] - a[1]);
-    chartInstances.push(new Chart(ctxType, {
-      type: "bar",
-      data: {
-        labels: sortedTypes.map(t => t[0]),
-        datasets: [{
-          label: "# of Entries",
-          data: sortedTypes.map(t => t[1]),
-          backgroundColor: "#818cf8",
-          borderRadius: 4,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
+    const sortedTypes = Object.entries(stats.byType).sort(
+      (a, b) => b[1] - a[1],
+    );
+    chartInstances.push(
+      new Chart(ctxType, {
+        type: "bar",
+        data: {
+          labels: sortedTypes.map((t) => t[0]),
+          datasets: [
+            {
+              label: "# of Entries",
+              data: sortedTypes.map((t) => t[1]),
+              backgroundColor: "#818cf8",
+              borderRadius: 4,
+            },
+          ],
         },
-        scales: {
-          y: {
-            beginAtZero: true,
-            grid: { color: "rgba(255,255,255,0.05)" }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
           },
-          x: {
-            grid: { display: false }
-          }
-        }
-      }
-    }));
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: "rgba(255,255,255,0.05)" },
+            },
+            x: {
+              grid: { display: false },
+            },
+          },
+        },
+      }),
+    );
   }
 
   // Fetch recent activity async
@@ -206,29 +228,33 @@ async function loadRecentActivity() {
     const listHost = document.getElementById("analytics-recent-list");
     if (!listHost) return;
 
-    // Fast, lightweight fetch strictly for 5 recent items
     const res = await apiFetch("/media?limit=5&sort=updatedAt:-1");
     if (res.data && res.data.items) {
       if (res.data.items.length === 0) {
-        listHost.innerHTML = '<div style="color:var(--text-secondary); text-align:center;">No recent archival events.</div>';
+        listHost.innerHTML =
+          '<div style="color:var(--text-secondary); text-align:center;">No recent archival events.</div>';
         return;
       }
 
-      listHost.innerHTML = res.data.items.map((item: any) => `
+      listHost.innerHTML = res.data.items
+        .map(
+          (item: any) => `
         <div class="analytics-activity-item">
           <div class="activity-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;" title="${escapeHtml(item.title)}">
             ${escapeHtml(item.title)}
           </div>
           <div class="activity-meta">
-            ${item.status === 'Completed' ? '<span style="color:var(--green)">Completed</span>' : 'Updated'}
+            ${item.status === "Completed" ? '<span style="color:var(--green)">Completed</span>' : "Updated"}
           </div>
         </div>
-      `).join("");
+      `,
+        )
+        .join("");
     }
   } catch (err) {
     const listHost = document.getElementById("analytics-recent-list");
-    if (listHost) listHost.innerHTML = '<div style="color:var(--red);">Failed to load recent activity.</div>';
+    if (listHost)
+      listHost.innerHTML =
+        '<div style="color:var(--red);">Failed to load recent activity.</div>';
   }
 }
-
-store.subscribe((s) => s.globalStats, renderStatsHost);

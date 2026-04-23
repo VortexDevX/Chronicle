@@ -16,6 +16,7 @@ export interface AppState {
   token: string;
   username: string;
   media: MediaItem[];
+  mediaRev: number;
   search: string;
   filterType: string;
   filterStatus: string;
@@ -29,6 +30,30 @@ export interface AppState {
   bulkMode: boolean;
   selectedIds: Set<string>;
   globalStats: GlobalStats | null;
+}
+
+/** Factory for initial state — single source of truth, no duplication */
+export function createInitialState(overrides?: Partial<AppState>): AppState {
+  return {
+    token: "",
+    username: "",
+    media: [],
+    mediaRev: 0,
+    search: "",
+    filterType: "",
+    filterStatus: "",
+    sortBy: "last_updated",
+    loading: false,
+    loadingMore: false,
+    page: 1,
+    limit: 24,
+    hasMore: false,
+    total: 0,
+    bulkMode: false,
+    selectedIds: new Set<string>(),
+    globalStats: null,
+    ...overrides,
+  };
 }
 
 export class Store {
@@ -60,10 +85,13 @@ export class Store {
 
   /** Subscribe to state changes (used by UI) */
   subscribe(listener: () => void): () => void;
-  subscribe<T>(selector: (state: AppState) => T, listener: (newVal: T) => void): () => void;
+  subscribe<T>(
+    selector: (state: AppState) => T,
+    listener: (newVal: T) => void,
+  ): () => void;
   subscribe<T>(
     arg1: ((state: AppState) => T) | (() => void),
-    arg2?: (newVal: T) => void
+    arg2?: (newVal: T) => void,
   ): () => void {
     if (arg2) {
       const selector = arg1 as (state: AppState) => T;
@@ -94,16 +122,32 @@ export class Store {
         entry.listener();
       } else if (entry.selector) {
         const newVal = entry.selector(this.state);
-        // Deep equality check using JSON.stringify for simple structured selectors
-        const newHash = JSON.stringify(newVal);
-        const oldHash = JSON.stringify(entry.lastValue);
-        
-        if (newHash !== oldHash) {
+        if (!this.isEqual(entry.lastValue, newVal)) {
           entry.lastValue = newVal;
           entry.listener(newVal);
         }
       }
     });
+  }
+
+  /** Smart equality: reference check for arrays, JSON for small objects */
+  private isEqual(oldVal: any, newVal: any): boolean {
+    if (oldVal === newVal) return true;
+    if (oldVal == null || newVal == null) return oldVal === newVal;
+    if (typeof oldVal !== typeof newVal) return false;
+    if (typeof oldVal !== "object") return oldVal === newVal;
+
+    // Arrays: reference equality (media arrays are always new refs on change)
+    if (Array.isArray(oldVal) || Array.isArray(newVal)) {
+      return oldVal === newVal;
+    }
+
+    // Small plain objects: JSON.stringify is fine here
+    try {
+      return JSON.stringify(oldVal) === JSON.stringify(newVal);
+    } catch {
+      return false;
+    }
   }
 
   /** Helper for selectedIds Set */

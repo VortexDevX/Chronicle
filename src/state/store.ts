@@ -1,31 +1,16 @@
 /** Application state store – reactive Store + cover cache */
-import { Store, type AppState } from "./core.js";
+import { Store, createInitialState, type AppState } from "./core.js";
 import type { CoverCacheEntry } from "../types/media.js";
 
 // ── Create the single store instance ─────────────────────────────
-const initialState: AppState = {
+const initialState = createInitialState({
   token: localStorage.getItem("token") || "",
   username: localStorage.getItem("username") || "",
-  media: [],
-  search: "",
-  filterType: "",
-  filterStatus: "",
-  sortBy: "last_updated",
-  loading: false,
-  loadingMore: false,
-  page: 1,
-  limit: 24,
-  hasMore: false,
-  total: 0,
-  bulkMode: false,
-  selectedIds: new Set<string>(),
-  globalStats: null,
-};
+});
 
 export const store = new Store(initialState);
-export { store as state }; // ← temporary alias so old files still work
 
-// ── Cover Image Cache (your original code, unchanged) ─────────────
+// ── Cover Image Cache ─────────────────────────────────────────────
 const COVER_CACHE_KEY = "chronicle:cover-cache:v3";
 const COVER_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COVER_CACHE_NULL_TTL_MS = 1000 * 60 * 30;
@@ -35,6 +20,32 @@ export const coverCache = new Map<string, CoverCacheEntry>();
 export let coverQueue: { title: string; id: string; mangadexId?: string }[] =
   [];
 export let coverProcessing = false;
+
+/** Batched persist — writes at most once every 2s */
+let coverCacheDirty = false;
+let coverCacheTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleCoverPersist(): void {
+  coverCacheDirty = true;
+  if (!coverCacheTimer) {
+    coverCacheTimer = setTimeout(() => {
+      if (coverCacheDirty) persistCoverCache();
+      coverCacheDirty = false;
+      coverCacheTimer = null;
+    }, 2000);
+  }
+}
+
+export function flushCoverCache(): void {
+  if (coverCacheDirty) {
+    persistCoverCache();
+    coverCacheDirty = false;
+  }
+  if (coverCacheTimer) {
+    clearTimeout(coverCacheTimer);
+    coverCacheTimer = null;
+  }
+}
 
 export function setCoverProcessing(val: boolean) {
   coverProcessing = val;
@@ -76,7 +87,7 @@ export function getCachedCover(title: string): string | null | undefined {
   const ttl = entry.url ? COVER_CACHE_TTL_MS : COVER_CACHE_NULL_TTL_MS;
   if (Date.now() - entry.ts > ttl) {
     coverCache.delete(title);
-    persistCoverCache();
+    scheduleCoverPersist();
     return undefined;
   }
   return entry.url;
@@ -84,7 +95,7 @@ export function getCachedCover(title: string): string | null | undefined {
 
 export function setCachedCover(title: string, url: string | null): void {
   coverCache.set(title, { url, ts: Date.now() });
-  persistCoverCache();
+  scheduleCoverPersist();
 }
 
 export async function processCoverQueue(): Promise<void> {
@@ -134,6 +145,7 @@ export async function processCoverQueue(): Promise<void> {
     await new Promise((r) => setTimeout(r, mangadexId ? 250 : 1100));
   }
   coverProcessing = false;
+  flushCoverCache();
 }
 
 export function queueCoverFetch(
