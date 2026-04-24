@@ -13,25 +13,17 @@ import * as cheerio from "cheerio";
  * Vercel Cron — runs daily at 9AM IST
  * Schedule set in vercel.json: "30 3 * * *" (03:30 UTC = 09:00 IST)
  *
- * For each Manhwa entry that:
- *   - has status "Watching/Reading"
- *   - has a tracker_url set
+ * Checks:
+ *   - Manhwa entries with tracker_url → scrapes chapter number
+ *   - Donghua entries with tracker_url → scrapes episode number from animexin.dev
  *
- * Scrapes the tracker URL for the latest chapter number.
- * If latest chapter number > progress_current, queues a notification.
- *
- * Notifications are grouped per-user:
- *   - Users with notifications_enabled + telegram_chat_id get their own message.
- *   - Remaining updates go to the global TELEGRAM_CHAT_ID fallback (if set).
- *
+ * If latest number > progress_current, queues a notification per user.
  * Does NOT auto-update progress_current — that stays manual.
  */
 
-// Hard caps to avoid serverless timeout
 const MAX_USERS = 50;
 const MAX_ENTRIES_PER_RUN = 200;
 
-// Scrape a tracker URL to find the latest chapter number
 const BROWSER_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -40,6 +32,10 @@ const BROWSER_HEADERS: Record<string, string> = {
   "Accept-Language": "en-US,en;q=0.5",
   Referer: "https://www.google.com/",
 };
+
+// ══════════════════════════════════════════════════════════════════
+//  MANHWA — chapter scraping (existing logic, unchanged)
+// ══════════════════════════════════════════════════════════════════
 
 type ScraperRule = {
   hosts: string[];
@@ -69,16 +65,20 @@ const SCRAPER_RULES: ScraperRule[] = [
   },
   {
     hosts: ["manhuafast.com", "www.manhuafast.com"],
-    selectors: [".wp-manga-chapter a", ".listing-chapters_wrap li a", 'a[href*="/chapter-"]'],
+    selectors: [
+      ".wp-manga-chapter a",
+      ".listing-chapters_wrap li a",
+      'a[href*="/chapter-"]',
+    ],
   },
 ];
 
 const GENERIC_CHAPTER_SELECTORS = [
-  '.wp-manga-chapter a',
-  '.listing-chapters_wrap li a',
-  '.eplister li a',
-  '.eph-num a',
-  '.bxcl ul li a',
+  ".wp-manga-chapter a",
+  ".listing-chapters_wrap li a",
+  ".eplister li a",
+  ".eph-num a",
+  ".bxcl ul li a",
   'a[href*="chapter-"]',
   'a[href*="/chapter/"]',
 ];
@@ -101,13 +101,19 @@ function extractChapterNumberFromText(text: string): number | null {
   return num;
 }
 
-function extractChapterNumberFromHref(href: string, baseUrl: string): number | null {
+function extractChapterNumberFromHref(
+  href: string,
+  baseUrl: string,
+): number | null {
   try {
     const parsed = new URL(href, baseUrl);
     const path = decodeURIComponent(parsed.pathname).toLowerCase();
-    const match = path.match(/(?:^|[/-])(?:chapter|chap|ch|episode|ep)-?\/?(\d+(?:\.\d+)?)(?:\/)?$/i)
-      || path.match(/(?:chapter|chap|ch|episode|ep)-(\d+(?:\.\d+)?)(?:\/)?$/i)
-      || path.match(/(?:chapter|chap|ch|episode|ep)\/(\d+(?:\.\d+)?)(?:\/)?$/i);
+    const match =
+      path.match(
+        /(?:^|[/-])(?:chapter|chap|ch|episode|ep)-?\/?(\d+(?:\.\d+)?)(?:\/)?$/i,
+      ) ||
+      path.match(/(?:chapter|chap|ch|episode|ep)-(\d+(?:\.\d+)?)(?:\/)?$/i) ||
+      path.match(/(?:chapter|chap|ch|episode|ep)\/(\d+(?:\.\d+)?)(?:\/)?$/i);
     if (!match) return null;
 
     const num = parseFloat(match[1]);
@@ -125,11 +131,9 @@ async function fetchManhuafastChapters(trackerUrl: string): Promise<string> {
     headers: BROWSER_HEADERS,
     redirect: "follow",
   });
-
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
-
   return res.text();
 }
 
@@ -160,80 +164,249 @@ function collectChapterNumbers(
         }
       }
 
-      const fromHref = href ? extractChapterNumberFromHref(href, trackerUrl) : null;
+      const fromHref = href
+        ? extractChapterNumberFromHref(href, trackerUrl)
+        : null;
       if (fromHref !== null) {
         numbers.push(fromHref);
         return;
       }
 
       const fromText = extractChapterNumberFromText(text);
-      if (fromText !== null) {
-        numbers.push(fromText);
-      }
+      if (fromText !== null) numbers.push(fromText);
     });
 
-    if (numbers.length > 0) {
-      return numbers;
-    }
+    if (numbers.length > 0) return numbers;
   }
 
   return numbers;
 }
 
-async function scrapeTrackerUrl(trackerUrl: string): Promise<number | null> {
-  try {
-    const initialRes = await fetch(trackerUrl, {
-      headers: BROWSER_HEADERS,
-      redirect: "follow",
-    });
+async function scrapeManhwaTrackerUrl(
+  trackerUrl: string,
+): Promise<number | null> {
+  const initialRes = await fetch(trackerUrl, {
+    headers: BROWSER_HEADERS,
+    redirect: "follow",
+  });
+  if (!initialRes.ok) {
+    throw new Error(`HTTP ${initialRes.status}: ${initialRes.statusText}`);
+  }
 
-    if (!initialRes.ok) {
-      throw new Error(`HTTP ${initialRes.status}: ${initialRes.statusText}`);
-    }
-
-    const resolvedUrl = initialRes.url;
-    const host = new URL(resolvedUrl).host;
-    const html = host === "manhuafast.com" || host === "www.manhuafast.com"
+  const resolvedUrl = initialRes.url;
+  const host = new URL(resolvedUrl).host;
+  const html =
+    host === "manhuafast.com" || host === "www.manhuafast.com"
       ? await fetchManhuafastChapters(resolvedUrl)
       : await initialRes.text();
-    const $ = cheerio.load(html);
-    const preferredSelectors =
-      getRuleForHost(host)?.selectors || GENERIC_CHAPTER_SELECTORS;
-    let chapterNumbers = collectChapterNumbers($, resolvedUrl, preferredSelectors);
 
-    if (chapterNumbers.length === 0 && preferredSelectors !== GENERIC_CHAPTER_SELECTORS) {
-      chapterNumbers = collectChapterNumbers($, resolvedUrl, GENERIC_CHAPTER_SELECTORS);
-    }
+  const $ = cheerio.load(html);
+  const preferredSelectors =
+    getRuleForHost(host)?.selectors || GENERIC_CHAPTER_SELECTORS;
+  let chapterNumbers = collectChapterNumbers(
+    $,
+    resolvedUrl,
+    preferredSelectors,
+  );
 
-    if (chapterNumbers.length === 0) {
-      throw new Error("No chapter numbers found in DOM");
+  if (
+    chapterNumbers.length === 0 &&
+    preferredSelectors !== GENERIC_CHAPTER_SELECTORS
+  ) {
+    chapterNumbers = collectChapterNumbers(
+      $,
+      resolvedUrl,
+      GENERIC_CHAPTER_SELECTORS,
+    );
+  }
+
+  if (chapterNumbers.length === 0) {
+    throw new Error("No chapter numbers found in DOM");
+  }
+  return Math.max(...chapterNumbers);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  DONGHUA — episode scraping (animexin.dev)
+// ══════════════════════════════════════════════════════════════════
+
+const ANIMEXIN_HOST = "animexin.dev";
+
+/**
+ * Scrapes animexin.dev show page for the latest episode number.
+ *
+ * The page contains a structure like:
+ *   <div class="lastend">
+ *     <div class="inepcx">
+ *       <a href="#">
+ *         <span>First Episode</span>
+ *         <span class="epcur epcurfirst">Episode 1</span>
+ *       </a>
+ *     </div>
+ *     <div class="inepcx">
+ *       <a href="https://animexin.dev/some-show-episode-137-.../">
+ *         <span>New Episode</span>
+ *         <span class="epcur epcurlast">Episode 137</span>
+ *       </a>
+ *     </div>
+ *   </div>
+ *
+ * Strategy (in priority order):
+ *   1. .epcur.epcurlast text  → "Episode 137" → 137
+ *   2. .lastend .inepcx last child span.epcur text
+ *   3. Any span.epcur text — take the max
+ *   4. Regex scan of full HTML source for "Episode NNN"
+ */
+async function scrapeAnimexinTrackerUrl(
+  trackerUrl: string,
+): Promise<number | null> {
+  const res = await fetch(trackerUrl, {
+    headers: {
+      ...BROWSER_HEADERS,
+      Referer: "https://animexin.dev/",
+    },
+    redirect: "follow",
+  });
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+
+  // Validate we're still on animexin
+  const resolvedHost = new URL(res.url).host;
+  if (!resolvedHost.includes(ANIMEXIN_HOST)) {
+    throw new Error(
+      `Tracker URL redirected off animexin.dev to ${resolvedHost}`,
+    );
+  }
+
+  const html = await res.text();
+  const $ = cheerio.load(html);
+
+  const candidates: number[] = [];
+
+  // Strategy 1 — .epcur.epcurlast (the "New Episode" span, most reliable)
+  $(".epcur.epcurlast").each((_i, el) => {
+    const text = $(el).text().trim();
+    const num = extractEpisodeNumberFromText(text);
+    if (num !== null) candidates.push(num);
+  });
+
+  if (candidates.length > 0) {
+    return Math.max(...candidates);
+  }
+
+  // Strategy 2 — last .inepcx inside .lastend
+  const lastInepcx = $(".lastend .inepcx").last();
+  if (lastInepcx.length) {
+    const text =
+      lastInepcx.find(".epcur").last().text().trim() ||
+      lastInepcx.text().trim();
+    const num = extractEpisodeNumberFromText(text);
+    if (num !== null) candidates.push(num);
+  }
+
+  if (candidates.length > 0) {
+    return Math.max(...candidates);
+  }
+
+  // Strategy 3 — any span.epcur on the page, take the max
+  $("span.epcur").each((_i, el) => {
+    const text = $(el).text().trim();
+    const num = extractEpisodeNumberFromText(text);
+    if (num !== null) candidates.push(num);
+  });
+
+  if (candidates.length > 0) {
+    return Math.max(...candidates);
+  }
+
+  // Strategy 4 — raw HTML regex scan for "Episode NNN"
+  const episodeMatches = html.matchAll(/Episode\s+(\d+)/gi);
+  for (const match of episodeMatches) {
+    const num = parseInt(match[1], 10);
+    if (Number.isFinite(num) && num > 0 && num < 10000) {
+      candidates.push(num);
     }
-    return Math.max(...chapterNumbers);
+  }
+
+  if (candidates.length > 0) {
+    return Math.max(...candidates);
+  }
+
+  throw new Error("No episode numbers found on animexin page");
+}
+
+/**
+ * Extract episode number from text like:
+ *   "Episode 137", "Ep 12", "EP.5", "Episode 3.5"
+ */
+function extractEpisodeNumberFromText(text: string): number | null {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+
+  const match = normalized.match(
+    /(?:episode|ep\.?)\s*[:#.\-]?\s*(\d+(?:\.\d+)?)/i,
+  );
+  if (!match) return null;
+
+  const num = parseFloat(match[1]);
+  if (!Number.isFinite(num) || num <= 0 || num >= 10000) return null;
+  return num;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  UNIFIED SCRAPER — dispatches by media_type
+// ══════════════════════════════════════════════════════════════════
+
+type MediaTypeSupported = "Manhwa" | "Donghua";
+
+async function scrapeTrackerUrl(
+  trackerUrl: string,
+  mediaType: MediaTypeSupported,
+): Promise<number | null> {
+  try {
+    if (mediaType === "Donghua") {
+      return await scrapeAnimexinTrackerUrl(trackerUrl);
+    }
+    return await scrapeManhwaTrackerUrl(trackerUrl);
   } catch (error: any) {
-    throw new Error(`Scraper failed: ${error.message}`);
+    throw new Error(`Scraper failed [${mediaType}]: ${error.message}`);
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
+// ══════════════════════════════════════════════════════════════════
+//  SHARED TYPES
+// ══════════════════════════════════════════════════════════════════
 
 type ChapterUpdate = {
   title: string;
   latest: number;
   current: number;
   tracker_url: string;
+  media_type: MediaTypeSupported;
 };
+
+/** Returns "Episode" for Donghua, "Chapter" for everything else */
+function progressUnit(mediaType: MediaTypeSupported): string {
+  return mediaType === "Donghua" ? "Episode" : "Chapter";
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CRON HANDLER
+// ══════════════════════════════════════════════════════════════════
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     return jsonError(res, "METHOD_NOT_ALLOWED", "Method Not Allowed", 405);
   }
 
-  // Vercel Cron sends Authorization header with CRON_SECRET
   const authHeader = req.headers.authorization;
   const cronSecret = process.env.CRON_SECRET;
-
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return jsonError(res, "UNAUTHORIZED", "Unauthorized", 401);
   }
@@ -247,13 +420,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await connectDB();
 
-    // Fetch all Manhwa entries that are actively being read and have a tracker URL
+    // ── Fetch both Manhwa AND Donghua entries with tracker URLs ──
     const entries = await MediaItem.find({
-      media_type: "Manhwa",
+      media_type: { $in: ["Manhwa", "Donghua"] },
       status: "Watching/Reading",
       tracker_url: { $exists: true, $nin: [null, ""] },
     })
-      .select("title progress_current tracker_url user_id")
+      .select("title progress_current tracker_url user_id media_type")
       .limit(MAX_ENTRIES_PER_RUN)
       .lean();
 
@@ -267,8 +440,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // ── Group entries by user_id ──────────────────────────────────
-
+    // ── Group by user ────────────────────────────────────────────
     const byUser = new Map<string, typeof entries>();
     for (const entry of entries) {
       const uid = String(entry.user_id);
@@ -276,23 +448,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       byUser.get(uid)!.push(entry);
     }
 
-    // Enforce user cap
     const userIds = Array.from(byUser.keys()).slice(0, MAX_USERS);
 
     // ── Fetch user notification settings ─────────────────────────
-
     const users = await User.find({ _id: { $in: userIds } })
       .select("_id username notifications_enabled telegram_chat_id")
       .lean();
 
-    const userMap = new Map(
-      users.map((u: any) => [String(u._id), u]),
-    );
+    const userMap = new Map(users.map((u: any) => [String(u._id), u]));
 
-    // ── Check chapters for each entry ────────────────────────────
-
+    // ── Scrape each entry ────────────────────────────────────────
     const updatesByUser = new Map<string, ChapterUpdate[]>();
-    const errorsByUser = new Map<string, { title: string; message: string }[]>();
+    const errorsByUser = new Map<
+      string,
+      { title: string; message: string }[]
+    >();
     let totalChecked = 0;
 
     for (const uid of userIds) {
@@ -301,8 +471,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const errors: { title: string; message: string }[] = [];
 
       for (const entry of userEntries) {
+        const mediaType = (entry as any).media_type as MediaTypeSupported;
+        const trackerUrl = (entry as any).tracker_url as string;
+
         try {
-          const latest = await scrapeTrackerUrl((entry as any).tracker_url as string);
+          const latest = await scrapeTrackerUrl(trackerUrl, mediaType);
           totalChecked++;
 
           if (latest !== null && latest > (entry.progress_current as number)) {
@@ -310,7 +483,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               title: entry.title as string,
               latest,
               current: entry.progress_current as number,
-              tracker_url: (entry as any).tracker_url as string,
+              tracker_url: trackerUrl,
+              media_type: mediaType,
             });
           }
         } catch (err: any) {
@@ -320,97 +494,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
 
-        // Rate limit between requests
-        await sleep(300);
+        // Longer delay for animexin to avoid rate limiting
+        await sleep(mediaType === "Donghua" ? 500 : 300);
       }
 
-      if (updates.length > 0) {
-        updatesByUser.set(uid, updates);
-      }
-      if (errors.length > 0) {
-        errorsByUser.set(uid, errors);
-      }
+      if (updates.length > 0) updatesByUser.set(uid, updates);
+      if (errors.length > 0) errorsByUser.set(uid, errors);
     }
 
-    // ── Send per-user notifications ──────────────────────────────
-
+    // ── Build & send per-user notifications ──────────────────────
     let usersNotified = 0;
     let failures = 0;
-    const globalFallbackUpdates: { username: string; updates: ChapterUpdate[]; errors: { title: string; message: string }[] }[] = [];
+    const globalFallbackUpdates: {
+      username: string;
+      updates: ChapterUpdate[];
+      errors: { title: string; message: string }[];
+    }[] = [];
 
-    for (const uid of new Set([...updatesByUser.keys(), ...errorsByUser.keys()])) {
+    for (const uid of new Set([
+      ...updatesByUser.keys(),
+      ...errorsByUser.keys(),
+    ])) {
       const updates = updatesByUser.get(uid) || [];
       const errors = errorsByUser.get(uid) || [];
       const user = userMap.get(uid) as any;
       const username = user?.username || "Unknown";
 
-      // Build message lines
-      const lines = updates.map(({ title, latest, current, tracker_url }) => {
-        const unread = Math.floor(latest - current);
-        const unreadStr = unread > 0 ? ` (+${unread})` : "";
-        return `➤ <a href="${escapeHtml(tracker_url)}">${escapeHtml(title)}</a>\nChapter ${latest}${unreadStr}`;
-      });
+      const message = buildNotificationMessage(username, updates, errors);
 
-      const messageParts = [
-        `━━━━ 🔔 <b>${escapeHtml(username)} Updates</b> ━━━━`,
-      ];
-
-      if (updates.length > 0) {
-        messageParts.push(``);
-        messageParts.push(lines.join("\n\n"));
-      }
-
-      if (errors.length > 0) {
-        messageParts.push(``);
-        messageParts.push(`⚠️ <b>Tracker Errors:</b>`);
-        errors.forEach(e => {
-          messageParts.push(`• <i>${escapeHtml(e.title)}</i>: ${e.message}`);
-        });
-      }
-
-      messageParts.push(``);
-      messageParts.push(`━━ <i>✨ Total: ${updates.length} update${updates.length !== 1 ? "s" : ""}</i> ━━`);
-
-      const message = messageParts.join("\n");
-
-      // Per-user notification if enabled
       if (user?.notifications_enabled && user?.telegram_chat_id) {
         const ok = await sendTelegramToChat(user.telegram_chat_id, message);
-        if (ok) {
-          usersNotified++;
-        } else {
-          failures++;
-        }
+        if (ok) usersNotified++;
+        else failures++;
       } else {
-        // Queue for global fallback
         globalFallbackUpdates.push({ username, updates, errors });
       }
     }
 
-    // ── Global fallback notification ─────────────────────────────
-
+    // ── Global fallback ──────────────────────────────────────────
     if (globalFallbackUpdates.length > 0) {
       const allLines: string[] = [];
       let totalUpdates = 0;
 
       for (const { username, updates, errors } of globalFallbackUpdates) {
-        allLines.push(`👤 <b>${escapeHtml(username)}</b>\n`);
-        
-        if (updates.length > 0) {
-          totalUpdates += updates.length;
-          const userLines = updates.map(({ title, latest, current, tracker_url }) => {
-            const unread = Math.floor(latest - current);
-            const unreadStr = unread > 0 ? ` (+${unread})` : "";
-            return `➤ <a href="${escapeHtml(tracker_url)}">${escapeHtml(title)}</a>\nChapter ${latest}${unreadStr}`;
-          });
-          allLines.push(userLines.join("\n\n"));
-        }
+        allLines.push(`👤 <b>${escapeHtml(username)}</b>`);
 
-        if (errors.length > 0) {
-          allLines.push( updates.length > 0 ? `\n⚠️ <i>Errors:</i>` : `⚠️ <i>Errors:</i>` );
-          errors.forEach(e => {
-            allLines.push(`• <i>${escapeHtml(e.title)}</i>: ${e.message}`);
-          });
+        const manhwa = updates.filter((u) => u.media_type === "Manhwa");
+        const donghua = updates.filter((u) => u.media_type === "Donghua");
+
+        const sections = [
+          formatMediaSection("Manhwa", "📖", manhwa),
+          formatMediaSection("Donghua", "🎬", donghua),
+          formatErrorSection(errors),
+        ].filter((v): v is string => Boolean(v));
+
+        if (sections.length > 0) {
+          allLines.push(sections.join("\n\n"));
         }
 
         allLines.push("");
@@ -451,7 +590,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return jsonOk(res, payload);
   } catch (err) {
-    logInternalError("cron_check_chapters", err, { route: "cron/checkChapters" });
+    logInternalError("cron_check_chapters", err, {
+      route: "cron/checkChapters",
+    });
     return jsonError(res, "CRON_ERROR", "Internal server error", 500);
   }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  NOTIFICATION HELPERS
+// ══════════════════════════════════════════════════════════════════
+
+function formatUpdateItem(update: ChapterUpdate): string {
+  const unread = Math.max(0, Math.floor(update.latest - update.current));
+  const unreadStr = unread > 0 ? ` (+${unread})` : "";
+  const unit = progressUnit(update.media_type);
+
+  return `• <a href="${escapeHtml(update.tracker_url)}">${escapeHtml(update.title)}</a> — ${unit} ${update.latest}${unreadStr}`;
+}
+
+function formatMediaSection(
+  label: string,
+  icon: string,
+  items: ChapterUpdate[],
+): string | null {
+  if (items.length === 0) return null;
+
+  return [
+    `${icon} <b>${label}</b> <i>(${items.length})</i>`,
+    ...items.map(formatUpdateItem),
+  ].join("\n");
+}
+
+function formatErrorSection(
+  errors: { title: string; message: string }[],
+): string | null {
+  if (errors.length === 0) return null;
+
+  return [
+    `⚠️ <b>Tracker Errors</b>`,
+    ...errors.map(
+      (e) => `• <i>${escapeHtml(e.title)}</i>: ${escapeHtml(e.message)}`,
+    ),
+  ].join("\n");
+}
+
+function buildNotificationMessage(
+  username: string,
+  updates: ChapterUpdate[],
+  errors: { title: string; message: string }[],
+): string {
+  const manhwa = updates.filter((u) => u.media_type === "Manhwa");
+  const donghua = updates.filter((u) => u.media_type === "Donghua");
+
+  const parts = [
+    `━━━━ 🔔 <b>${escapeHtml(username)} Updates</b> ━━━━`,
+    formatMediaSection("Manhwa", "📖", manhwa),
+    formatMediaSection("Donghua", "🎬", donghua),
+    formatErrorSection(errors),
+    `━━ <i>✨ Total: ${updates.length} update${updates.length !== 1 ? "s" : ""}</i> ━━`,
+  ].filter((v): v is string => Boolean(v));
+
+  return parts.join("\n\n");
 }
