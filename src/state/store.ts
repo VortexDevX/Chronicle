@@ -98,6 +98,36 @@ export function setCachedCover(title: string, url: string | null): void {
   scheduleCoverPersist();
 }
 
+async function fetchMangadexCover(mangadexId: string): Promise<string | null> {
+  const res = await fetch(
+    `https://api.mangadex.org/manga/${mangadexId}?includes[]=cover_art`,
+  );
+  if (!res.ok) return null;
+
+  const json = await res.json();
+  const coverArt = json.data?.relationships?.find(
+    (r: { type?: string; attributes?: { fileName?: string } }) =>
+      r.type === "cover_art",
+  );
+  if (!coverArt?.attributes?.fileName) return null;
+
+  return `https://uploads.mangadex.org/covers/${mangadexId}/${coverArt.attributes.fileName}.512.jpg`;
+}
+
+async function fetchAnimeCover(title: string): Promise<string | null> {
+  const res = await fetch(`/api/anime-cover?title=${encodeURIComponent(title)}`);
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json?.data?.imageUrl || json?.imageUrl || null;
+}
+
+function applyCoverToThumb(id: string, imageUrl: string): void {
+  const thumbEl = document.querySelector(`[data-cover-id="${id}"]`) as HTMLElement;
+  if (!thumbEl) return;
+  thumbEl.style.backgroundImage = `url(${imageUrl})`;
+  thumbEl.classList.add("thumb-loaded");
+}
+
 export async function processCoverQueue(): Promise<void> {
   if (coverProcessing || coverQueue.length === 0) return;
   coverProcessing = true;
@@ -106,38 +136,12 @@ export async function processCoverQueue(): Promise<void> {
     const cacheKey = mangadexId ? `md-${mangadexId}` : title;
     if (getCachedCover(cacheKey) !== undefined) continue;
     try {
-      let imageUrl: string | null = null;
-      if (mangadexId) {
-        const res = await fetch(
-          `https://api.mangadex.org/manga/${mangadexId}?includes[]=cover_art`,
-        );
-        if (res.ok) {
-          const json = await res.json();
-          const coverArt = json.data?.relationships?.find(
-            (r: { type?: string; attributes?: { fileName?: string } }) => r.type === "cover_art",
-          );
-          if (coverArt?.attributes?.fileName) {
-            imageUrl = `https://uploads.mangadex.org/covers/${mangadexId}/${coverArt.attributes.fileName}.512.jpg`;
-          }
-        }
-      } else {
-        const res = await fetch(
-          `/api/anime-cover?title=${encodeURIComponent(title)}`,
-        );
-        if (res.ok) {
-          const json = await res.json();
-          imageUrl = json?.imageUrl || null;
-        }
-      }
+      const imageUrl = mangadexId
+        ? await fetchMangadexCover(mangadexId)
+        : await fetchAnimeCover(title);
       setCachedCover(cacheKey, imageUrl);
       if (imageUrl) {
-        const thumbEl = document.querySelector(
-          `[data-cover-id="${id}"]`,
-        ) as HTMLElement;
-        if (thumbEl) {
-          thumbEl.style.backgroundImage = `url(${imageUrl})`;
-          thumbEl.classList.add("thumb-loaded");
-        }
+        applyCoverToThumb(id, imageUrl);
       }
     } catch {
       setCachedCover(cacheKey, null);
