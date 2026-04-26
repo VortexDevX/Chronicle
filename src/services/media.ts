@@ -8,6 +8,41 @@ const STATS_REFRESH_TTL_MS = 30_000;
 let lastStatsFetchAt = 0;
 let statsInFlight: Promise<void> | null = null;
 
+export function upsertLocalMediaItem(item: MediaItem): void {
+  store.set((prev) => {
+    const existingIndex = prev.media.findIndex((m) => m._id === item._id);
+    const media =
+      existingIndex === -1
+        ? [item, ...prev.media]
+        : prev.media.map((m, i) => (i === existingIndex ? item : m));
+
+    return {
+      ...prev,
+      media,
+      mediaRev: prev.mediaRev + 1,
+      total: existingIndex === -1 ? prev.total + 1 : prev.total,
+    };
+  });
+}
+
+export function removeLocalMediaItem(id: string): MediaItem | null {
+  const existing = store.get().media.find((m) => m._id === id) || null;
+  if (!existing) return null;
+
+  store.set((prev) => ({
+    ...prev,
+    media: prev.media.filter((m) => m._id !== id),
+    mediaRev: prev.mediaRev + 1,
+    total: Math.max(0, prev.total - 1),
+  }));
+
+  return existing;
+}
+
+export function restoreLocalMediaItem(item: MediaItem): void {
+  upsertLocalMediaItem(item);
+}
+
 async function refreshStatsIfStale(force = false): Promise<void> {
   const now = Date.now();
   if (!force && now - lastStatsFetchAt < STATS_REFRESH_TTL_MS) return;
@@ -108,17 +143,31 @@ export async function updateMedia(
   id: string,
   payload: Record<string, unknown>,
   refetch = true,
-): Promise<void> {
-  await apiFetch(`/media?id=${id}`, {
+) : Promise<MediaItem> {
+  const updated = (await apiFetch(`/media?id=${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
-  });
+  })) as MediaItem;
   if (refetch) await fetchMedia(true, true);
+  return updated;
 }
 
-export async function deleteMedia(id: string): Promise<void> {
+export async function createMedia(
+  payload: Record<string, unknown>,
+  duplicateMode?: "merge" | "keep_both",
+): Promise<MediaItem> {
+  const endpoint = duplicateMode ? `/media?duplicate_mode=${duplicateMode}` : "/media";
+  const result = (await apiFetch(endpoint, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })) as MediaItem | { merged?: boolean; item?: MediaItem };
+
+  return "item" in result && result.item ? result.item : (result as MediaItem);
+}
+
+export async function deleteMedia(id: string, refetch = true): Promise<void> {
   await apiFetch(`/media?id=${id}`, { method: "DELETE" });
-  await fetchMedia(true, true);
+  if (refetch) await fetchMedia(true, true);
 }
 
 export async function fetchStats(force = false): Promise<void> {

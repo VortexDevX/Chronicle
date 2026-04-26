@@ -3,9 +3,11 @@ import type { MediaItem } from "../../types/media.js";
 import { showToast } from "../../ui/toast.js";
 import { showConfirm } from "../../ui/modals.js";
 import { lookupMediaMeta } from "../lookup/index.js";
-import { fetchMedia } from "../../services/media.js";
-import { updateMedia } from "../../services/media.js";
-import { apiFetch } from "../../api/client.js";
+import {
+  createMedia,
+  updateMedia,
+  upsertLocalMediaItem,
+} from "../../services/media.js";
 
 type ApiLikeError = { code?: string };
 
@@ -195,20 +197,17 @@ export function setupMediaFormHandler(): void {
       saveBtn.disabled = true;
       saveBtn.innerHTML = `<span class="spinner"></span>`;
 
-      const createEntry = async (mode?: "merge" | "keep_both") => {
-        const endpoint = mode ? `/media?duplicate_mode=${mode}` : "/media";
-        return apiFetch(endpoint, {
-          method: "POST",
-          body: JSON.stringify(data),
-        });
-      };
+      const createEntry = async (mode?: "merge" | "keep_both") =>
+        createMedia(data, mode);
 
       try {
         if (id) {
-          await updateMedia(id, data);
+          const updated = await updateMedia(id, data, false);
+          upsertLocalMediaItem(updated);
         } else {
           try {
-            await createEntry();
+            const created = await createEntry();
+            upsertLocalMediaItem(created);
           } catch (err) {
             if (isApiLikeError(err) && err.code === "DUPLICATE_TITLE") {
               saveBtn.disabled = false;
@@ -217,10 +216,16 @@ export function setupMediaFormHandler(): void {
                 "Duplicate found",
                 "A similar title exists for this type. Merge into existing entry or keep both?",
                 async () => {
-                  await createEntry("merge");
+                  const merged = await createEntry("merge");
+                  upsertLocalMediaItem(merged);
+                  (document.getElementById("media-modal") as HTMLDialogElement).close();
+                  showToast("Entry added", "success");
                 },
                 async () => {
-                  await createEntry("keep_both");
+                  const created = await createEntry("keep_both");
+                  upsertLocalMediaItem(created);
+                  (document.getElementById("media-modal") as HTMLDialogElement).close();
+                  showToast("Entry added", "success");
                 },
               );
               return;
@@ -231,7 +236,6 @@ export function setupMediaFormHandler(): void {
 
         (document.getElementById("media-modal") as HTMLDialogElement).close();
         showToast(id ? "Entry updated" : "Entry added", "success");
-        await fetchMedia(true, true);
       } catch {
         showToast("Failed to save. Please try again.", "error");
         saveBtn.disabled = false;
