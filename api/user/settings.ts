@@ -41,11 +41,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const updatePayload: Record<string, any> = {};
 
       if (telegram_chat_id !== undefined) {
-        updatePayload.telegram_chat_id = String(telegram_chat_id).trim();
+        const chatId = String(telegram_chat_id ?? "").trim();
+        if (chatId.length > 50) {
+          return jsonError(
+            res,
+            "INVALID_CHAT_ID",
+            "telegram_chat_id is too long",
+            400,
+          );
+        }
+        updatePayload.telegram_chat_id = chatId || null;
       }
 
       if (notifications_enabled !== undefined) {
         updatePayload.notifications_enabled = Boolean(notifications_enabled);
+      }
+
+      if (Object.keys(updatePayload).length === 0) {
+        return jsonError(res, "NO_UPDATES", "No valid fields to update", 400);
       }
 
       const updated = await User.findByIdAndUpdate(

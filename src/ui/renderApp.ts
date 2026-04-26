@@ -143,7 +143,7 @@ function setActiveNav(activeId: string): void {
 }
 
 function closeMobileSidebar(): void {
-  if (window.innerWidth <= 768) {
+  if (window.innerWidth <= 1024) {
     document.querySelector(".sidebar")?.classList.remove("open");
     document.getElementById("sidebar-overlay")?.classList.remove("active");
   }

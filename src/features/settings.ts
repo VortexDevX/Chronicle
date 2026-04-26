@@ -1,7 +1,17 @@
-/** Settings feature – Phase 3 (uses store only) */
-import { store } from "../state/store.js";
+/** Settings feature – Phase 3 */
 import { apiFetch } from "../api/client.js";
 import { showToast } from "../ui/toast.js";
+
+function syncNotificationState(
+  input: HTMLInputElement | null,
+  badge: HTMLSpanElement | null,
+) {
+  const enabled = !!input?.checked;
+  if (badge) {
+    badge.textContent = enabled ? "On" : "Off";
+    badge.dataset.state = enabled ? "on" : "off";
+  }
+}
 
 export function setupSettingsGlobalHandlers() {
   const modal = document.getElementById("settings-modal") as HTMLDialogElement;
@@ -12,9 +22,17 @@ export function setupSettingsGlobalHandlers() {
   const inputNotifications = document.getElementById(
     "settings-notifications",
   ) as HTMLInputElement;
+  const notificationState = document.getElementById(
+    "settings-notifications-state",
+  ) as HTMLSpanElement | null;
   const btnSave = document.getElementById("settings-save") as HTMLButtonElement;
 
   if (!modal || !form) return;
+
+  inputNotifications?.addEventListener("change", () =>
+    syncNotificationState(inputNotifications, notificationState),
+  );
+  syncNotificationState(inputNotifications, notificationState);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -62,6 +80,9 @@ export function attachSettingsButtonListener() {
     const inputNotifications = document.getElementById(
       "settings-notifications",
     ) as HTMLInputElement;
+    const notificationState = document.getElementById(
+      "settings-notifications-state",
+    ) as HTMLSpanElement | null;
     const btnSave = document.getElementById(
       "settings-save",
     ) as HTMLButtonElement;
@@ -74,6 +95,7 @@ export function attachSettingsButtonListener() {
       if (ok && data) {
         inputId.value = data.telegram_chat_id || "";
         inputNotifications.checked = !!data.notifications_enabled;
+        syncNotificationState(inputNotifications, notificationState);
       } else {
         showToast(message || "Failed to load settings", "error");
       }

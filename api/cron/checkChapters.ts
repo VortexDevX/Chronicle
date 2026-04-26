@@ -519,10 +519,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const errors = errorsByUser.get(uid) || [];
       const user = userMap.get(uid) as any;
       const username = user?.username || "Unknown";
+      const notificationsEnabled = !!user?.notifications_enabled;
+      const hasPersonalChat = !!user?.telegram_chat_id;
 
       const message = buildNotificationMessage(username, updates, errors);
 
-      if (user?.notifications_enabled && user?.telegram_chat_id) {
+      if (!notificationsEnabled) {
+        continue;
+      }
+
+      if (hasPersonalChat) {
         const ok = await sendTelegramToChat(user.telegram_chat_id, message);
         if (ok) usersNotified++;
         else failures++;
@@ -606,7 +612,7 @@ function formatUpdateItem(update: ChapterUpdate): string {
   const unreadStr = unread > 0 ? ` (+${unread})` : "";
   const unit = progressUnit(update.media_type);
 
-  return `• <a href="${escapeHtml(update.tracker_url)}">${escapeHtml(update.title)}</a> — ${unit} ${update.latest}${unreadStr}`;
+  return `• <a href="${escapeHtml(update.tracker_url)}">${escapeHtml(update.title)}</a> — ${unit} ${update.current}${unreadStr}`;
 }
 
 function formatMediaSection(

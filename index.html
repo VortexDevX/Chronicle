@@ -289,20 +289,29 @@
               placeholder="Enter your numeric chat ID"
             />
           </div>
-          <div
-            class="form-group"
-            style="display: flex; align-items: center; gap: 8px"
-          >
-            <input
-              type="checkbox"
-              id="settings-notifications"
-              style="width: auto"
-            />
+          <div class="form-group settings-toggle-group">
+            <div class="settings-toggle-header">
+              <label for="settings-notifications">Notifications</label>
+              <span
+                id="settings-notifications-state"
+                class="settings-toggle-state"
+                data-state="off"
+                >Off</span
+              >
+            </div>
             <label
               for="settings-notifications"
-              style="margin: 0; padding-bottom: 0"
-              >Enable Notifications</label
+              class="settings-toggle"
+              aria-label="Toggle notifications"
             >
+              <input type="checkbox" id="settings-notifications" />
+              <span class="settings-toggle-track" aria-hidden="true">
+                <span class="settings-toggle-thumb"></span>
+              </span>
+              <span class="settings-toggle-copy">
+                Enable Telegram update alerts
+              </span>
+            </label>
           </div>
         </div>
         <div class="modal-actions">
