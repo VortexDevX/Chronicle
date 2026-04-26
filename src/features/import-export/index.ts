@@ -5,7 +5,6 @@ import { toImportRow } from "../../utils/validation.js";
 import { downloadBlob } from "../../utils/dom.js";
 import { dateStamp, slugType } from "../../utils/format.js";
 import { showToast } from "../../ui/toast.js";
-import { store } from "../../state/store.js";
 import { apiFetch } from "../../api/client.js";
 import { fetchMedia } from "../../services/media.js";
 
@@ -21,7 +20,9 @@ async function fetchAllExportItems(mediaType?: string): Promise<MediaItem[]> {
       sort_by: "title",
     });
     if (mediaType) query.set("media_type", mediaType);
-    const payload = await apiFetch(`/media?${query.toString()}`);
+    const payload = (await apiFetch(`/media?${query.toString()}`)) as
+      | { items?: MediaItem[]; has_more?: boolean }
+      | MediaItem[];
     const batch = Array.isArray(payload) ? payload : payload.items || [];
     items.push(...batch);
     hasMore = Array.isArray(payload) ? false : Boolean(payload.has_more);
@@ -78,7 +79,7 @@ function toExportRows(items: MediaItem[]) {
   const rows = items.map((m) =>
     headers
       .map((h) => {
-        const val = (m as any)[h] ?? "";
+        const val = (m as unknown as Record<string, unknown>)[h] ?? "";
         const str = String(val);
         if (str.includes(",") || str.includes('"') || str.includes("\n"))
           return `"${str.replace(/"/g, '""')}"`;
@@ -263,10 +264,10 @@ export function setupImportHandler(): void {
         for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
           const chunk = entries.slice(i, i + CHUNK_SIZE);
           try {
-            const res = await apiFetch("/media?bulk=1", {
+            const res = (await apiFetch("/media?bulk=1", {
               method: "POST",
               body: JSON.stringify(chunk),
-            });
+            })) as { inserted?: number; skipped?: number };
             imported += Number(res?.inserted || 0);
             skipped += Number(res?.skipped || 0);
           } catch {
@@ -278,8 +279,9 @@ export function setupImportHandler(): void {
           imported > 0 ? "success" : "error",
         );
         if (imported > 0) await fetchMedia(true, true);
-      } catch (err: any) {
-        showToast(err?.message || "Failed to import file.", "error");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to import file.";
+        showToast(message, "error");
       }
     });
 }

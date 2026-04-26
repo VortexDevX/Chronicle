@@ -114,8 +114,8 @@ function renderAuthScreen(app: HTMLElement): void {
       localStorage.setItem("username", res.username);
 
       await fetchMedia();
-    } catch (err: any) {
-      const serverMsg = err?.message || "";
+    } catch (err) {
+      const serverMsg = err instanceof Error ? err.message : "";
       errorEl.textContent =
         serverMsg ||
         (action === "register"

@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { connectDB, MediaItem } from "./_utils/db.js";
-import { verifyToken } from "./_utils/auth.js";
 import mongoose from "mongoose";
-import { checkRateLimit, getClientIp } from "./_utils/rateLimit.js";
-import { logInternalError, logSecurityEvent } from "./_utils/log.js";
+import { getClientIp } from "./_utils/rateLimit.js";
+import { requireAuthUserId, enforceRateLimit } from "./_utils/guards.js";
+import { logInternalError } from "./_utils/log.js";
 import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";
 
 type MediaPayload = {
@@ -228,10 +228,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     await connectDB();
-    const userId = verifyToken(req.headers.authorization);
-    if (!userId) {
-      return jsonError(res, "UNAUTHORIZED", "Unauthorized", 401);
-    }
+    const userId = requireAuthUserId(req, res);
+    if (!userId) return;
     const ip = getClientIp(req);
 
     const id = req.query.id as string | undefined;
@@ -308,27 +306,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "POST": {
         const isBulkDelete = String(req.query.bulk_delete || "") === "1";
         if (isBulkDelete) {
-          const bulkDeleteLimit = await checkRateLimit(
-            `media:bulk_delete:${userId}:${ip}`,
-            300,
-            15 * 60 * 1000,
-          );
-          if (!bulkDeleteLimit.allowed) {
-            logSecurityEvent("rate_limit_block", {
-              route: "media",
-              method: "POST",
-              op: "bulk_delete",
-              ip,
-              user_id: userId,
-              retry_after_sec: bulkDeleteLimit.retryAfterSec,
-            });
-            return jsonError(
-              res,
-              "RATE_LIMITED",
-              `Too many bulk delete requests. Retry in ${bulkDeleteLimit.retryAfterSec}s`,
-              429,
-            );
-          }
+          const bulkDeleteAllowed = await enforceRateLimit(req, res, {
+            key: `media:bulk_delete:${userId}:${ip}`,
+            limit: 300,
+            windowMs: 15 * 60 * 1000,
+            strict: true,
+            route: "media",
+            method: "POST",
+            operation: "bulk_delete",
+            userId,
+            message: "Too many bulk delete requests. Please retry shortly.",
+          });
+          if (!bulkDeleteAllowed) return;
 
           const parsed = req.body || {};
           const ids = Array.isArray(parsed.ids) ? parsed.ids : [];
@@ -371,26 +360,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
 
-        const postLimit = await checkRateLimit(
-          `media:post:${userId}:${ip}`,
-          3000,
-          15 * 60 * 1000,
-        );
-        if (!postLimit.allowed) {
-          logSecurityEvent("rate_limit_block", {
-            route: "media",
-            method: "POST",
-            ip,
-            user_id: userId,
-            retry_after_sec: postLimit.retryAfterSec,
-          });
-          return jsonError(
-            res,
-            "RATE_LIMITED",
-            `Too many write requests. Retry in ${postLimit.retryAfterSec}s`,
-            429,
-          );
-        }
+        const postAllowed = await enforceRateLimit(req, res, {
+          key: `media:post:${userId}:${ip}`,
+          limit: 3000,
+          windowMs: 15 * 60 * 1000,
+          strict: true,
+          route: "media",
+          method: "POST",
+          userId,
+          message: "Too many write requests. Please retry shortly.",
+        });
+        if (!postAllowed) return;
 
         const isBulk = String(req.query.bulk || "") === "1";
         const parsed = req.body || {};
@@ -494,26 +474,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return jsonOk(res, newItem, 201);
       }
       case "PUT": {
-        const putLimit = await checkRateLimit(
-          `media:put:${userId}:${ip}`,
-          3000,
-          15 * 60 * 1000,
-        );
-        if (!putLimit.allowed) {
-          logSecurityEvent("rate_limit_block", {
-            route: "media",
-            method: "PUT",
-            ip,
-            user_id: userId,
-            retry_after_sec: putLimit.retryAfterSec,
-          });
-          return jsonError(
-            res,
-            "RATE_LIMITED",
-            `Too many write requests. Retry in ${putLimit.retryAfterSec}s`,
-            429,
-          );
-        }
+        const putAllowed = await enforceRateLimit(req, res, {
+          key: `media:put:${userId}:${ip}`,
+          limit: 3000,
+          windowMs: 15 * 60 * 1000,
+          strict: true,
+          route: "media",
+          method: "PUT",
+          userId,
+          message: "Too many write requests. Please retry shortly.",
+        });
+        if (!putAllowed) return;
         if (!id) {
           return jsonError(res, "MISSING_ID", "Missing ID", 400);
         }
@@ -539,26 +510,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return jsonOk(res, updated);
       }
       case "DELETE": {
-        const delLimit = await checkRateLimit(
-          `media:delete:${userId}:${ip}`,
-          3000,
-          15 * 60 * 1000,
-        );
-        if (!delLimit.allowed) {
-          logSecurityEvent("rate_limit_block", {
-            route: "media",
-            method: "DELETE",
-            ip,
-            user_id: userId,
-            retry_after_sec: delLimit.retryAfterSec,
-          });
-          return jsonError(
-            res,
-            "RATE_LIMITED",
-            `Too many write requests. Retry in ${delLimit.retryAfterSec}s`,
-            429,
-          );
-        }
+        const deleteAllowed = await enforceRateLimit(req, res, {
+          key: `media:delete:${userId}:${ip}`,
+          limit: 3000,
+          windowMs: 15 * 60 * 1000,
+          strict: true,
+          route: "media",
+          method: "DELETE",
+          userId,
+          message: "Too many write requests. Please retry shortly.",
+        });
+        if (!deleteAllowed) return;
         if (!id) {
           return jsonError(res, "MISSING_ID", "Missing ID", 400);
         }

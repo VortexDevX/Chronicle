@@ -2,7 +2,6 @@
 import { store } from "../state/store.js";
 import { renderApp } from "./renderApp.js";
 import { renderMediaCards } from "./components/mediaCards.js";
-import { renderStatsHost } from "./components/stats.js";
 import { renderBulkBar } from "./components/bulkBar.js";
 import { renderControls } from "./components/controls.js";
 

@@ -56,12 +56,61 @@ export function createInitialState(overrides?: Partial<AppState>): AppState {
   };
 }
 
+function isPrimitive(value: unknown): boolean {
+  return (
+    value === null ||
+    value === undefined ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
+
+function shallowArrayEqual(oldArr: unknown[], newArr: unknown[]): boolean {
+  if (oldArr.length !== newArr.length) return false;
+  for (let i = 0; i < oldArr.length; i += 1) {
+    if (oldArr[i] !== newArr[i]) return false;
+  }
+  return true;
+}
+
+function shallowObjectEqual(
+  oldObj: Record<string, unknown>,
+  newObj: Record<string, unknown>,
+): boolean {
+  const oldKeys = Object.keys(oldObj);
+  const newKeys = Object.keys(newObj);
+  if (oldKeys.length !== newKeys.length) return false;
+
+  for (const key of oldKeys) {
+    if (!(key in newObj)) return false;
+    const oldVal = oldObj[key];
+    const newVal = newObj[key];
+
+    if (oldVal === newVal) continue;
+    if (Array.isArray(oldVal) && Array.isArray(newVal)) {
+      if (!shallowArrayEqual(oldVal, newVal)) return false;
+      continue;
+    }
+
+    if (isPrimitive(oldVal) && isPrimitive(newVal)) {
+      if (oldVal !== newVal) return false;
+      continue;
+    }
+
+    // complex values should use stable references in selector outputs
+    return false;
+  }
+
+  return true;
+}
+
 export class Store {
   private state: AppState;
   private listeners: Array<{
-    selector?: (state: AppState) => any;
-    listener: (val?: any) => void;
-    lastValue?: any;
+    selector?: (state: AppState) => unknown;
+    listener: (val?: unknown) => void;
+    lastValue?: unknown;
     isSimple: boolean;
   }> = [];
 
@@ -97,9 +146,9 @@ export class Store {
       const selector = arg1 as (state: AppState) => T;
       const listener = arg2;
       const entry = {
-        selector,
-        listener,
-        lastValue: selector(this.state),
+        selector: selector as (state: AppState) => unknown,
+        listener: ((newVal?: unknown) => listener(newVal as T)) as (val?: unknown) => void,
+        lastValue: selector(this.state) as unknown,
         isSimple: false,
       };
       this.listeners.push(entry);
@@ -108,7 +157,10 @@ export class Store {
       };
     } else {
       const listener = arg1 as () => void;
-      const entry = { listener, isSimple: true };
+      const entry = {
+        listener: (() => listener()) as (val?: unknown) => void,
+        isSimple: true,
+      };
       this.listeners.push(entry);
       return () => {
         this.listeners = this.listeners.filter((l) => l !== entry);
@@ -130,24 +182,24 @@ export class Store {
     });
   }
 
-  /** Smart equality: reference check for arrays, JSON for small objects */
-  private isEqual(oldVal: any, newVal: any): boolean {
+  /** Selector equality optimized for primitives, arrays and plain objects */
+  private isEqual(oldVal: unknown, newVal: unknown): boolean {
     if (oldVal === newVal) return true;
     if (oldVal == null || newVal == null) return oldVal === newVal;
     if (typeof oldVal !== typeof newVal) return false;
-    if (typeof oldVal !== "object") return oldVal === newVal;
 
-    // Arrays: reference equality (media arrays are always new refs on change)
-    if (Array.isArray(oldVal) || Array.isArray(newVal)) {
-      return oldVal === newVal;
+    if (Array.isArray(oldVal) && Array.isArray(newVal)) {
+      return shallowArrayEqual(oldVal, newVal);
     }
 
-    // Small plain objects: JSON.stringify is fine here
-    try {
-      return JSON.stringify(oldVal) === JSON.stringify(newVal);
-    } catch {
-      return false;
+    if (typeof oldVal === "object" && typeof newVal === "object") {
+      return shallowObjectEqual(
+        oldVal as Record<string, unknown>,
+        newVal as Record<string, unknown>,
+      );
     }
+
+    return oldVal === newVal;
   }
 
   /** Helper for selectedIds Set */

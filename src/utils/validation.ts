@@ -30,7 +30,7 @@ export function normalizeStatus(value: string): string {
 
 export function normalizeMALStatus(
   value: string,
-  bucket: "anime" | "manga",
+  _bucket: "anime" | "manga",
 ): string {
   const raw = String(value || "")
     .trim()
@@ -71,9 +71,9 @@ export function normalizeMALStatus(
 
 export function inferMALType(
   row: Record<string, unknown>,
-  bucket: "anime" | "manga",
+  _bucket: "anime" | "manga",
 ): string {
-  if (bucket === "anime") return "Anime";
+  if (_bucket === "anime") return "Anime";
 
   const seriesType = String(row.series_type ?? "")
     .trim()
