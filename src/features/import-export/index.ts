@@ -76,10 +76,11 @@ function toExportRows(items: MediaItem[]) {
     "notes",
     "last_updated",
   ] as const;
+  type ExportHeader = (typeof headers)[number];
   const rows = items.map((m) =>
     headers
-      .map((h) => {
-        const val = (m as unknown as Record<string, unknown>)[h] ?? "";
+      .map((h: ExportHeader) => {
+        const val = m[h] ?? "";
         const str = String(val);
         if (str.includes(",") || str.includes('"') || str.includes("\n"))
           return `"${str.replace(/"/g, '""')}"`;

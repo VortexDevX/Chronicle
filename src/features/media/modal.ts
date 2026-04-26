@@ -7,6 +7,13 @@ import { fetchMedia } from "../../services/media.js";
 import { updateMedia } from "../../services/media.js";
 import { apiFetch } from "../../api/client.js";
 
+type ApiLikeError = { code?: string };
+
+function isApiLikeError(value: unknown): value is ApiLikeError {
+  if (!value || typeof value !== "object") return false;
+  return "code" in value;
+}
+
 export function openModal(item?: MediaItem): void {
   const modal = document.getElementById("media-modal") as HTMLDialogElement;
   const titleInput = document.getElementById("media-title") as HTMLInputElement;
@@ -203,8 +210,7 @@ export function setupMediaFormHandler(): void {
           try {
             await createEntry();
           } catch (err) {
-            const duplicateErr = err as { code?: string };
-            if (duplicateErr?.code === "DUPLICATE_TITLE") {
+            if (isApiLikeError(err) && err.code === "DUPLICATE_TITLE") {
               saveBtn.disabled = false;
               saveBtn.textContent = originalText;
               showConfirm(
