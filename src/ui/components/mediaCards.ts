@@ -107,12 +107,6 @@ function renderCard(
             </span>
             <div class="card-body-right">
               ${ratingHtml}
-              <button class="btn-increment" data-id="${m._id}" title="Increment progress" aria-label="Add 1 ${unit}">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                +1
-              </button>
             </div>
           </div>
           <div class="card-progress-track">
@@ -129,6 +123,12 @@ function renderCard(
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
             Edit
+          </button>
+          <button class="card-action-btn btn-increment" data-id="${m._id}" title="Increment progress" aria-label="Add 1 ${unit}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            +1
           </button>
           <button class="card-action-btn card-action-danger btn-delete" data-id="${m._id}" title="Delete">
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -187,6 +187,10 @@ export function renderMediaCards(): void {
     return;
   }
 
+  if (container.querySelector(".skeleton, .empty-state")) {
+    container.innerHTML = "";
+  }
+
   const existingCards = new Map<string, HTMLElement>();
   container.querySelectorAll<HTMLElement>(".card[data-id]").forEach((node) => {
     const id = node.getAttribute("data-id");
@@ -197,6 +201,8 @@ export function renderMediaCards(): void {
   for (const m of filteredMedia) {
     const cardMarkup = renderCard(m, selectedSet, state.bulkMode);
     const nextHash = [
+      m.title,
+      m.media_type,
       m.progress_current,
       m.progress_total,
       m.status,
