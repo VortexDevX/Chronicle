@@ -23,6 +23,7 @@ type MediaPayload = {
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_NOTES_LENGTH = 2000;
+const MAX_URL_LENGTH = 500;
 
 const allowedTypes = new Set(["Anime", "Manhwa", "Donghua", "Light Novel"]);
 const allowedStatuses = new Set([
@@ -39,13 +40,48 @@ const allowedExternalStatuses = new Set([
   "cancelled",
 ]);
 
-/** Validate a URL using the URL constructor + protocol check. */
-function isValidHttpUrl(urlStr: string): boolean {
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
+    return false;
+  }
+  const [a, b] = parts;
+  return (
+    a === 10 ||
+    a === 127 ||
+    (a === 192 && b === 168) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 169 && b === 254)
+  );
+}
+
+/**
+ * Validate and normalize user-provided URLs used for client rendering.
+ * Blocks localhost/private-network targets and non-http protocols.
+ */
+function normalizePublicHttpUrl(urlStr: string): string | null {
   try {
     const parsed = new URL(urlStr);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === "localhost" ||
+      hostname.endsWith(".local") ||
+      isPrivateIpv4(hostname)
+    ) {
+      return null;
+    }
+
+    const normalized = parsed.toString();
+    if (normalized.length > MAX_URL_LENGTH) {
+      return null;
+    }
+    return normalized;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -148,14 +184,15 @@ function validatePayload(
     if (payload.read_url === null || payload.read_url === "") {
       normalized.read_url = null;
     } else {
-      const url = String(payload.read_url).trim();
-      if (url && !isValidHttpUrl(url)) {
+      const url = normalizePublicHttpUrl(String(payload.read_url).trim());
+      if (!url) {
         return {
           ok: false,
-          message: "read_url must be a valid http/https URL",
+          message:
+            "read_url must be a valid public http/https URL under 500 characters",
         };
       }
-      normalized.read_url = url.slice(0, 500);
+      normalized.read_url = url;
     }
   }
 
@@ -163,14 +200,15 @@ function validatePayload(
     if (payload.tracker_url === null || payload.tracker_url === "") {
       normalized.tracker_url = null;
     } else {
-      const url = String(payload.tracker_url).trim();
-      if (url && !isValidHttpUrl(url)) {
+      const url = normalizePublicHttpUrl(String(payload.tracker_url).trim());
+      if (!url) {
         return {
           ok: false,
-          message: "tracker_url must be a valid http/https URL",
+          message:
+            "tracker_url must be a valid public http/https URL under 500 characters",
         };
       }
-      normalized.tracker_url = url.slice(0, 500);
+      normalized.tracker_url = url;
     }
   }
 
@@ -191,14 +229,15 @@ function validatePayload(
     if (payload.custom_cover_url === null || payload.custom_cover_url === "") {
       normalized.custom_cover_url = null;
     } else {
-      const url = String(payload.custom_cover_url).trim();
-      if (url && !isValidHttpUrl(url)) {
+      const url = normalizePublicHttpUrl(String(payload.custom_cover_url).trim());
+      if (!url) {
         return {
           ok: false,
-          message: "custom_cover_url must be a valid http/https URL",
+          message:
+            "custom_cover_url must be a valid public http/https URL under 500 characters",
         };
       }
-      normalized.custom_cover_url = url.slice(0, 500);
+      normalized.custom_cover_url = url;
     }
   }
 

@@ -15,12 +15,12 @@
 3. **Rate limiter is fail-open on Upstash provider failures** (`api/_utils/rateLimit.ts`).
    - On provider exceptions, limiter returns `allowed: true` and full remaining quota.
    - During Redis outages, auth and write APIs can be hammered with effectively no throttling.
-   - **Status:** Not fixed yet. Needs policy split (fail-closed for auth/write endpoints, optionally fail-open for low-risk read endpoints).
+   - **Status:** Fixed by introducing strict fail-closed mode for high-risk routes while retaining fail-open mode for low-risk compatibility paths.
 
 4. **Cron endpoint does expensive external scraping without visible request-level timeout budget** (`api/cron/checkChapters.ts`).
    - Multiple external fetches are chained; there is no uniform timeout wrapper/circuit-break policy for the whole run.
    - A few slow hosts can exhaust invocation time and produce partial/unstable behavior.
-   - **Status:** Not fixed yet. Requires centralized `fetchWithTimeout + retry/backoff + host-level cooldown`.
+   - **Status:** Fixed with timeout-bounded fetches, retry/backoff, and host-level cooldown protection for repeated failures.
 
 ---
 
@@ -29,14 +29,17 @@
 1. **Layering drift: duplicated data-fetch orchestration in both `src/services/media.ts` and `src/api/media.ts`.**
    - `src/services/media.ts` is intended as business layer, but `src/api/media.ts` still contains overlapping logic and state mutations.
    - This creates hidden dependency risk and two potential behavior paths.
+   - **Status:** Fixed by converting `src/api/media.ts` to a compatibility shim that re-exports the service implementation.
 
 2. **UI rendering pipeline is still string-template monolith heavy** (`src/ui/renderApp.ts`, `src/ui/components/mediaCards.ts`).
    - Large `innerHTML` templates with intertwined rendering/business behavior make local changes risky.
    - Event behavior is split between delegated handlers and inline query lookups, increasing coupling.
+   - **Status:** Partially improved by moving media card rendering from full-grid `innerHTML` replacement toward id-based node patching in `mediaCards.ts`; broader `renderApp.ts` decomposition remains.
 
 3. **State selector equality strategy is expensive for object selectors** (`src/state/core.ts`).
    - Selector updates use `JSON.stringify` for object comparison.
    - This is fragile for ordering and costly under frequent state churn.
+   - **Status:** Fixed with shallow equality + memoized selector strategy.
 
 4. **Client API wrapper overwrote caller headers** (`src/api/client.ts`).
    - Call-site provided headers were discarded in favor of default headers, causing integration fragility (e.g., custom content negotiation).
@@ -44,10 +47,12 @@
 
 5. **Type discipline is undermined in several hotspots by `any` casts** (`src/features/media/modal.ts`, `src/features/import-export/index.ts`, previous `api/user/settings.ts`).
    - This bypasses strict mode benefits and hides schema drift.
+   - **Status:** Partially fixed in identified hotspots with type guards and typed key access; continue reducing remaining broad casts incrementally.
 
 6. **Inconsistent response contracts across API routes** (`api/auth.ts`, `api/media.ts`, `api/stats.ts`, `api/user/settings.ts`).
    - Some endpoints return raw data, others return `{ ok, data }`, and error shape consistency is only partial.
    - Frontend parsing is forced to be permissive instead of strongly typed.
+   - **Status:** Fixed for current routes by standardizing server envelopes and unwrapping in `apiFetch`.
 
 ---
 
@@ -55,15 +60,19 @@
 
 1. **ESLint rules are effectively empty** (`eslint.config.js`).
    - Parser is configured, but no lint rules are applied.
+   - **Status:** Fixed by enabling active TypeScript rules.
 
 2. **`tsconfig` weakens hygiene for dead code and parameter drift** (`tsconfig.json`).
    - `noUnusedLocals` and `noUnusedParameters` are disabled.
+   - **Status:** Fixed by enabling both options to catch dead code and stale signatures at compile time.
 
 3. **`src/features/media/cards.ts` mixes UX orchestration and mutation logic in one listener file.**
    - Harder to test and reason about than explicit action handlers.
+   - **Status:** Improved by extracting explicit action helpers (`handleDelete`, `handleIncrement`, and toggle/count helpers); further decomposition remains possible.
 
 4. **Client-side cover queue uses direct DOM patching mixed with caching concerns** (`src/state/store.ts`).
    - Works, but combines cache lifecycle + transport + view mutation in one module.
+   - **Status:** Improved by splitting fetchers (`fetchMangadexCover`, `fetchAnimeCover`) and UI patching (`applyCoverToThumb`) from queue orchestration.
 
 ---
 
@@ -106,9 +115,9 @@
 
 1. **Done:** Harden JWT verification by enforcing algorithm and validating `userId` claim type (`api/_utils/auth.ts`).
 2. **Done:** Stop leaking raw exception messages in settings API (`api/user/settings.ts`).
-3. **Needed:** Route-level rate limit policy should fail-closed for high-risk routes (`api/_utils/rateLimit.ts`, `api/auth.ts`, `api/media.ts`).
-4. **Needed:** Add stricter validation for user-facing text fields and URL allowlist/host restrictions where appropriate (`api/media.ts`, `api/user/settings.ts`).
-5. **Needed:** Tighten CORS fallback behavior to avoid permissive origin echoing when allowlist is absent (`api/_utils/http.ts`).
+3. **Done:** Route-level rate limit policy is fail-closed for high-risk routes (`api/_utils/rateLimit.ts`, `api/auth.ts`, `api/media.ts`).
+4. **Done:** Added stricter validation for user-facing text fields and URL allowlist/host restrictions (`api/media.ts`, `api/user/settings.ts`).
+5. **Done:** Tightened CORS fallback behavior to avoid permissive origin echoing when allowlist is absent (`api/_utils/http.ts`).
 
 ---
 
@@ -208,3 +217,34 @@ Implemented from the roadmap with Vercel free-plan constraints in mind:
    - Standardized `jsonOk/jsonError` envelopes in `api/_utils/http.ts` (`{ ok, data }` and `{ ok, error }` compatible shape).
    - Updated frontend `apiFetch` to unwrap success envelopes and parse normalized error envelopes.
    - Simplified `api/user/settings.ts` payload responses to avoid nested `ok/data` envelopes.
+
+
+10. **Validation and type-discipline follow-up (completed in latest pass)**
+   - Tightened URL input policy in `api/media.ts` with normalized public `http/https` validation:
+     - rejects localhost, `.local`, and private/link-local/loopback IPv4 targets
+     - enforces max normalized URL length
+   - Tightened `telegram_chat_id` validation in `api/user/settings.ts` to numeric chat-id format.
+   - Reduced unsafe casting in frontend hotspots:
+     - `src/features/media/modal.ts` now narrows API-like errors with a type guard.
+     - `src/features/import-export/index.ts` now uses typed key access for CSV export row shaping (no `unknown as Record` cast).
+
+11. **DX hygiene tightening (completed in latest pass)**
+   - Enabled `noUnusedLocals` and `noUnusedParameters` in `tsconfig.json`.
+   - Verified the stricter compiler settings pass with `tsc --noEmit --noUnusedLocals --noUnusedParameters`.
+
+12. **Cron resilience hardening (completed in latest pass)**
+   - Added `fetchWithRetry(...)` on top of `fetchWithTimeout(...)` with exponential backoff for transient/overload failures (HTTP 429/5xx and network timeouts).
+   - Added host-level cooldown tracking in `api/cron/checkChapters.ts` to avoid repeatedly hammering failing tracker hosts in the same run.
+   - Fixed global fallback summary counting so total update count reflects actual per-user updates.
+
+13. **Low-risk cleanup pass before remaining UI decomposition**
+   - Refactored `src/features/media/cards.ts` into explicit helper actions for selection count updates, mobile action toggling, delete handling, and optimistic increment handling.
+   - Refactored `src/state/store.ts` cover pipeline into separated transport/UI helpers:
+     - `fetchMangadexCover(...)`
+     - `fetchAnimeCover(...)`
+     - `applyCoverToThumb(...)`
+   - This reduces coupling in two previously flagged minor-risk hotspots while keeping behavior unchanged.
+
+14. **UI patching performance follow-up (completed in latest pass)**
+   - Updated `src/ui/components/mediaCards.ts` to patch cards by id and render hash instead of rebuilding the entire grid with a full `innerHTML` replacement on every render.
+   - Kept empty/loading states as full replacements while normal list rendering now performs targeted updates/removals/reordering.
