@@ -15,6 +15,10 @@ type UserSettingsDoc = {
   notifications_enabled?: boolean;
 };
 
+function isValidTelegramChatId(value: string): boolean {
+  return /^-?\d{1,50}$/.test(value);
+}
+
 function toSettingsPayload(user: UserSettingsDoc) {
   return {
     telegram_chat_id: user.telegram_chat_id || "",
@@ -47,11 +51,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (telegram_chat_id !== undefined) {
         const chatId = String(telegram_chat_id ?? "").trim();
-        if (chatId.length > 50) {
+        if (chatId.length > 50 || (chatId && !isValidTelegramChatId(chatId))) {
           return jsonError(
             res,
             "INVALID_CHAT_ID",
-            "telegram_chat_id is too long",
+            "telegram_chat_id must be a valid numeric Telegram chat id",
             400,
           );
         }

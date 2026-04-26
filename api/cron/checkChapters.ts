@@ -26,6 +26,10 @@ const MAX_ENTRIES_PER_RUN = 200;
 
 
 const FETCH_TIMEOUT_MS = 10_000;
+const FETCH_RETRY_ATTEMPTS = 2;
+const FETCH_RETRY_BASE_DELAY_MS = 400;
+const HOST_COOLDOWN_MS = 10 * 60 * 1000;
+const hostCooldownUntil = new Map<string, number>();
 
 async function fetchWithTimeout(
   url: string,
@@ -48,6 +52,40 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
+}
+
+function shouldRetryStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= FETCH_RETRY_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, init, timeoutMs);
+      if (
+        res.ok ||
+        !shouldRetryStatus(res.status) ||
+        attempt === FETCH_RETRY_ATTEMPTS
+      ) {
+        return res;
+      }
+      lastError = new Error(`HTTP ${res.status}: ${res.statusText}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error("fetch_error");
+      if (attempt === FETCH_RETRY_ATTEMPTS) break;
+    }
+
+    const delayMs = FETCH_RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+    await sleep(delayMs);
+  }
+
+  throw lastError || new Error("fetch_retry_failed");
 }
 
 const BROWSER_HEADERS: Record<string, string> = {
@@ -152,7 +190,7 @@ function extractChapterNumberFromHref(
 
 async function fetchManhuafastChapters(trackerUrl: string): Promise<string> {
   const ajaxUrl = new URL("ajax/chapters/", trackerUrl).toString();
-  const res = await fetchWithTimeout(ajaxUrl, {
+  const res = await fetchWithRetry(ajaxUrl, {
     method: "POST",
     headers: BROWSER_HEADERS,
     redirect: "follow",
@@ -211,7 +249,7 @@ function collectChapterNumbers(
 async function scrapeManhwaTrackerUrl(
   trackerUrl: string,
 ): Promise<number | null> {
-  const initialRes = await fetchWithTimeout(trackerUrl, {
+  const initialRes = await fetchWithRetry(trackerUrl, {
     headers: BROWSER_HEADERS,
     redirect: "follow",
   });
@@ -286,7 +324,7 @@ const ANIMEXIN_HOST = "animexin.dev";
 async function scrapeAnimexinTrackerUrl(
   trackerUrl: string,
 ): Promise<number | null> {
-  const res = await fetchWithTimeout(trackerUrl, {
+  const res = await fetchWithRetry(trackerUrl, {
     headers: {
       ...BROWSER_HEADERS,
       Referer: "https://animexin.dev/",
@@ -422,6 +460,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function getHostFromUrl(url: string): string | null {
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "unknown_error";
@@ -505,8 +551,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const entry of userEntries) {
         const mediaType = entry.media_type as MediaTypeSupported;
         const trackerUrl = String(entry.tracker_url || "");
+        const host = getHostFromUrl(trackerUrl);
+        const cooldownUntil = host ? hostCooldownUntil.get(host) || 0 : 0;
 
         try {
+          if (cooldownUntil > Date.now()) {
+            throw new Error(
+              `Host cooldown active for ${host} (${Math.ceil((cooldownUntil - Date.now()) / 1000)}s remaining)`,
+            );
+          }
+
           const latest = await scrapeTrackerUrl(trackerUrl, mediaType);
           totalChecked++;
 
@@ -520,6 +574,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
           }
         } catch (err) {
+          if (host) {
+            hostCooldownUntil.set(host, Date.now() + HOST_COOLDOWN_MS);
+          }
           errors.push({
             title: entry.title as string,
             message: getErrorMessage(err),
@@ -575,6 +632,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let totalUpdates = 0;
 
       for (const { username, updates, errors } of globalFallbackUpdates) {
+        totalUpdates += updates.length;
         allLines.push(`👤 <b>${escapeHtml(username)}</b>`);
 
         const manhwa = updates.filter((u) => u.media_type === "Manhwa");
