@@ -1,6 +1,5 @@
 /** Media add/edit modal logic – Phase 3 (uses service + store) */
 import type { MediaItem } from "../../types/media.js";
-import { store } from "../../state/store.js";
 import { showToast } from "../../ui/toast.js";
 import { showConfirm } from "../../ui/modals.js";
 import { lookupMediaMeta } from "../lookup/index.js";
@@ -38,7 +37,7 @@ export function openModal(item?: MediaItem): void {
   (document.getElementById("media-notes") as HTMLTextAreaElement).value =
     item?.notes || "";
 
-  if (readUrlInput) readUrlInput.value = (item as any)?.read_url || "";
+  if (readUrlInput) readUrlInput.value = item?.read_url || "";
 
   const trackerUrlInput = document.getElementById(
     "media-tracker-url",
@@ -203,8 +202,9 @@ export function setupMediaFormHandler(): void {
         } else {
           try {
             await createEntry();
-          } catch (err: any) {
-            if (err?.code === "DUPLICATE_TITLE") {
+          } catch (err) {
+            const duplicateErr = err as { code?: string };
+            if (duplicateErr?.code === "DUPLICATE_TITLE") {
               saveBtn.disabled = false;
               saveBtn.textContent = originalText;
               showConfirm(

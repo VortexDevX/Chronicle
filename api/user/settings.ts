@@ -1,4 +1,4 @@
-import { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   jsonOk,
   jsonError,
@@ -6,8 +6,21 @@ import {
   setCors,
 } from "../_utils/http.js";
 import { connectDB } from "../_utils/db.js";
-import { verifyToken } from "../_utils/auth.js";
 import { User } from "../_utils/db.js";
+import { logInternalError } from "../_utils/log.js";
+import { requireAuthUserId } from "../_utils/guards.js";
+
+type UserSettingsDoc = {
+  telegram_chat_id?: string | null;
+  notifications_enabled?: boolean;
+};
+
+function toSettingsPayload(user: UserSettingsDoc) {
+  return {
+    telegram_chat_id: user.telegram_chat_id || "",
+    notifications_enabled: Boolean(user.notifications_enabled),
+  };
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
@@ -15,30 +28,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     await connectDB();
-    const userId = verifyToken(req.headers.authorization);
-    if (!userId) {
-      return jsonError(res, "UNAUTHORIZED", "Unauthorized", 401);
-    }
+    const userId = requireAuthUserId(req, res);
+    if (!userId) return;
 
     if (req.method === "GET") {
-      const user = await User.findById(userId).lean();
+      const user = (await User.findById(userId).lean()) as UserSettingsDoc | null;
       if (!user) {
         return jsonError(res, "NOT_FOUND", "User not found", 404);
       }
 
-      return jsonOk(res, {
-        ok: true,
-        data: {
-          telegram_chat_id: (user as any).telegram_chat_id || "",
-          notifications_enabled: (user as any).notifications_enabled || false,
-        },
-      });
+      return jsonOk(res, toSettingsPayload(user));
     }
 
     if (req.method === "PUT") {
       const { telegram_chat_id, notifications_enabled } = req.body || {};
 
-      const updatePayload: Record<string, any> = {};
+      const updatePayload: Record<string, string | boolean | null> = {};
 
       if (telegram_chat_id !== undefined) {
         const chatId = String(telegram_chat_id ?? "").trim();
@@ -61,28 +66,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return jsonError(res, "NO_UPDATES", "No valid fields to update", 400);
       }
 
-      const updated = await User.findByIdAndUpdate(
+      const updated = (await User.findByIdAndUpdate(
         userId,
         { $set: updatePayload },
-        { new: true, runValidators: true }
-      ).lean();
+        { new: true, runValidators: true },
+      ).lean()) as UserSettingsDoc | null;
 
       if (!updated) {
         return jsonError(res, "NOT_FOUND", "User not found", 404);
       }
 
-      return jsonOk(res, {
-        ok: true,
-        data: {
-          telegram_chat_id: (updated as any).telegram_chat_id || "",
-          notifications_enabled: (updated as any).notifications_enabled || false,
-        },
-      });
+      return jsonOk(res, toSettingsPayload(updated));
     }
 
     return jsonError(res, "METHOD_NOT_ALLOWED", "Method Not Allowed", 405);
-  } catch (error: any) {
-    console.error("[Settings API error]", error);
-    return jsonError(res, "INTERNAL_ERROR", error.message, 500);
+  } catch (error) {
+    logInternalError("settings_handler_error", error, { route: "user/settings" });
+    return jsonError(res, "INTERNAL_ERROR", "Internal Server Error", 500);
   }
 }

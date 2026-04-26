@@ -18,8 +18,15 @@ export type RateLimitResult = {
   retryAfterSec: number;
 };
 
+type RateLimitMode = "fail_open" | "fail_closed";
+
 interface RateLimiterProvider {
-  check(key: string, limit: number, windowMs: number): Promise<RateLimitResult>;
+  check(
+    key: string,
+    limit: number,
+    windowMs: number,
+    mode: RateLimitMode,
+  ): Promise<RateLimitResult>;
 }
 
 // ── Memory Provider ────────────────────────────────────────────────
@@ -50,10 +57,7 @@ class MemoryProvider implements RateLimiterProvider {
       return {
         allowed: false,
         remaining: 0,
-        retryAfterSec: Math.max(
-          1,
-          Math.ceil((existing.resetAt - now) / 1000),
-        ),
+        retryAfterSec: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)),
       };
     }
 
@@ -62,10 +66,7 @@ class MemoryProvider implements RateLimiterProvider {
     return {
       allowed: true,
       remaining: Math.max(0, limit - existing.count),
-      retryAfterSec: Math.max(
-        1,
-        Math.ceil((existing.resetAt - now) / 1000),
-      ),
+      retryAfterSec: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)),
     };
   }
 }
@@ -81,9 +82,7 @@ class UpstashProvider implements RateLimiterProvider {
     this.token = token;
   }
 
-  private async redis(
-    command: string[],
-  ): Promise<unknown> {
+  private async redis(command: string[]): Promise<unknown> {
     const res = await fetch(`${this.url}`, {
       method: "POST",
       headers: {
@@ -101,6 +100,7 @@ class UpstashProvider implements RateLimiterProvider {
     key: string,
     limit: number,
     windowMs: number,
+    mode: RateLimitMode,
   ): Promise<RateLimitResult> {
     try {
       const redisKey = `rl:${key}`;
@@ -129,7 +129,12 @@ class UpstashProvider implements RateLimiterProvider {
         retryAfterSec: windowSec,
       };
     } catch (err) {
-      // Fall through to allow on Redis failure (fail-open)
+      if (mode === "fail_closed") {
+        console.error("[rateLimit] Upstash error, blocking request:", err);
+        return { allowed: false, remaining: 0, retryAfterSec: 60 };
+      }
+
+      // Fall through to allow on Redis failure (explicit fail-open mode)
       console.error("[rateLimit] Upstash error, allowing request:", err);
       return { allowed: true, remaining: limit, retryAfterSec: 0 };
     }
@@ -148,10 +153,10 @@ function getProvider(): RateLimiterProvider {
 
   if (url && token) {
     provider = new UpstashProvider(url, token);
-    console.log("[rateLimit] Using Upstash Redis provider");
+    console.warn("[rateLimit] Using Upstash Redis provider");
   } else {
     provider = new MemoryProvider();
-    console.log("[rateLimit] Using in-memory provider (dev/single-instance)");
+    console.warn("[rateLimit] Using in-memory provider (dev/single-instance)");
   }
 
   return provider;
@@ -164,7 +169,15 @@ export async function checkRateLimit(
   limit: number,
   windowMs: number,
 ): Promise<RateLimitResult> {
-  return getProvider().check(key, limit, windowMs);
+  return getProvider().check(key, limit, windowMs, "fail_open");
+}
+
+export async function checkRateLimitStrict(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<RateLimitResult> {
+  return getProvider().check(key, limit, windowMs, "fail_closed");
 }
 
 export function getClientIp(req: VercelRequest): string {

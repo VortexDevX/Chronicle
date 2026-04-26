@@ -6,7 +6,6 @@ import { logInternalError } from "./_utils/log.js";
 
 const MAX_DISPLAY_NAME = 50;
 const MAX_BIO = 300;
-const MAX_SLUG = 30;
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9_-]{3,30}$/.test(slug);

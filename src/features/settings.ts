@@ -47,19 +47,15 @@ export function setupSettingsGlobalHandlers() {
         notifications_enabled: inputNotifications.checked,
       };
 
-      const { ok, message } = await apiFetch("/user/settings", {
+      await apiFetch("/user/settings", {
         method: "PUT",
         body: JSON.stringify(payload),
       });
-
-      if (ok) {
-        showToast("Settings saved successfully", "success");
-        modal.close();
-      } else {
-        showToast(message || "Failed to save settings", "error");
-      }
-    } catch (e: any) {
-      showToast(e.message || "Failed to save settings", "error");
+      showToast("Settings saved successfully", "success");
+      modal.close();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to save settings";
+      showToast(message, "error");
     } finally {
       btnSave.disabled = false;
       btnSave.textContent = "Save changes";
@@ -91,16 +87,16 @@ export function attachSettingsButtonListener() {
     btnSave.disabled = true;
 
     try {
-      const { ok, data, message } = await apiFetch("/user/settings");
-      if (ok && data) {
-        inputId.value = data.telegram_chat_id || "";
-        inputNotifications.checked = !!data.notifications_enabled;
-        syncNotificationState(inputNotifications, notificationState);
-      } else {
-        showToast(message || "Failed to load settings", "error");
-      }
-    } catch (e: any) {
-      showToast(e.message || "Failed to load settings", "error");
+      const data = (await apiFetch("/user/settings")) as {
+        telegram_chat_id?: string;
+        notifications_enabled?: boolean;
+      };
+      inputId.value = data.telegram_chat_id || "";
+      inputNotifications.checked = !!data.notifications_enabled;
+      syncNotificationState(inputNotifications, notificationState);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to load settings";
+      showToast(message, "error");
     } finally {
       btnSave.disabled = false;
     }
