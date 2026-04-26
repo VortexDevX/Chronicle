@@ -142,7 +142,8 @@ export function renderControls(): void {
         "data-clear",
       );
       if (type === "search") setSearchTerm("");
-      else if (type) setFilterSort(type as any, "");
+      else if (type === "filterType" || type === "filterStatus" || type === "sortBy")
+        setFilterSort(type, "");
     });
   });
 

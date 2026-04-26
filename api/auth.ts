@@ -2,8 +2,9 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { connectDB, User } from "./_utils/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { checkRateLimit, getClientIp } from "./_utils/rateLimit.js";
-import { logInternalError, logSecurityEvent } from "./_utils/log.js";
+import { getClientIp } from "./_utils/rateLimit.js";
+import { enforceRateLimit } from "./_utils/guards.js";
+import { logInternalError } from "./_utils/log.js";
 import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";
 import { getRequiredEnv } from "./_utils/config.js";
 
@@ -26,25 +27,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const normalizedPassword = String(password || "");
     const ip = getClientIp(req);
 
-    const authLimit =
-      action === "register"
-        ? await checkRateLimit(`auth:register:${ip}`, 40, 15 * 60 * 1000)
-        : await checkRateLimit(`auth:login:${ip}`, 100, 10 * 60 * 1000);
-
-    if (!authLimit.allowed) {
-      logSecurityEvent("rate_limit_block", {
-        route: "auth",
-        action: String(action || "unknown"),
-        ip,
-        retry_after_sec: authLimit.retryAfterSec,
-      });
-      return jsonError(
-        res,
-        "RATE_LIMITED",
-        `Too many attempts. Retry in ${authLimit.retryAfterSec}s`,
-        429,
-      );
-    }
+    const isRegister = action === "register";
+    const authAllowed = await enforceRateLimit(req, res, {
+      key: isRegister ? `auth:register:${ip}` : `auth:login:${ip}`,
+      limit: isRegister ? 40 : 100,
+      windowMs: isRegister ? 15 * 60 * 1000 : 10 * 60 * 1000,
+      strict: true,
+      route: "auth",
+      method: "POST",
+      operation: String(action || "unknown"),
+      message: "Too many attempts. Please retry shortly.",
+    });
+    if (!authAllowed) return;
 
     await connectDB();
 

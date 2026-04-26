@@ -99,10 +99,10 @@ export async function submitBulkDelete(): Promise<boolean> {
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
     try {
-      const res = await apiFetch("/media?bulk_delete=1", {
+      const res = (await apiFetch("/media?bulk_delete=1", {
         method: "POST",
         body: JSON.stringify({ ids: chunk }),
-      });
+      })) as { deleted?: number; requested?: number };
       ok += Number(res?.deleted || 0);
       fail += Math.max(
         0,

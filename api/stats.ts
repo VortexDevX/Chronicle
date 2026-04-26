@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { connectDB, MediaItem } from "./_utils/db.js";
-import { verifyToken } from "./_utils/auth.js";
 import mongoose from "mongoose";
 import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";
+import { requireAuthUserId } from "./_utils/guards.js";
 import { logInternalError } from "./_utils/log.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -15,10 +15,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     await connectDB();
-    const userId = verifyToken(req.headers.authorization);
-    if (!userId) {
-      return jsonError(res, "UNAUTHORIZED", "Unauthorized", 401);
-    }
+    const userId = requireAuthUserId(req, res);
+    if (!userId) return;
     const userObjectId = new mongoose.Types.ObjectId(userId);
 
     const pipeline: mongoose.PipelineStage[] = [

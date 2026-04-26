@@ -128,7 +128,7 @@ export function renderStatsHost(): void {
   // Chart global defaults for dark theme
   Chart.defaults.color = "#8b949e";
   Chart.defaults.font.family = "'Outfit', sans-serif";
-  const tooltip = (Chart.defaults as any).plugins?.tooltip;
+  const tooltip = Chart.defaults.plugins?.tooltip;
   if (tooltip) {
     tooltip.backgroundColor = "rgba(10, 12, 16, 0.9)";
     tooltip.titleColor = "#f0f6fc";
@@ -220,28 +220,31 @@ async function loadRecentActivity() {
     const listHost = document.getElementById("analytics-recent-list");
     if (!listHost) return;
 
-    const res = await apiFetch("/media?limit=5&sort=updatedAt:-1");
-    if (res.data && res.data.items) {
-      if (res.data.items.length === 0) {
-        listHost.innerHTML =
-          '<div style="color:var(--text-secondary); text-align:center;">No recent archival events.</div>';
-        return;
-      }
-      listHost.innerHTML = res.data.items
-        .map(
-          (item: any) => `
+    const res = (await apiFetch("/media?limit=5&sort=updatedAt:-1")) as {
+      items?: Array<{ title?: string; status?: string }>;
+    };
+
+    const items = Array.isArray(res?.items) ? res.items : [];
+    if (items.length === 0) {
+      listHost.innerHTML =
+        '<div style="color:var(--text-secondary); text-align:center;">No recent archival events.</div>';
+      return;
+    }
+
+    listHost.innerHTML = items
+      .map(
+        (item) => `
           <div class="analytics-activity-item">
-            <div class="activity-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%;" title="${escapeHtml(item.title)}">
-              ${escapeHtml(item.title)}
+            <div class="activity-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%;" title="${escapeHtml(String(item.title || ""))}">
+              ${escapeHtml(String(item.title || ""))}
             </div>
             <div class="activity-meta">
               ${item.status === "Completed" ? '<span style="color:var(--green)">Completed</span>' : "Updated"}
             </div>
           </div>
         `,
-        )
-        .join("");
-    }
+      )
+      .join("");
   } catch {
     const listHost = document.getElementById("analytics-recent-list");
     if (listHost)

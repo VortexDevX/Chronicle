@@ -24,6 +24,32 @@ import * as cheerio from "cheerio";
 const MAX_USERS = 50;
 const MAX_ENTRIES_PER_RUN = 200;
 
+
+const FETCH_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`Fetch timeout after ${timeoutMs}ms for ${url}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const BROWSER_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -126,7 +152,7 @@ function extractChapterNumberFromHref(
 
 async function fetchManhuafastChapters(trackerUrl: string): Promise<string> {
   const ajaxUrl = new URL("ajax/chapters/", trackerUrl).toString();
-  const res = await fetch(ajaxUrl, {
+  const res = await fetchWithTimeout(ajaxUrl, {
     method: "POST",
     headers: BROWSER_HEADERS,
     redirect: "follow",
@@ -185,7 +211,7 @@ function collectChapterNumbers(
 async function scrapeManhwaTrackerUrl(
   trackerUrl: string,
 ): Promise<number | null> {
-  const initialRes = await fetch(trackerUrl, {
+  const initialRes = await fetchWithTimeout(trackerUrl, {
     headers: BROWSER_HEADERS,
     redirect: "follow",
   });
@@ -260,7 +286,7 @@ const ANIMEXIN_HOST = "animexin.dev";
 async function scrapeAnimexinTrackerUrl(
   trackerUrl: string,
 ): Promise<number | null> {
-  const res = await fetch(trackerUrl, {
+  const res = await fetchWithTimeout(trackerUrl, {
     headers: {
       ...BROWSER_HEADERS,
       Referer: "https://animexin.dev/",
@@ -370,8 +396,8 @@ async function scrapeTrackerUrl(
       return await scrapeAnimexinTrackerUrl(trackerUrl);
     }
     return await scrapeManhwaTrackerUrl(trackerUrl);
-  } catch (error: any) {
-    throw new Error(`Scraper failed [${mediaType}]: ${error.message}`);
+  } catch (error) {
+    throw new Error(`Scraper failed [${mediaType}]: ${getErrorMessage(error)}`);
   }
 }
 
@@ -396,6 +422,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown_error";
+}
+
+
 // ══════════════════════════════════════════════════════════════════
 //  CRON HANDLER
 // ══════════════════════════════════════════════════════════════════
@@ -412,7 +444,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    console.log("cron_check_chapters_start", {
+    console.warn("cron_check_chapters_start", {
       at: new Date().toISOString(),
       user_agent: req.headers["user-agent"] || "",
       request_id: req.headers["x-vercel-id"] || "",
@@ -455,7 +487,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select("_id username notifications_enabled telegram_chat_id")
       .lean();
 
-    const userMap = new Map(users.map((u: any) => [String(u._id), u]));
+    const userMap = new Map(users.map((u) => [String(u._id), u]));
 
     // ── Scrape each entry ────────────────────────────────────────
     const updatesByUser = new Map<string, ChapterUpdate[]>();
@@ -471,8 +503,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const errors: { title: string; message: string }[] = [];
 
       for (const entry of userEntries) {
-        const mediaType = (entry as any).media_type as MediaTypeSupported;
-        const trackerUrl = (entry as any).tracker_url as string;
+        const mediaType = entry.media_type as MediaTypeSupported;
+        const trackerUrl = String(entry.tracker_url || "");
 
         try {
           const latest = await scrapeTrackerUrl(trackerUrl, mediaType);
@@ -487,10 +519,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               media_type: mediaType,
             });
           }
-        } catch (err: any) {
+        } catch (err) {
           errors.push({
             title: entry.title as string,
-            message: err.message,
+            message: getErrorMessage(err),
           });
         }
 
@@ -517,7 +549,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ])) {
       const updates = updatesByUser.get(uid) || [];
       const errors = errorsByUser.get(uid) || [];
-      const user = userMap.get(uid) as any;
+      const user = userMap.get(uid);
       const username = user?.username || "Unknown";
       const notificationsEnabled = !!user?.notifications_enabled;
       const hasPersonalChat = !!user?.telegram_chat_id;
@@ -580,13 +612,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       failures,
       updates_by_user: Object.fromEntries(
         Array.from(updatesByUser.entries()).map(([uid, updates]) => {
-          const user = userMap.get(uid) as any;
+          const user = userMap.get(uid);
           return [user?.username || uid, updates];
         }),
       ),
     };
 
-    console.log("cron_check_chapters_complete", {
+    console.warn("cron_check_chapters_complete", {
       at: new Date().toISOString(),
       checked: payload.checked,
       users_scanned: payload.users_scanned,

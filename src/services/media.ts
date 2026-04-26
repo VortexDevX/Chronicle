@@ -1,6 +1,34 @@
 /** Media service layer — all business logic and API calls live here (Phase 2) */
 import { store } from "../state/store.js";
 import { apiFetch } from "../api/client.js";
+import type { MediaItem } from "../types/media.js";
+import type { GlobalStats } from "../state/core.js";
+
+const STATS_REFRESH_TTL_MS = 30_000;
+let lastStatsFetchAt = 0;
+let statsInFlight: Promise<void> | null = null;
+
+async function refreshStatsIfStale(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - lastStatsFetchAt < STATS_REFRESH_TTL_MS) return;
+  if (statsInFlight) return statsInFlight;
+
+  statsInFlight = (async () => {
+    try {
+      const data = (await apiFetch(`/stats`)) as GlobalStats | null;
+      if (data) {
+        store.set((prev) => ({ ...prev, globalStats: data }));
+        lastStatsFetchAt = Date.now();
+      }
+    } catch (err) {
+      console.error("Stats fetch failed:", err);
+    } finally {
+      statsInFlight = null;
+    }
+  })();
+
+  return statsInFlight;
+}
 
 export async function fetchMedia(
   reset = true,
@@ -33,8 +61,10 @@ export async function fetchMedia(
     if (current.filterType) query.set("media_type", current.filterType);
     if (current.filterStatus) query.set("status", current.filterStatus);
 
-    const payload = await apiFetch(`/media?${query.toString()}`);
-    const items = Array.isArray(payload) ? payload : payload.items || [];
+    const payload = (await apiFetch(`/media?${query.toString()}`)) as
+      | { items?: MediaItem[]; total?: number; has_more?: boolean; page?: number }
+      | MediaItem[];
+    const items: MediaItem[] = Array.isArray(payload) ? payload : payload.items || [];
 
     // Single data set — includes loading cleanup
     store.set((prev) => {
@@ -62,12 +92,7 @@ export async function fetchMedia(
       });
     });
 
-    // Fire & Forget Stats Update
-    apiFetch(`/stats`)
-      .then((data) => {
-        if (data) store.set((prev) => ({ ...prev, globalStats: data }));
-      })
-      .catch((err) => console.error("Stats fetch failed:", err));
+    void refreshStatsIfStale();
   } catch (err) {
     console.error(err);
     store.set((prev) => ({
@@ -96,11 +121,6 @@ export async function deleteMedia(id: string): Promise<void> {
   await fetchMedia(true, true);
 }
 
-export async function fetchStats(): Promise<void> {
-  try {
-    const data = await apiFetch(`/stats`);
-    if (data) store.set((prev) => ({ ...prev, globalStats: data }));
-  } catch (err) {
-    console.error("Stats fetch failed:", err);
-  }
+export async function fetchStats(force = false): Promise<void> {
+  await refreshStatsIfStale(force);
 }

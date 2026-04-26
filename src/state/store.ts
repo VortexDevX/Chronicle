@@ -1,5 +1,5 @@
 /** Application state store – reactive Store + cover cache */
-import { Store, createInitialState, type AppState } from "./core.js";
+import { Store, createInitialState } from "./core.js";
 import type { CoverCacheEntry } from "../types/media.js";
 
 // ── Create the single store instance ─────────────────────────────
@@ -114,7 +114,7 @@ export async function processCoverQueue(): Promise<void> {
         if (res.ok) {
           const json = await res.json();
           const coverArt = json.data?.relationships?.find(
-            (r: any) => r.type === "cover_art",
+            (r: { type?: string; attributes?: { fileName?: string } }) => r.type === "cover_art",
           );
           if (coverArt?.attributes?.fileName) {
             imageUrl = `https://uploads.mangadex.org/covers/${mangadexId}/${coverArt.attributes.fileName}.512.jpg`;

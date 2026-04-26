@@ -1,20 +1,43 @@
 /** API client — typed fetch wrapper with auth handling. Now uses reactive store */
 import { store } from "../state/store.js";
 
+type ApiEnvelope<T = unknown> = {
+  ok?: boolean;
+  data?: T;
+  error?: { code?: string; message?: string };
+  code?: string;
+  message?: string;
+};
+
+function normalizeHeaders(headers?: HeadersInit): Record<string, string> {
+  if (!headers) return {};
+  if (headers instanceof Headers) {
+    return Object.fromEntries(headers.entries());
+  }
+  if (Array.isArray(headers)) {
+    return Object.fromEntries(headers);
+  }
+  return { ...headers };
+}
+
 export async function apiFetch(
   endpoint: string,
   options: RequestInit = {},
-): Promise<any> {
+): Promise<unknown> {
   const state = store.get();
-  const headers: Record<string, string> = {
+  const mergedHeaders: Record<string, string> = {
     "Content-Type": "application/json",
+    ...normalizeHeaders(options.headers),
   };
 
   if (state.token) {
-    headers["Authorization"] = `Bearer ${state.token}`;
+    mergedHeaders.Authorization = `Bearer ${state.token}`;
   }
 
-  const res = await fetch(`/api${endpoint}`, { ...options, headers });
+  const res = await fetch(`/api${endpoint}`, {
+    ...options,
+    headers: mergedHeaders,
+  });
 
   if (res.status === 401) {
     const { logout } = await import("./auth.js");
@@ -22,18 +45,19 @@ export async function apiFetch(
     throw new Error("Unauthorized");
   }
 
+  const text = await res.text();
+  let payload: ApiEnvelope | null = null;
+  try {
+    payload = text ? (JSON.parse(text) as ApiEnvelope) : null;
+  } catch {
+    payload = null;
+  }
+
   if (!res.ok) {
-    let message = "Request failed";
-    let code = "";
-    try {
-      const text = await res.text();
-      message = text || message;
-      const payload = JSON.parse(text);
-      message = payload?.message || payload?.code || message;
-      code = payload?.code || "";
-    } catch {
-      // Keep whatever string we extracted
-    }
+    const code = payload?.error?.code || payload?.code || "";
+    const message =
+      payload?.error?.message || payload?.message || text || "Request failed";
+
     const err = new Error(message) as Error & {
       code?: string;
       status?: number;
@@ -43,5 +67,9 @@ export async function apiFetch(
     throw err;
   }
 
-  return res.json();
+  if (payload && typeof payload === "object" && "ok" in payload) {
+    return payload.data;
+  }
+
+  return payload;
 }

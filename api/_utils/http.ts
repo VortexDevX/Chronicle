@@ -6,8 +6,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
  * Policy:
  *  - No `Access-Control-Allow-Credentials` (Bearer-token auth doesn't need it).
  *  - Origin is checked against APP_ORIGIN env var (comma-separated allowlist).
- *  - If APP_ORIGIN is unset, same-origin requests are allowed by echoing the
- *    request origin only in development.
+ *  - If APP_ORIGIN is unset, allow any origin only in development.
  */
 
 const ALLOWED_METHODS = "GET,OPTIONS,PATCH,DELETE,POST,PUT";
@@ -33,14 +32,18 @@ function resolveOrigin(req: VercelRequest): string {
   const requestOrigin = req.headers.origin || "";
   const allowed = getAllowedOrigins();
 
-  // If an allowlist is configured, only echo back if the request origin matches
   if (allowed.length > 0) {
-    if (allowed.includes(requestOrigin)) return requestOrigin;
-    // Return the first allowed origin (browser will reject cross-origin if mismatch)
-    return allowed[0];
+    return requestOrigin && allowed.includes(requestOrigin)
+      ? requestOrigin
+      : "null";
   }
 
-  // No allowlist — allow same-origin by echoing back (dev convenience)
+  // safer production default: do not reflect arbitrary origins without allowlist
+  if (process.env.NODE_ENV === "production") {
+    return "null";
+  }
+
+  // local/dev convenience
   return requestOrigin || "*";
 }
 
@@ -67,7 +70,7 @@ export function jsonOk(
   data: unknown,
   status = 200,
 ): VercelResponse {
-  return res.status(status).json(data);
+  return res.status(status).json({ ok: true, data });
 }
 
 export function jsonError(
@@ -76,5 +79,10 @@ export function jsonError(
   message: string,
   status = 400,
 ): VercelResponse {
-  return res.status(status).json({ code, message });
+  return res.status(status).json({
+    ok: false,
+    code,
+    message,
+    error: { code, message },
+  });
 }
