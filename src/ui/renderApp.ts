@@ -38,6 +38,20 @@ async function runButtonTask(
   }
 }
 
+function setExportMenuBusy(isBusy: boolean, activeButton?: HTMLButtonElement): void {
+  ["btn-export-json", "btn-export-csv", "btn-export-by-type"].forEach((id) => {
+    const button = document.getElementById(id) as HTMLButtonElement | null;
+    if (!button || button === activeButton) return;
+    button.disabled = isBusy;
+  });
+}
+
+function closeExportMenu(): void {
+  document.getElementById("export-menu")?.classList.remove("open");
+  const chevron = document.querySelector(".export-chevron") as HTMLElement | null;
+  if (chevron) chevron.style.transform = "";
+}
+
 export function renderApp(): void {
   const app = document.getElementById("app")!;
   const state = store.get();
@@ -330,36 +344,44 @@ function renderDashboard(app: HTMLElement): void {
   });
   document
     .getElementById("btn-export-json")
-    ?.addEventListener("click", async () => {
-      document.getElementById("export-menu")?.classList.remove("open");
+    ?.addEventListener("click", async (e) => {
+      e.stopPropagation();
       const button = document.getElementById(
         "btn-export-json",
       ) as HTMLButtonElement;
       try {
+        setExportMenuBusy(true, button);
         await runButtonTask(button, "Exporting...", async () => {
           await exportJSON(({ fetched, total }) => {
             button.innerHTML = `<span class="spinner"></span> Exporting ${fetched}${total ? `/${total}` : ""}`;
           });
         });
+        closeExportMenu();
       } catch {
         showToast("Failed to export JSON.", "error");
+      } finally {
+        setExportMenuBusy(false);
       }
     });
   document
     .getElementById("btn-export-csv")
-    ?.addEventListener("click", async () => {
-      document.getElementById("export-menu")?.classList.remove("open");
+    ?.addEventListener("click", async (e) => {
+      e.stopPropagation();
       const button = document.getElementById(
         "btn-export-csv",
       ) as HTMLButtonElement;
       try {
+        setExportMenuBusy(true, button);
         await runButtonTask(button, "Exporting...", async () => {
           await exportAllCSV(({ fetched, total }) => {
             button.innerHTML = `<span class="spinner"></span> Exporting ${fetched}${total ? `/${total}` : ""}`;
           });
         });
+        closeExportMenu();
       } catch {
         showToast("Failed to export CSV.", "error");
+      } finally {
+        setExportMenuBusy(false);
       }
     });
   document
