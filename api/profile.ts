@@ -1,23 +1,15 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "./_utils/vercelTypes.js";
 import { connectDB, User } from "./_utils/db.js";
 import { verifyToken } from "./_utils/auth.js";
 import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";
 import { logInternalError } from "./_utils/log.js";
+import { normalizePublicHttpUrl } from "./_utils/publicUrl.js";
 
 const MAX_DISPLAY_NAME = 50;
 const MAX_BIO = 300;
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9_-]{3,30}$/.test(slug);
-}
-
-function isValidHttpUrl(urlStr: string): boolean {
-  try {
-    const parsed = new URL(urlStr);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -114,16 +106,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (body.avatar_url === null || body.avatar_url === "") {
           updates.avatar_url = null;
         } else {
-          const url = String(body.avatar_url).trim();
-          if (!isValidHttpUrl(url)) {
+          const url = normalizePublicHttpUrl(String(body.avatar_url).trim());
+          if (!url) {
             return jsonError(
               res,
               "INVALID_AVATAR_URL",
-              "avatar_url must be a valid http/https URL",
+              "avatar_url must be a valid public http/https URL under 500 characters",
               400,
             );
           }
-          updates.avatar_url = url.slice(0, 500);
+          updates.avatar_url = url;
         }
       }
 
@@ -154,6 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const updated = await User.findByIdAndUpdate(userId, updates, {
         new: true,
+        runValidators: true,
       }).select(
         "username display_name bio public_profile_enabled public_slug avatar_url notifications_enabled created_at",
       );

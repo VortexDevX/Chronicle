@@ -16,6 +16,21 @@ function isApiLikeError(value: unknown): value is ApiLikeError {
   return "code" in value;
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function parseOptionalNumber(value: string): number | undefined {
+  if (value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseRequiredNumber(value: string, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export function openModal(item?: MediaItem): void {
   const modal = document.getElementById("media-modal") as HTMLDialogElement;
   const titleInput = document.getElementById("media-title") as HTMLInputElement;
@@ -139,24 +154,20 @@ export function setupMediaFormHandler(): void {
           .value,
         status: (document.getElementById("media-status") as HTMLSelectElement)
           .value,
-        progress_current: parseInt(
+        progress_current: parseRequiredNumber(
           (
             document.getElementById(
               "media-progress-current",
             ) as HTMLInputElement
           ).value,
-          10,
         ),
-        progress_total: parseInt(
+        progress_total: parseRequiredNumber(
           (document.getElementById("media-progress-total") as HTMLInputElement)
             .value,
-          10,
         ),
-        rating:
-          parseInt(
-            (document.getElementById("media-rating") as HTMLInputElement).value,
-            10,
-          ) || undefined,
+        rating: parseOptionalNumber(
+          (document.getElementById("media-rating") as HTMLInputElement).value,
+        ),
         notes: (document.getElementById("media-notes") as HTMLTextAreaElement)
           .value,
       };
@@ -216,16 +227,34 @@ export function setupMediaFormHandler(): void {
                 "Duplicate found",
                 "A similar title exists for this type. Merge into existing entry or keep both?",
                 async () => {
-                  const merged = await createEntry("merge");
-                  upsertLocalMediaItem(merged);
-                  (document.getElementById("media-modal") as HTMLDialogElement).close();
-                  showToast("Entry added", "success");
+                  try {
+                    const merged = await createEntry("merge");
+                    upsertLocalMediaItem(merged);
+                    (
+                      document.getElementById("media-modal") as HTMLDialogElement
+                    ).close();
+                    showToast("Entry added", "success");
+                  } catch (mergeErr) {
+                    showToast(
+                      getErrorMessage(mergeErr, "Failed to merge entry."),
+                      "error",
+                    );
+                  }
                 },
                 async () => {
-                  const created = await createEntry("keep_both");
-                  upsertLocalMediaItem(created);
-                  (document.getElementById("media-modal") as HTMLDialogElement).close();
-                  showToast("Entry added", "success");
+                  try {
+                    const created = await createEntry("keep_both");
+                    upsertLocalMediaItem(created);
+                    (
+                      document.getElementById("media-modal") as HTMLDialogElement
+                    ).close();
+                    showToast("Entry added", "success");
+                  } catch (createErr) {
+                    showToast(
+                      getErrorMessage(createErr, "Failed to add entry."),
+                      "error",
+                    );
+                  }
                 },
               );
               return;
@@ -236,8 +265,8 @@ export function setupMediaFormHandler(): void {
 
         (document.getElementById("media-modal") as HTMLDialogElement).close();
         showToast(id ? "Entry updated" : "Entry added", "success");
-      } catch {
-        showToast("Failed to save. Please try again.", "error");
+      } catch (err) {
+        showToast(getErrorMessage(err, "Failed to save. Please try again."), "error");
         saveBtn.disabled = false;
         saveBtn.textContent = originalText;
       }

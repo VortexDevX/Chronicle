@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "./_utils/vercelTypes.js";
 import { handleOptions, setCors, jsonError } from "./_utils/http.js";
 
 function getQueryValue(value: string | string[] | undefined): string {
