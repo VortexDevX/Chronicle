@@ -15,6 +15,8 @@ const COVER_CACHE_KEY = "chronicle:cover-cache:v3";
 const COVER_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COVER_CACHE_NULL_TTL_MS = 1000 * 60 * 30;
 const COVER_CACHE_MAX = 600;
+const COVER_FETCH_CONCURRENCY = 2;
+const COVER_FETCH_BATCH_DELAY_MS = 450;
 
 export const coverCache = new Map<string, CoverCacheEntry>();
 export let coverQueue: { title: string; id: string; mangadexId?: string }[] =
@@ -132,21 +134,27 @@ export async function processCoverQueue(): Promise<void> {
   if (coverProcessing || coverQueue.length === 0) return;
   coverProcessing = true;
   while (coverQueue.length > 0) {
-    const { title, id, mangadexId } = coverQueue.shift()!;
-    const cacheKey = mangadexId ? `md-${mangadexId}` : title;
-    if (getCachedCover(cacheKey) !== undefined) continue;
-    try {
-      const imageUrl = mangadexId
-        ? await fetchMangadexCover(mangadexId)
-        : await fetchAnimeCover(title);
-      setCachedCover(cacheKey, imageUrl);
-      if (imageUrl) {
-        applyCoverToThumb(id, imageUrl);
-      }
-    } catch {
-      setCachedCover(cacheKey, null);
+    const batch = coverQueue.splice(0, COVER_FETCH_CONCURRENCY);
+    await Promise.all(
+      batch.map(async ({ title, id, mangadexId }) => {
+        const cacheKey = mangadexId ? `md-${mangadexId}` : title;
+        if (getCachedCover(cacheKey) !== undefined) return;
+        try {
+          const imageUrl = mangadexId
+            ? await fetchMangadexCover(mangadexId)
+            : await fetchAnimeCover(title);
+          setCachedCover(cacheKey, imageUrl);
+          if (imageUrl) {
+            applyCoverToThumb(id, imageUrl);
+          }
+        } catch {
+          setCachedCover(cacheKey, null);
+        }
+      }),
+    );
+    if (coverQueue.length > 0) {
+      await new Promise((r) => setTimeout(r, COVER_FETCH_BATCH_DELAY_MS));
     }
-    await new Promise((r) => setTimeout(r, mangadexId ? 250 : 1100));
   }
   coverProcessing = false;
   flushCoverCache();

@@ -37,6 +37,7 @@ function renderCard(
   m: MediaItem,
   selectedSet: ReadonlySet<string>,
   bulkMode: boolean,
+  pendingActionIds: ReadonlySet<string>,
 ): string {
   const pct = m.progress_total
     ? Math.min(100, Math.round((m.progress_current / m.progress_total) * 100))
@@ -47,6 +48,9 @@ function renderCard(
     m.status === "Watching/Reading" && daysSince(m.last_updated) >= 14;
   const staleClass = isStale ? " card-stale" : "";
   const isSelected = selectedSet.has(m._id);
+  const isIncrementing = pendingActionIds.has(`${m._id}:increment`);
+  const isDeleting = pendingActionIds.has(`${m._id}:delete`);
+  const hasPendingAction = isIncrementing || isDeleting;
   const coverUrl = getCoverUrl(m);
   const thumbStyle = coverUrl ? `background-image:url('${coverUrl}')` : "";
   const thumbClass = coverUrl ? "card-thumb thumb-loaded" : "card-thumb";
@@ -117,26 +121,34 @@ function renderCard(
           </div>
         </div>
         <div class="card-actions">
-          <button class="card-action-btn btn-edit" data-id="${m._id}" title="Edit">
+          <button class="card-action-btn btn-edit" data-id="${m._id}" title="Edit" ${hasPendingAction ? "disabled" : ""}>
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
             Edit
           </button>
-          <button class="card-action-btn btn-increment" data-id="${m._id}" title="Increment progress" aria-label="Add 1 ${unit}">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            +1
+          <button class="card-action-btn btn-increment" data-id="${m._id}" title="Increment progress" aria-label="Add 1 ${unit}" ${hasPendingAction ? "disabled" : ""}>
+            ${
+              isIncrementing
+                ? `<span class="spinner"></span> Updating...`
+                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  +1`
+            }
           </button>
-          <button class="card-action-btn card-action-danger btn-delete" data-id="${m._id}" title="Delete">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>
-            Delete
+          <button class="card-action-btn card-action-danger btn-delete" data-id="${m._id}" title="Delete" ${hasPendingAction ? "disabled" : ""}>
+            ${
+              isDeleting
+                ? `<span class="spinner"></span> Deleting...`
+                : `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+                  </svg>
+                  Delete`
+            }
           </button>
         </div>
       </div>
@@ -158,7 +170,25 @@ export function renderMediaCards(): void {
       .fill(0)
       .map(
         (_, i) =>
-          `<div class="card skeleton" style="animation-delay:${i * 50}ms; min-height: 220px;"></div>`,
+          `<div class="card skeleton-card" style="animation-delay:${i * 50}ms;">
+            <div class="card-poster">
+              <div class="card-thumb skeleton"></div>
+              <div class="card-poster-info">
+                <div class="skeleton skeleton-line skeleton-line-sm"></div>
+                <div class="skeleton skeleton-line skeleton-line-lg"></div>
+                <div class="skeleton skeleton-line skeleton-line-xs"></div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="skeleton skeleton-line skeleton-line-md"></div>
+              <div class="skeleton skeleton-progress"></div>
+            </div>
+            <div class="card-actions">
+              <div class="skeleton skeleton-button"></div>
+              <div class="skeleton skeleton-button"></div>
+              <div class="skeleton skeleton-button"></div>
+            </div>
+          </div>`,
       )
       .join("");
     container.innerHTML = skels;
@@ -168,6 +198,7 @@ export function renderMediaCards(): void {
   }
 
   const selectedSet = state.selectedIds;
+  const pendingActionIds = state.pendingActionIds;
 
   if (filteredMedia.length === 0) {
     const hasFilters = state.search || state.filterType || state.filterStatus;
@@ -199,7 +230,7 @@ export function renderMediaCards(): void {
   const nextIds = new Set<string>();
 
   for (const m of filteredMedia) {
-    const cardMarkup = renderCard(m, selectedSet, state.bulkMode);
+    const cardMarkup = renderCard(m, selectedSet, state.bulkMode, pendingActionIds);
     const nextHash = [
       m.title,
       m.media_type,
@@ -212,6 +243,8 @@ export function renderMediaCards(): void {
       m.last_updated,
       state.bulkMode ? "1" : "0",
       selectedSet.has(m._id) ? "1" : "0",
+      pendingActionIds.has(`${m._id}:increment`) ? "inc" : "",
+      pendingActionIds.has(`${m._id}:delete`) ? "del" : "",
     ].join("|");
     const prevHash = cardRenderHashById.get(m._id);
 
@@ -239,7 +272,7 @@ export function renderMediaCards(): void {
     loadMoreBtn.style.display = state.hasMore ? "inline-flex" : "none";
     loadMoreBtn.disabled = state.loadingMore;
     loadMoreBtn.innerHTML = state.loadingMore
-      ? `<span class="spinner"></span>`
+      ? `<span class="spinner"></span> Loading more...`
       : "Load more";
     loadMoreBtn.onclick = async () => {
       if (state.loadingMore || !state.hasMore) return;
