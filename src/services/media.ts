@@ -46,7 +46,10 @@ export function restoreLocalMediaItem(item: MediaItem): void {
 async function refreshStatsIfStale(force = false): Promise<void> {
   const now = Date.now();
   if (!force && now - lastStatsFetchAt < STATS_REFRESH_TTL_MS) return;
-  if (statsInFlight) return statsInFlight;
+  if (statsInFlight) {
+    await statsInFlight;
+    if (!force) return;
+  }
 
   statsInFlight = (async () => {
     try {
@@ -63,6 +66,10 @@ async function refreshStatsIfStale(force = false): Promise<void> {
   })();
 
   return statsInFlight;
+}
+
+export async function refreshStatsAfterMutation(): Promise<void> {
+  await refreshStatsIfStale(true);
 }
 
 export async function fetchMedia(

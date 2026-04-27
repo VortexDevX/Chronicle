@@ -13,6 +13,30 @@ function syncNotificationState(
   }
 }
 
+function setSettingsFormLoading(loading: boolean): void {
+  const inputId = document.getElementById(
+    "settings-telegram-id",
+  ) as HTMLInputElement | null;
+  const inputNotifications = document.getElementById(
+    "settings-notifications",
+  ) as HTMLInputElement | null;
+  const btnSave = document.getElementById(
+    "settings-save",
+  ) as HTMLButtonElement | null;
+
+  if (inputId) {
+    inputId.disabled = loading;
+    inputId.placeholder = loading ? "Loading settings..." : "Enter your numeric chat ID";
+  }
+  if (inputNotifications) inputNotifications.disabled = loading;
+  if (btnSave) {
+    btnSave.disabled = loading;
+    btnSave.innerHTML = loading
+      ? `<span class="spinner"></span> Loading...`
+      : "Save changes";
+  }
+}
+
 export function setupSettingsGlobalHandlers() {
   const modal = document.getElementById("settings-modal") as HTMLDialogElement;
   const form = document.getElementById("settings-form") as HTMLFormElement;
@@ -39,7 +63,7 @@ export function setupSettingsGlobalHandlers() {
     if (btnSave.disabled) return;
 
     btnSave.disabled = true;
-    btnSave.textContent = "Saving...";
+    btnSave.innerHTML = `<span class="spinner"></span> Saving...`;
 
     try {
       const payload = {
@@ -79,12 +103,11 @@ export function attachSettingsButtonListener() {
     const notificationState = document.getElementById(
       "settings-notifications-state",
     ) as HTMLSpanElement | null;
-    const btnSave = document.getElementById(
-      "settings-save",
-    ) as HTMLButtonElement;
-
-    modal.showModal(); // Show immediately!
-    btnSave.disabled = true;
+    inputId.value = "";
+    inputNotifications.checked = false;
+    syncNotificationState(inputNotifications, notificationState);
+    setSettingsFormLoading(true);
+    modal.showModal();
 
     try {
       const data = (await apiFetch("/user/settings")) as {
@@ -98,7 +121,7 @@ export function attachSettingsButtonListener() {
       const message = e instanceof Error ? e.message : "Failed to load settings";
       showToast(message, "error");
     } finally {
-      btnSave.disabled = false;
+      setSettingsFormLoading(false);
     }
   });
 }

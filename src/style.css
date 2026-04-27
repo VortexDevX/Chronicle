@@ -585,6 +585,28 @@ button:disabled {
   box-shadow: none;
 }
 
+.spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+  animation: spin 0.75s linear infinite;
+}
+
+button .spinner {
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .btn-primary {
   background: var(--accent);
   color: var(--accent-text);
@@ -2047,6 +2069,44 @@ dialog::backdrop {
 }
 .skeleton > * {
   opacity: 0;
+}
+.skeleton-card {
+  pointer-events: none;
+}
+.skeleton-card .card-poster,
+.skeleton-card .card-body,
+.skeleton-card .card-actions {
+  opacity: 1;
+}
+.skeleton-card .skeleton {
+  border-color: transparent;
+}
+.skeleton-line {
+  height: 12px;
+  border-radius: var(--radius-pill);
+}
+.skeleton-line-xs {
+  width: 92px;
+}
+.skeleton-line-sm {
+  width: 132px;
+}
+.skeleton-line-md {
+  width: 168px;
+}
+.skeleton-line-lg {
+  width: min(260px, 100%);
+  height: 20px;
+}
+.skeleton-progress {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  margin-top: 14px;
+}
+.skeleton-button {
+  flex: 1;
+  min-height: 38px;
+  border-radius: var(--radius-sm);
 }
 @keyframes skeleton-loading {
   0% {

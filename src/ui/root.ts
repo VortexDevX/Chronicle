@@ -23,6 +23,7 @@ export function mountApp(): void {
   store.subscribe(
     (state) => ({
       bulkMode: state.bulkMode,
+      bulkAction: state.bulkAction,
       selectedIds: Array.from(state.selectedIds),
     }),
     () => renderBulkBar(),
@@ -50,6 +51,7 @@ export function mountApp(): void {
       loading: state.loading,
       loadingMore: state.loadingMore,
       hasMore: state.hasMore,
+      pendingActionIds: Array.from(state.pendingActionIds),
     }),
     () => renderMediaCards(),
   );

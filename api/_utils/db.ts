@@ -83,6 +83,9 @@ const mediaSchema = new mongoose.Schema(
 // --- Indexes ---
 mediaSchema.index({ user_id: 1, last_updated: -1 });
 mediaSchema.index({ user_id: 1, media_type: 1 });
+mediaSchema.index({ user_id: 1, status: 1, last_updated: -1 });
+mediaSchema.index({ user_id: 1, media_type: 1, status: 1, last_updated: -1 });
+mediaSchema.index({ user_id: 1, title: 1 });
 
 // Auto-update last_updated field
 mediaSchema.pre("findOneAndUpdate", function (next) {

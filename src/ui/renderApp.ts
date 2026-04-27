@@ -22,6 +22,22 @@ function setDisplay(id: string, value: string): void {
   if (el) el.style.display = value;
 }
 
+async function runButtonTask(
+  button: HTMLButtonElement,
+  loadingLabel: string,
+  task: () => Promise<void>,
+): Promise<void> {
+  const original = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = `<span class="spinner"></span> ${loadingLabel}`;
+  try {
+    await task();
+  } finally {
+    button.disabled = false;
+    button.innerHTML = original;
+  }
+}
+
 export function renderApp(): void {
   const app = document.getElementById("app")!;
   const state = store.get();
@@ -91,7 +107,9 @@ function renderAuthScreen(app: HTMLElement): void {
     buttons.forEach((b) => {
       b.disabled = true;
       if (b.getAttribute("data-action") === action)
-        b.innerHTML = `<span class="spinner"></span>`;
+        b.innerHTML = `<span class="spinner"></span> ${
+          action === "register" ? "Registering..." : "Logging in..."
+        }`;
     });
     errorEl.textContent = "";
 
@@ -314,9 +332,15 @@ function renderDashboard(app: HTMLElement): void {
     .getElementById("btn-export-json")
     ?.addEventListener("click", async () => {
       document.getElementById("export-menu")?.classList.remove("open");
-      showToast("Exporting JSON... Please wait.", "success");
+      const button = document.getElementById(
+        "btn-export-json",
+      ) as HTMLButtonElement;
       try {
-        await exportJSON();
+        await runButtonTask(button, "Exporting...", async () => {
+          await exportJSON(({ fetched, total }) => {
+            button.innerHTML = `<span class="spinner"></span> Exporting ${fetched}${total ? `/${total}` : ""}`;
+          });
+        });
       } catch {
         showToast("Failed to export JSON.", "error");
       }
@@ -325,9 +349,15 @@ function renderDashboard(app: HTMLElement): void {
     .getElementById("btn-export-csv")
     ?.addEventListener("click", async () => {
       document.getElementById("export-menu")?.classList.remove("open");
-      showToast("Exporting CSV... Please wait.", "success");
+      const button = document.getElementById(
+        "btn-export-csv",
+      ) as HTMLButtonElement;
       try {
-        await exportAllCSV();
+        await runButtonTask(button, "Exporting...", async () => {
+          await exportAllCSV(({ fetched, total }) => {
+            button.innerHTML = `<span class="spinner"></span> Exporting ${fetched}${total ? `/${total}` : ""}`;
+          });
+        });
       } catch {
         showToast("Failed to export CSV.", "error");
       }
