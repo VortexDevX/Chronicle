@@ -8,23 +8,34 @@ import { showToast } from "../../ui/toast.js";
 import { apiFetch } from "../../api/client.js";
 import { fetchMedia } from "../../services/media.js";
 
+type ExportProgress = {
+  fetched: number;
+  total?: number;
+};
+
 // Export (fast + selectors ready)
-async function fetchAllExportItems(mediaType?: string): Promise<MediaItem[]> {
+async function fetchAllExportItems(
+  mediaType?: string,
+  onProgress?: (progress: ExportProgress) => void,
+): Promise<MediaItem[]> {
   const items: MediaItem[] = [];
   let page = 1;
   let hasMore = true;
   while (hasMore) {
     const query = new URLSearchParams({
       page: String(page),
-      limit: "500",
+      limit: "100",
       sort_by: "title",
     });
     if (mediaType) query.set("media_type", mediaType);
     const payload = (await apiFetch(`/media?${query.toString()}`)) as
-      | { items?: MediaItem[]; has_more?: boolean }
+      | { items?: MediaItem[]; total?: number; has_more?: boolean }
       | MediaItem[];
     const batch = Array.isArray(payload) ? payload : payload.items || [];
     items.push(...batch);
+    if (!Array.isArray(payload)) {
+      onProgress?.({ fetched: items.length, total: payload.total });
+    }
     hasMore = Array.isArray(payload) ? false : Boolean(payload.has_more);
     page += 1;
   }
@@ -55,8 +66,10 @@ function buildJsonPayload(items: MediaItem[]) {
   );
 }
 
-export async function exportJSON(): Promise<void> {
-  const items = await fetchAllExportItems();
+export async function exportJSON(
+  onProgress?: (progress: ExportProgress) => void,
+): Promise<void> {
+  const items = await fetchAllExportItems(undefined, onProgress);
   const payload = buildJsonPayload(items);
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
@@ -99,8 +112,10 @@ export function exportCSV(items: MediaItem[], filename?: string): void {
   showToast(`Exported ${items.length} entries as CSV`, "success");
 }
 
-export async function exportAllCSV(): Promise<void> {
-  const items = await fetchAllExportItems();
+export async function exportAllCSV(
+  onProgress?: (progress: ExportProgress) => void,
+): Promise<void> {
+  const items = await fetchAllExportItems(undefined, onProgress);
   exportCSV(items);
 }
 
@@ -160,19 +175,34 @@ export function openExportTypeDialog(): void {
 
   newCancel.addEventListener("click", () => dialog.close());
   newConfirm.addEventListener("click", async () => {
+    const originalText = newConfirm.textContent || "Export";
     const mediaType = typeSelect.value;
     const format = formatSelect.value;
-    const scoped = await fetchAllExportItems(mediaType);
-    if (scoped.length === 0) {
-      showToast(`No ${mediaType} entries to export.`, "error");
-      return;
+    newConfirm.setAttribute("disabled", "true");
+    newCancel.setAttribute("disabled", "true");
+    newConfirm.innerHTML = `<span class="spinner"></span> Exporting...`;
+    try {
+      const scoped = await fetchAllExportItems(mediaType, ({ fetched, total }) => {
+        newConfirm.innerHTML = `<span class="spinner"></span> Exporting ${fetched}${total ? `/${total}` : ""}`;
+      });
+      if (scoped.length === 0) {
+        showToast(`No ${mediaType} entries to export.`, "error");
+        return;
+      }
+      const stamp = dateStamp();
+      const typeSlug = slugType(mediaType);
+      if (format === "csv")
+        exportCSV(scoped, `chronicle-${typeSlug}-${stamp}.csv`);
+      else await exportXLSX(scoped, `chronicle-${typeSlug}-${stamp}.xlsx`);
+      dialog.close();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to export.";
+      showToast(message, "error");
+    } finally {
+      newConfirm.removeAttribute("disabled");
+      newCancel.removeAttribute("disabled");
+      newConfirm.textContent = originalText;
     }
-    const stamp = dateStamp();
-    const typeSlug = slugType(mediaType);
-    if (format === "csv")
-      exportCSV(scoped, `chronicle-${typeSlug}-${stamp}.csv`);
-    else await exportXLSX(scoped, `chronicle-${typeSlug}-${stamp}.xlsx`);
-    dialog.close();
   });
   dialog.showModal();
 }
@@ -259,6 +289,7 @@ export function setupImportHandler(): void {
           showToast("No valid rows found in file.", "error");
           return;
         }
+        showToast(`Importing ${entries.length} entries...`, "success");
         let imported = 0;
         let skipped = 0;
         const CHUNK_SIZE = 100;

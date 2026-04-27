@@ -28,7 +28,9 @@ export interface AppState {
   hasMore: boolean;
   total: number;
   bulkMode: boolean;
+  bulkAction: "" | "status" | "increment" | "delete";
   selectedIds: Set<string>;
+  pendingActionIds: Set<string>;
   globalStats: GlobalStats | null;
 }
 
@@ -50,7 +52,9 @@ export function createInitialState(overrides?: Partial<AppState>): AppState {
     hasMore: false,
     total: 0,
     bulkMode: false,
+    bulkAction: "",
     selectedIds: new Set<string>(),
+    pendingActionIds: new Set<string>(),
     globalStats: null,
     ...overrides,
   };
@@ -208,6 +212,15 @@ export class Store {
       const newSet = new Set(prev.selectedIds);
       updater(newSet);
       return { ...prev, selectedIds: newSet };
+    });
+  }
+
+  /** Helper for per-item pending actions. */
+  updatePendingActionIds(updater: (set: Set<string>) => void): void {
+    this.set((prev) => {
+      const newSet = new Set(prev.pendingActionIds);
+      updater(newSet);
+      return { ...prev, pendingActionIds: newSet };
     });
   }
 }
