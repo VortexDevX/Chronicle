@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_utils/vercelTypes.js";
 import {
   jsonOk,
   jsonError,

@@ -1,8 +1,16 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "./_utils/vercelTypes.js";
 import { connectDB, User, MediaItem } from "./_utils/db.js";
 import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";
 import { logInternalError } from "./_utils/log.js";
 import mongoose from "mongoose";
+import {
+  isAllowedMediaStatus,
+  isAllowedMediaType,
+} from "./_utils/mediaValidation.js";
+
+function isValidSlug(slug: string): boolean {
+  return /^[a-z0-9_-]{3,30}$/.test(slug);
+}
 
 /**
  * Public profile API — read-only, no auth required.
@@ -24,6 +32,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const slug = String(req.query.slug || "").trim().toLowerCase();
     if (!slug) {
       return jsonError(res, "MISSING_SLUG", "Missing slug parameter", 400);
+    }
+    if (!isValidSlug(slug)) {
+      return jsonError(res, "INVALID_SLUG", "Invalid slug parameter", 400);
     }
 
     const user = await User.findOne({
@@ -66,6 +77,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const mediaType = String(req.query.media_type || "").trim();
     const status = String(req.query.status || "").trim();
+
+    if (mediaType && !isAllowedMediaType(mediaType)) {
+      return jsonError(res, "INVALID_MEDIA_TYPE", "Invalid media_type filter", 400);
+    }
+    if (status && !isAllowedMediaStatus(status)) {
+      return jsonError(res, "INVALID_STATUS", "Invalid status filter", 400);
+    }
 
     const userObjectId = new mongoose.Types.ObjectId(String(user._id));
     const match: Record<string, unknown> = { user_id: userObjectId };

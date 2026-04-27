@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "./vercelTypes.js";
 
 /**
  * Centralized CORS + HTTP response utilities.

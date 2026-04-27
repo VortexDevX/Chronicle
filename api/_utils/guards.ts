@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "./vercelTypes.js";
 import { verifyToken } from "./auth.js";
 import { jsonError } from "./http.js";
 import { logSecurityEvent } from "./log.js";
