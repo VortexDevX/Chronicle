@@ -37,7 +37,7 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (18+)
+- [Node.js](https://nodejs.org/) (20.19+)
 - [MongoDB](https://www.mongodb.com/) (local or Atlas)
 - [Vercel CLI](https://vercel.com/docs/cli) (for local dev)
 
@@ -69,7 +69,7 @@ JWT_SECRET=your-32-char-secret-here
 APP_ORIGIN=https://your-app.vercel.app
 
 # Cron protection
-CRON_SECRET=your-cron-secret-here
+CRON_SECRET=your-cron-secret-here # required in production
 
 # Telegram notifications
 TELEGRAM_BOT_TOKEN=your-telegram-bot-token

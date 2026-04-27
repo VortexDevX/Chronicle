@@ -1,10 +1,15 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "./_utils/vercelTypes.js";
 import { connectDB, MediaItem } from "./_utils/db.js";
 import mongoose from "mongoose";
 import { getClientIp } from "./_utils/rateLimit.js";
 import { requireAuthUserId, enforceRateLimit } from "./_utils/guards.js";
 import { logInternalError } from "./_utils/log.js";
 import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";
+import { normalizePublicHttpUrl } from "./_utils/publicUrl.js";
+import {
+  isAllowedMediaStatus,
+  isAllowedMediaType,
+} from "./_utils/mediaValidation.js";
 
 type MediaPayload = {
   title?: string;
@@ -23,67 +28,12 @@ type MediaPayload = {
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_NOTES_LENGTH = 2000;
-const MAX_URL_LENGTH = 500;
-
-const allowedTypes = new Set(["Anime", "Manhwa", "Donghua", "Light Novel"]);
-const allowedStatuses = new Set([
-  "Planned",
-  "Watching/Reading",
-  "On Hold",
-  "Dropped",
-  "Completed",
-]);
 const allowedExternalStatuses = new Set([
   "ongoing",
   "completed",
   "hiatus",
   "cancelled",
 ]);
-
-function isPrivateIpv4(hostname: string): boolean {
-  const parts = hostname.split(".").map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
-    return false;
-  }
-  const [a, b] = parts;
-  return (
-    a === 10 ||
-    a === 127 ||
-    (a === 192 && b === 168) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 169 && b === 254)
-  );
-}
-
-/**
- * Validate and normalize user-provided URLs used for client rendering.
- * Blocks localhost/private-network targets and non-http protocols.
- */
-function normalizePublicHttpUrl(urlStr: string): string | null {
-  try {
-    const parsed = new URL(urlStr);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null;
-    }
-
-    const hostname = parsed.hostname.toLowerCase();
-    if (
-      hostname === "localhost" ||
-      hostname.endsWith(".local") ||
-      isPrivateIpv4(hostname)
-    ) {
-      return null;
-    }
-
-    const normalized = parsed.toString();
-    if (normalized.length > MAX_URL_LENGTH) {
-      return null;
-    }
-    return normalized;
-  } catch {
-    return null;
-  }
-}
 
 function validatePayload(
   payload: MediaPayload,
@@ -105,7 +55,7 @@ function validatePayload(
 
   if (!partial || payload.media_type !== undefined) {
     const mediaType = String(payload.media_type || "");
-    if (!allowedTypes.has(mediaType)) {
+    if (!isAllowedMediaType(mediaType)) {
       return { ok: false, message: "Invalid media type" };
     }
     normalized.media_type = mediaType;
@@ -113,7 +63,7 @@ function validatePayload(
 
   if (!partial || payload.status !== undefined) {
     const status = String(payload.status || "");
-    if (!allowedStatuses.has(status)) {
+    if (!isAllowedMediaStatus(status)) {
       return { ok: false, message: "Invalid status" };
     }
     normalized.status = status;
@@ -297,9 +247,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const userObjectId = new mongoose.Types.ObjectId(userId);
         const match: Record<string, unknown> = { user_id: userObjectId };
         if (search) match.title = { $regex: escapeRegex(search), $options: "i" };
-        if (mediaType && allowedTypes.has(mediaType))
-          match.media_type = mediaType;
-        if (status && allowedStatuses.has(status)) match.status = status;
+        if (mediaType && isAllowedMediaType(mediaType)) match.media_type = mediaType;
+        if (status && isAllowedMediaStatus(status)) match.status = status;
 
         const sortStage: Record<string, 1 | -1> =
           sortBy === "title"

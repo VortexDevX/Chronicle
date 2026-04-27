@@ -8,7 +8,7 @@
  * Auto-selects based on env vars. Falls back to memory if Upstash is not configured.
  */
 
-import type { VercelRequest } from "@vercel/node";
+import type { VercelRequest } from "./vercelTypes.js";
 
 // ── Types ──────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "./_utils/vercelTypes.js";
 import { connectDB, User } from "./_utils/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
