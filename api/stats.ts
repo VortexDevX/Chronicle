@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "./_utils/vercelTypes.js";
 import { connectDB, MediaItem } from "./_utils/db.js";
 import mongoose from "mongoose";
 import { handleOptions, setCors, jsonOk, jsonError } from "./_utils/http.js";

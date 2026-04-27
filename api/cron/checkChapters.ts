@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_utils/vercelTypes.js";
 import { connectDB, MediaItem, User } from "../_utils/db.js";
 import {
   sendTelegram,
@@ -485,6 +485,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const authHeader = req.headers.authorization;
   const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret && process.env.NODE_ENV === "production") {
+    return jsonError(
+      res,
+      "CRON_SECRET_MISSING",
+      "Cron endpoint is not configured",
+      500,
+    );
+  }
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return jsonError(res, "UNAUTHORIZED", "Unauthorized", 401);
   }
