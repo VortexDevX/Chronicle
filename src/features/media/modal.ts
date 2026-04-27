@@ -7,6 +7,7 @@ import {
   createMedia,
   updateMedia,
   upsertLocalMediaItem,
+  refreshStatsAfterMutation,
 } from "../../services/media.js";
 
 type ApiLikeError = { code?: string };
@@ -113,7 +114,7 @@ export function openModal(item?: MediaItem): void {
     }
     const originalText = newLookupBtn.textContent || "Lookup";
     newLookupBtn.disabled = true;
-    newLookupBtn.innerHTML = `<span class="spinner"></span>`;
+    newLookupBtn.innerHTML = `<span class="spinner"></span> Looking up...`;
 
     const result = await lookupMediaMeta(title, typeInput.value);
     if (!result) {
@@ -206,7 +207,7 @@ export function setupMediaFormHandler(): void {
 
       const originalText = saveBtn.textContent;
       saveBtn.disabled = true;
-      saveBtn.innerHTML = `<span class="spinner"></span>`;
+      saveBtn.innerHTML = `<span class="spinner"></span> Saving...`;
 
       const createEntry = async (mode?: "merge" | "keep_both") =>
         createMedia(data, mode);
@@ -215,10 +216,12 @@ export function setupMediaFormHandler(): void {
         if (id) {
           const updated = await updateMedia(id, data, false);
           upsertLocalMediaItem(updated);
+          await refreshStatsAfterMutation();
         } else {
           try {
             const created = await createEntry();
             upsertLocalMediaItem(created);
+            await refreshStatsAfterMutation();
           } catch (err) {
             if (isApiLikeError(err) && err.code === "DUPLICATE_TITLE") {
               saveBtn.disabled = false;
@@ -230,6 +233,7 @@ export function setupMediaFormHandler(): void {
                   try {
                     const merged = await createEntry("merge");
                     upsertLocalMediaItem(merged);
+                    await refreshStatsAfterMutation();
                     (
                       document.getElementById("media-modal") as HTMLDialogElement
                     ).close();
@@ -245,6 +249,7 @@ export function setupMediaFormHandler(): void {
                   try {
                     const created = await createEntry("keep_both");
                     upsertLocalMediaItem(created);
+                    await refreshStatsAfterMutation();
                     (
                       document.getElementById("media-modal") as HTMLDialogElement
                     ).close();

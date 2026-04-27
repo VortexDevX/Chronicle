@@ -4,7 +4,8 @@ import {
   updateMedia,
   deleteMedia,
   removeLocalMediaItem,
-  restoreLocalMediaItem,
+  upsertLocalMediaItem,
+  refreshStatsAfterMutation,
 } from "../../services/media.js";
 import { showToast } from "../../ui/toast.js";
 import { showConfirm } from "../../ui/modals.js";
@@ -42,60 +43,45 @@ async function handleDelete(id: string): Promise<void> {
     "Delete entry?",
     `"${title}" will be permanently removed.`,
     async () => {
-      const removed = removeLocalMediaItem(id);
+      const pendingKey = `${id}:delete`;
+      if (store.get().pendingActionIds.has(pendingKey)) return;
+      store.updatePendingActionIds((set) => set.add(pendingKey));
       try {
         await deleteMedia(id, false);
+        removeLocalMediaItem(id);
+        await refreshStatsAfterMutation();
         showToast("Entry deleted", "success");
-      } catch {
-        if (removed) restoreLocalMediaItem(removed);
-        showToast("Failed to delete. Please try again.", "error");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to delete. Please try again.";
+        showToast(message, "error");
+      } finally {
+        store.updatePendingActionIds((set) => set.delete(pendingKey));
       }
     },
   );
 }
 
 async function handleIncrement(id: string): Promise<void> {
-  const itemIndex = store.get().media.findIndex((m) => m._id === id);
-  if (itemIndex === -1) return;
+  const currentItem = store.get().media.find((m) => m._id === id);
+  if (!currentItem) return;
 
-  const currentItem = store.get().media[itemIndex];
-  const oldProgress = currentItem.progress_current;
-  const oldUpdatedAt = currentItem.last_updated;
-  const nextUpdatedAt = new Date().toISOString();
-
-  // Optimistic update
-  store.set((prev) => ({
-    ...prev,
-    mediaRev: prev.mediaRev + 1,
-    media: prev.media.map((m, i) =>
-      i === itemIndex
-        ? {
-            ...m,
-            progress_current: m.progress_current + 1,
-            last_updated: nextUpdatedAt,
-          }
-        : m,
-    ),
-  }));
-
+  const pendingKey = `${id}:increment`;
+  if (store.get().pendingActionIds.has(pendingKey)) return;
+  store.updatePendingActionIds((set) => set.add(pendingKey));
   try {
-    await updateMedia(id, { progress_current: oldProgress + 1 }, false);
-  } catch {
-    // Revert
-    store.set((prev) => ({
-      ...prev,
-      mediaRev: prev.mediaRev + 1,
-      media: prev.media.map((m, i) =>
-        i === itemIndex
-          ? {
-              ...m,
-              progress_current: oldProgress,
-              last_updated: oldUpdatedAt,
-            }
-          : m,
-      ),
-    }));
-    showToast("Failed to update progress.", "error");
+    const updated = await updateMedia(
+      id,
+      { progress_current: currentItem.progress_current + 1 },
+      false,
+    );
+    upsertLocalMediaItem(updated);
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to update progress.";
+    showToast(message, "error");
+  } finally {
+    store.updatePendingActionIds((set) => set.delete(pendingKey));
   }
 }
 
@@ -123,15 +109,18 @@ export function setupCardEventDelegation(): void {
     const incrementButton = target.closest(".btn-increment") as HTMLElement | null;
 
     if (editButton) {
+      if ((editButton as HTMLButtonElement).disabled) return;
       const id = editButton.getAttribute("data-id");
       if (!id) return;
       const item = store.get().media.find((m) => m._id === id);
       if (item) openModal(item);
     } else if (deleteButton) {
+      if ((deleteButton as HTMLButtonElement).disabled) return;
       const id = deleteButton.getAttribute("data-id");
       if (!id) return;
       await handleDelete(id);
     } else if (incrementButton) {
+      if ((incrementButton as HTMLButtonElement).disabled) return;
       const id = incrementButton.getAttribute("data-id");
       if (!id) return;
       await handleIncrement(id);

@@ -227,6 +227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (id && !isValidObjectId(id)) {
       return jsonError(res, "INVALID_ID", "Invalid ID format", 400);
     }
+    const userObjectId = new mongoose.Types.ObjectId(userId);
 
     switch (req.method) {
       case "GET": {
@@ -244,7 +245,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
         const skip = (page - 1) * limit;
 
-        const userObjectId = new mongoose.Types.ObjectId(userId);
         const match: Record<string, unknown> = { user_id: userObjectId };
         if (search) match.title = { $regex: escapeRegex(search), $options: "i" };
         if (mediaType && isAllowedMediaType(mediaType)) match.media_type = mediaType;
@@ -340,7 +340,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           const result = await MediaItem.deleteMany({
             _id: { $in: objectIds },
-            user_id: userId,
+            user_id: userObjectId,
           });
           return jsonOk(res, {
             deleted: Number(result.deletedCount || 0),
@@ -394,7 +394,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             docs.push({
               ...validated.normalized,
-              user_id: userId,
+              user_id: userObjectId,
               last_updated: new Date(),
             });
           }
@@ -426,7 +426,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .replace(/\s+/g, " ");
         const normalizedType = String(validated.normalized.media_type || "");
         const duplicate = await MediaItem.findOne({
-          user_id: userId,
+          user_id: userObjectId,
           media_type: normalizedType,
           title: {
             $regex: `^${escapeRegex(normalizedTitle)}$`,
@@ -437,7 +437,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (duplicate && duplicateMode !== "keep_both") {
           if (duplicateMode === "merge") {
             const merged = await MediaItem.findOneAndUpdate(
-              { _id: duplicate._id, user_id: userId },
+              { _id: duplicate._id, user_id: userObjectId },
               { ...validated.normalized, last_updated: new Date() },
               { new: true },
             );
@@ -456,7 +456,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const newItem = await MediaItem.create({
           ...validated.normalized,
-          user_id: userId,
+          user_id: userObjectId,
           last_updated: new Date(),
         });
         return jsonOk(res, newItem, 201);
@@ -488,7 +488,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const updated = await MediaItem.findOneAndUpdate(
-          { _id: id, user_id: userId },
+          { _id: id, user_id: userObjectId },
           validated.normalized,
           { new: true },
         );
@@ -514,7 +514,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         const deleted = await MediaItem.findOneAndDelete({
           _id: id,
-          user_id: userId,
+          user_id: userObjectId,
         });
         if (!deleted) {
           return jsonError(res, "NOT_FOUND", "Not found", 404);
