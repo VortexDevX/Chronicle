@@ -3,19 +3,56 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary meta -->
     <meta
       name="description"
       content="Chronicle — Personal media tracker for Anime, Manhwa, Donghua, and Light Novels."
     />
     <meta name="theme-color" content="#050507" />
-    <link rel="icon" type="image/svg+xml" href="/icon.png" />
+    <meta name="author" content="Vaibhav Patel" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Chronicle | Personal Media Tracker" />
+    <meta
+      property="og:description"
+      content="Track Anime, Manhwa, Donghua, and Light Novels. Auto-fetch metadata, chapter notifications, and full import/export support."
+    />
+    <meta property="og:image" content="/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Chronicle — Personal Media Tracker"
+    />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Chronicle | Personal Media Tracker" />
+    <meta
+      name="twitter:description"
+      content="Track Anime, Manhwa, Donghua, and Light Novels. Auto-fetch metadata, chapter notifications, and full import/export support."
+    />
+    <meta name="twitter:image" content="/og.png" />
+    <meta
+      name="twitter:image:alt"
+      content="Chronicle — Personal Media Tracker"
+    />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/icon.png" />
+
     <title>Chronicle</title>
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
+
     <link rel="stylesheet" href="/src/style.css" />
   </head>
 
@@ -105,7 +142,7 @@
             </div>
           </div>
 
-          <!-- Progress + Rating in one row -->
+          <!-- Progress + Rating -->
           <div class="modal-inline-row">
             <div class="form-group">
               <label for="media-progress-current">Current</label>
@@ -141,9 +178,9 @@
 
           <!-- URLs -->
           <div class="form-group">
-            <label for="media-read-url"
-              >Read URL <small style="opacity: 0.5">(optional)</small></label
-            >
+            <label for="media-read-url">
+              Read URL <small style="opacity: 0.5">(optional)</small>
+            </label>
             <input
               type="url"
               id="media-read-url"
@@ -153,10 +190,9 @@
           </div>
 
           <div class="form-group">
-            <label for="media-tracker-url"
-              >Tracker URL
-              <small style="opacity: 0.5">(notifications)</small></label
-            >
+            <label for="media-tracker-url">
+              Tracker URL <small style="opacity: 0.5">(notifications)</small>
+            </label>
             <input
               type="url"
               id="media-tracker-url"
@@ -179,9 +215,9 @@
           <details class="thumbnail-overrides">
             <summary>Thumbnail Overrides</summary>
             <div class="form-group" style="margin-top: 12px">
-              <label for="media-mangadex-id"
-                >MangaDex ID <small style="opacity: 0.5">(Manhwa)</small></label
-              >
+              <label for="media-mangadex-id">
+                MangaDex ID <small style="opacity: 0.5">(Manhwa)</small>
+              </label>
               <input
                 type="text"
                 id="media-mangadex-id"
@@ -190,10 +226,9 @@
               />
             </div>
             <div class="form-group">
-              <label for="media-custom-cover-url"
-                >Custom Image URL
-                <small style="opacity: 0.5">(Manual)</small></label
-              >
+              <label for="media-custom-cover-url">
+                Custom Image URL <small style="opacity: 0.5">(Manual)</small>
+              </label>
               <input
                 type="url"
                 id="media-custom-cover-url"
