@@ -1,11 +1,22 @@
-# Local Netlify folder
-.netlify
-
+# Dependencies
 /node_modules
+
+# Next.js
+/.next
+/out
+
+# Build
 /dist
+*.tsbuildinfo
 
+# Environment
 .env
-.vercel
 .env*.local
+.vercel
 
+# IDE
 .agents/
+
+# OS
+.DS_Store
+Thumbs.db
