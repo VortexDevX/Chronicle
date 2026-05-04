@@ -1,7 +1,4 @@
 {
-  "version": 2,
-  "buildCommand": "vite build",
-  "devCommand": "vite",
   "crons": [
     {
       "path": "/api/cron/checkChapters",
