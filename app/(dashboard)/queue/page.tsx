@@ -121,7 +121,7 @@ export default function QueuePage() {
       ) : (
         <div className="grid">
           {media.map((m) => (
-            <MediaCard key={m._id} m={m} onEdit={openModal} onDelete={handleDelete} />
+            <MediaCard key={m._id} m={m} onDelete={handleDelete} />
           ))}
         </div>
       )}
@@ -129,7 +129,7 @@ export default function QueuePage() {
       {hasMore && (
         <div className="load-more-wrap">
           <button className="btn-ghost" onClick={handleLoadMore} disabled={loading}>
-            {loading ? "Loading..." : "Load more"}
+            {loading ? <><span className="spinner" /> Loading...</> : "Load more"}
           </button>
         </div>
       )}

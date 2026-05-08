@@ -4,7 +4,7 @@ import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
 import { StatsRow } from "@/components/StatsRow";
 import { Search, Plus, Book } from "lucide-react";
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
 
 export default function LibraryPage() {
@@ -26,6 +26,8 @@ export default function LibraryPage() {
   const [filterType, setFilterType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [sortBy, setSortBy] = useState("last_updated");
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -33,6 +35,11 @@ export default function LibraryPage() {
   }, [search]);
 
   const fetchMedia = useCallback(async (pg = 1, replace = true) => {
+    // Cancel any in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     if (replace) resetCoverQueue();
     setLoading(true, pg > 1);
     try {
@@ -40,13 +47,20 @@ export default function LibraryPage() {
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (filterType) params.set("media_type", filterType);
       if (filterStatus) params.set("status", filterStatus);
-      const res = await fetch(`/api/media?${params}`, { cache: "no-store" });
+      const res = await fetch(`/api/media?${params}`, { cache: "no-store", signal: controller.signal });
       if (!res.ok) throw new Error("Failed to fetch");
       const json = await res.json();
-      setMedia(json.data.items, json.data.total, json.data.has_more, replace);
-      updateFilters({ page: pg });
-    } catch {}
-    finally { setLoading(false); }
+      // Only update state if this request wasn't aborted
+      if (!controller.signal.aborted) {
+        setMedia(json.data.items, json.data.total, json.data.has_more, replace);
+        updateFilters({ page: pg });
+      }
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    }
+    finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
   }, [debouncedSearch, filterType, filterStatus, sortBy, setMedia, setLoading, updateFilters]);
 
   const fetchStats = useCallback(async () => {
@@ -86,11 +100,15 @@ export default function LibraryPage() {
 
   useEffect(() => {
     fetchMedia(1, true);
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, [fetchMedia, mediaRev]);
 
   const handleIncrement = async (id: string) => {
     const item = media.find((m) => m._id === id);
-    if (!item) return;
+    if (!item || pendingIds.has(id)) return;
+    setPendingIds(prev => new Set(prev).add(id));
     try {
       await fetch(`/api/media?id=${id}`, {
         method: "PUT",
@@ -99,15 +117,30 @@ export default function LibraryPage() {
       });
       fetchMedia(1, true);
     } catch {}
+    finally {
+      setPendingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this entry?")) return;
+    setPendingIds(prev => new Set(prev).add(id));
     try {
       await fetch(`/api/media?id=${id}`, { method: "DELETE" });
       fetchMedia(1, true);
       fetchStats();
     } catch {}
+    finally {
+      setPendingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const handleLoadMore = () => {
@@ -151,9 +184,7 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      <div style={{ marginBottom: "24px" }}>
-        <StatsRow stats={globalStats} />
-      </div>
+      <StatsRow stats={globalStats} />
 
       {loading && media.length === 0 ? (
         <div className="grid">
@@ -192,7 +223,7 @@ export default function LibraryPage() {
       {hasMore && (
         <div className="load-more-wrap">
           <button className="btn-ghost" onClick={handleLoadMore} disabled={loading}>
-            {loading ? "Loading..." : "Load more"}
+            {loading ? <><span className="spinner" /> Loading...</> : "Load more"}
           </button>
         </div>
       )}

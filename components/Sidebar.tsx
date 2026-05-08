@@ -14,7 +14,8 @@ export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; se
   const openModal = useMediaStore((state) => state.openModal);
   const openSettings = useMediaStore((state) => state.openSettings);
   const avatarLetters = username?.substring(0, 2).toUpperCase() || "??";
-  const [exportOpen, setExportOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -24,6 +25,8 @@ export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; se
   };
 
   const handleExportJSON = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
     try {
       const res = await fetch("/api/media?limit=9999");
       const json = await res.json();
@@ -36,16 +39,20 @@ export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; se
       linkElement.click();
     } catch {
       alert("Export failed");
+    } finally {
+      setIsExporting(false);
     }
   };
 
   const handleImportJSON = () => {
+    if (isImporting) return;
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
+      setIsImporting(true);
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
@@ -64,6 +71,8 @@ export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; se
           alert(`Successfully imported ${success} items. Please refresh.`);
         } catch {
           alert("Import failed");
+        } finally {
+          setIsImporting(false);
         }
       };
       reader.readAsText(file);
@@ -107,7 +116,7 @@ export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; se
       </div>
 
       <div className="sidebar-nav">
-        <button className="btn-primary" onClick={() => openModal(null)} style={{ marginBottom: "24px" }}>
+        <button className="btn-primary" onClick={() => openModal(null)} style={{ marginBottom: "24px", justifyContent: "center" }}>
           <Plus size={16} strokeWidth={3} />
           <span>Add Entry</span>
         </button>
@@ -124,14 +133,14 @@ export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; se
 
         <div className="sidebar-divider"></div>
 
-        <button className="sidebar-link" onClick={handleImportJSON}>
-          <Download size={16} />
-          <span>Import JSON</span>
+        <button className="sidebar-link" onClick={handleImportJSON} disabled={isImporting}>
+          {isImporting ? <span className="spinner" style={{ width: 16, height: 16 }} /> : <Download size={16} />}
+          <span>{isImporting ? "Importing..." : "Import JSON"}</span>
         </button>
 
-        <button className="sidebar-link" onClick={handleExportJSON}>
-          <Upload size={16} />
-          <span>Export JSON</span>
+        <button className="sidebar-link" onClick={handleExportJSON} disabled={isExporting}>
+          {isExporting ? <span className="spinner" style={{ width: 16, height: 16 }} /> : <Upload size={16} />}
+          <span>{isExporting ? "Exporting..." : "Export JSON"}</span>
         </button>
       </div>
 

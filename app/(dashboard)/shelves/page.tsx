@@ -2,7 +2,7 @@
 
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
-import { Plus, Folder, FolderOpen } from "lucide-react";
+import { Plus, FolderPlus, ArrowLeft, Trash2, Layers, AlignLeft } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
 import { Shelf, MediaItem } from "@/types/media";
@@ -11,12 +11,19 @@ export default function ShelvesPage() {
   const mediaRev = useMediaStore((state) => state.mediaRev);
   const setActiveRoute = useMediaStore((state) => state.setActiveRoute);
   const openModal = useMediaStore((state) => state.openModal);
+  
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [activeShelf, setActiveShelf] = useState<Shelf | null>(null);
   const [shelfMedia, setShelfMedia] = useState<MediaItem[]>([]);
+  const [shelfLoading, setShelfLoading] = useState(false);
+  
   const [newShelfName, setNewShelfName] = useState("");
   const [newShelfDesc, setNewShelfDesc] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
 
   const fetchShelves = useCallback(async () => {
     try {
@@ -31,6 +38,7 @@ export default function ShelvesPage() {
 
   const fetchShelfMedia = useCallback(async (shelfId: string) => {
     resetCoverQueue();
+    setShelfLoading(true);
     try {
       const res = await fetch(`/api/shelves?id=${shelfId}`, { cache: "no-store" });
       if (res.ok) {
@@ -44,6 +52,8 @@ export default function ShelvesPage() {
       }
     } catch {
       setShelfMedia([]);
+    } finally {
+      setShelfLoading(false);
     }
   }, []);
 
@@ -61,6 +71,7 @@ export default function ShelvesPage() {
   const handleCreateShelf = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newShelfName) return;
+    setCreateLoading(true);
     try {
       const res = await fetch("/api/shelves", {
         method: "POST",
@@ -70,115 +81,169 @@ export default function ShelvesPage() {
       if (res.ok) {
         setNewShelfName("");
         setNewShelfDesc("");
+        setShowCreate(false);
         fetchShelves();
       }
     } catch {}
+    finally { setCreateLoading(false); }
   };
 
-  const handleDeleteShelf = async (id: string) => {
+  const handleDeleteShelf = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
     if (!confirm("Delete this shelf? Media entries will not be deleted.")) return;
+    setDeleteLoading(id);
     try {
       const res = await fetch(`/api/shelves?id=${id}`, { method: "DELETE" });
       if (res.ok) {
-        if (activeShelf?._id === id) setActiveShelf(null);
+        if (activeShelf?._id === id) {
+          setActiveShelf(null);
+          setShelfMedia([]);
+        }
         fetchShelves();
       }
     } catch {}
+    finally { setDeleteLoading(null); }
   };
 
-  return (
-    <>
-      <div className="controls" style={{ marginBottom: "24px", flexDirection: "column", alignItems: "flex-start" }}>
-        <h3 style={{ marginBottom: "12px", color: "var(--text-primary)" }}>Create New Shelf</h3>
-        <form onSubmit={handleCreateShelf} style={{ display: "flex", gap: "12px", width: "100%", flexWrap: "wrap" }}>
-          <input 
-            type="text" 
-            placeholder="Shelf Name" 
-            value={newShelfName} 
-            onChange={(e) => setNewShelfName(e.target.value)} 
-            required 
-            style={{ flex: "1", minWidth: "200px" }}
-          />
-          <input 
-            type="text" 
-            placeholder="Description (optional)" 
-            value={newShelfDesc} 
-            onChange={(e) => setNewShelfDesc(e.target.value)} 
-            style={{ flex: "2", minWidth: "200px" }}
-          />
-          <button type="submit" className="btn-primary" disabled={!newShelfName}>Create</button>
-        </form>
-      </div>
+  const hasShelves = shelves.length > 0;
 
-      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
-        <button 
-          className={`filter-pill ${!activeShelf ? "active" : ""}`} 
-          onClick={() => setActiveShelf(null)}
-        >
-          All Shelves Overview
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
+        <span className="spinner" style={{ width: '32px', height: '32px', color: 'var(--accent)' }} />
+      </div>
+    );
+  }
+
+  // ACTIVE SHELF VIEW (Drill-down)
+  if (activeShelf) {
+    return (
+      <div className="shelves-container">
+        <div className="active-shelf-header">
+          <div className="active-shelf-top">
+            <button className="btn-ghost" onClick={() => setActiveShelf(null)} style={{ paddingLeft: 0 }}>
+              <ArrowLeft size={16} /> Back to Shelves
+            </button>
+            <button 
+              className="btn-danger" 
+              onClick={(e) => handleDeleteShelf(e, activeShelf._id!)}
+              disabled={deleteLoading === activeShelf._id}
+            >
+              {deleteLoading === activeShelf._id ? <span className="spinner" /> : <Trash2 size={16} />} 
+              Delete Shelf
+            </button>
+          </div>
+          <div className="active-shelf-info">
+            <h1><Layers size={28} color="var(--accent)" /> {activeShelf.name}</h1>
+            {activeShelf.description && <p>{activeShelf.description}</p>}
+          </div>
+        </div>
+
+        {shelfLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
+            <span className="spinner" style={{ width: '32px', height: '32px', color: 'var(--accent)' }} />
+          </div>
+        ) : shelfMedia.length === 0 ? (
+          <div className="shelves-empty-state" style={{ minHeight: '30vh' }}>
+            <AlignLeft size={48} strokeWidth={1} color="var(--text-muted)" />
+            <h2>Empty Shelf</h2>
+            <p>This shelf has no items. Edit entries in your library to add them here.</p>
+          </div>
+        ) : (
+          <div className="grid">
+            {shelfMedia.map((m) => (
+              <MediaCard key={m._id} m={m} onEdit={openModal} />
+            ))}
+          </div>
+        )}
+
+        <button className="btn-fab" aria-label="Add Entry" onClick={() => openModal(null)}>
+          <Plus size={28} strokeWidth={3} />
         </button>
-        {(shelves || []).map(s => (
-          <button 
-            key={s._id} 
-            className={`filter-pill ${activeShelf?._id === s._id ? "active" : ""}`} 
-            onClick={() => setActiveShelf(s)}
-          >
-            {s.name}
-          </button>
-        ))}
+      </div>
+    );
+  }
+
+  // DEFAULT VIEW (Shelf Grid)
+  return (
+    <div className="shelves-container">
+      <div className="shelves-header-bar">
+        <h2>Your Shelves</h2>
+        <button className="btn-primary" onClick={() => setShowCreate(!showCreate)}>
+          <Plus size={16} strokeWidth={2.5} /> New Shelf
+        </button>
       </div>
 
-      {!activeShelf ? (
-        <div className="grid">
-          {loading ? (
-            <div className="loading-state" style={{ gridColumn: "1 / -1" }}>
-              <span className="spinner" /> Loading shelves...
-            </div>
-          ) : (shelves || []).length === 0 ? (
-            <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
-              <div className="empty-state-icon"><Folder size={48} style={{ color: "var(--text-secondary)", opacity: 0.5 }} /></div>
-              <h3>No Shelves Created</h3>
-              <p>Create a shelf above to organize your library.</p>
-            </div>
-          ) : (
-            (shelves || []).map(s => (
-              <div key={s._id} className="card" style={{ padding: "16px", background: "var(--bg-raised)", display: "flex", flexDirection: "column" }}>
-                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: "0 0 4px 0" }}>{s.name}</h3>
-                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "16px", flex: 1 }}>{s.description || "No description."}</p>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <button className="btn-ghost" onClick={() => setActiveShelf(s)}>View Contents</button>
-                  <button className="btn-ghost" onClick={() => handleDeleteShelf(s._id!)} style={{ color: "var(--red)" }}>Delete</button>
-                </div>
-              </div>
-            ))
-          )}
+      {showCreate && (
+        <div className="shelf-create-panel">
+          <h3 style={{ fontSize: '1.1rem', margin: '0 0 4px 0' }}>Create New Shelf</h3>
+          <form className="shelf-create-panel-form" onSubmit={handleCreateShelf}>
+            <input
+              type="text"
+              placeholder="Shelf Name (e.g., Masterpieces)"
+              value={newShelfName}
+              onChange={(e) => setNewShelfName(e.target.value)}
+              required
+              autoFocus
+            />
+            <input
+              type="text"
+              placeholder="Description (optional)"
+              value={newShelfDesc}
+              onChange={(e) => setNewShelfDesc(e.target.value)}
+            />
+            <button type="submit" className="btn-primary" disabled={!newShelfName || createLoading}>
+              {createLoading ? <span className="spinner" /> : "Create"}
+            </button>
+            <button type="button" className="btn-ghost" onClick={() => setShowCreate(false)}>
+              Cancel
+            </button>
+          </form>
+        </div>
+      )}
+
+      {!hasShelves && !showCreate ? (
+        <div className="shelves-empty-state">
+          <FolderPlus size={64} strokeWidth={1} color="var(--text-muted)" />
+          <h2>No Shelves Yet</h2>
+          <p>Shelves let you organize your library into custom collections — like "Top Tier", "Comfort Watches", or "Binge Queue".</p>
+          <button className="btn-primary" onClick={() => setShowCreate(true)} style={{ marginTop: '16px' }}>
+            <FolderPlus size={16} /> Create Your First Shelf
+          </button>
         </div>
       ) : (
-        <>
-          <div style={{ marginBottom: "20px" }}>
-            <h2 style={{ fontSize: "1.5rem", color: "var(--text-primary)" }}>{activeShelf.name}</h2>
-            <p style={{ color: "var(--text-secondary)" }}>{activeShelf.description}</p>
-          </div>
-          
-          <div className="grid">
-            {(shelfMedia || []).length === 0 ? (
-              <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
-                <div className="empty-state-icon"><FolderOpen size={48} style={{ color: "var(--text-secondary)", opacity: 0.5 }} /></div>
-                <h3>Shelf is empty</h3>
-                <p>Edit entries in your library to add them to this shelf.</p>
+        <div className="shelf-grid">
+          {shelves.map((s) => (
+            <div key={s._id} className="shelf-card" onClick={() => setActiveShelf(s)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div className="shelf-card-icon">
+                  <Layers size={24} />
+                </div>
+                <button 
+                  className="shelf-card-delete"
+                  onClick={(e) => handleDeleteShelf(e, s._id!)}
+                  title="Delete Shelf"
+                  disabled={deleteLoading === s._id}
+                >
+                  {deleteLoading === s._id ? <span className="spinner" /> : <Trash2 size={16} />}
+                </button>
               </div>
-            ) : (
-              (shelfMedia || []).map((m) => (
-                <MediaCard key={m._id} m={m} onEdit={openModal} />
-              ))
-            )}
-          </div>
-        </>
+              <h3 className="shelf-card-title">{s.name}</h3>
+              <div className="shelf-card-desc">
+                {s.description || <span style={{ opacity: 0.5 }}>No description provided.</span>}
+              </div>
+              <div className="shelf-card-footer">
+                <span style={{ color: 'var(--text-secondary)' }}>Click to open</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>View Shelf &rarr;</span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       <button className="btn-fab" aria-label="Add Entry" onClick={() => openModal(null)}>
         <Plus size={28} strokeWidth={3} />
       </button>
-    </>
+    </div>
   );
 }

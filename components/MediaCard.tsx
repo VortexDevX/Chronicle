@@ -48,6 +48,31 @@ export function MediaCard({ m, onEdit, onIncrement, onDelete }: {
     }
   }, [m._id, m.title, m.media_type, m.mangadex_id, m.custom_cover_url]);
 
+  const [isIncrementing, setIsIncrementing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleIncrement = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onIncrement) return;
+    setIsIncrementing(true);
+    try {
+      await onIncrement(m._id);
+    } finally {
+      setIsIncrementing(false);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onDelete) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(m._id);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const pct = m.progress_total
     ? Math.min(100, Math.round((m.progress_current / m.progress_total) * 100))
     : 0;
@@ -118,12 +143,16 @@ export function MediaCard({ m, onEdit, onIncrement, onDelete }: {
       </div>
 
       <div className="card-actions">
-        <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); onEdit?.(m); }} title="Edit">
-          <Edit2 size={16} />
-        </button>
-        <button className="btn-secondary" onClick={(e) => { e.stopPropagation(); onIncrement?.(m._id); }} title="Increment progress">
-          <Plus size={16} strokeWidth={2.5} /> 1
-        </button>
+        {onEdit && (
+          <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); onEdit(m); }} title="Edit">
+            <Edit2 size={16} />
+          </button>
+        )}
+        {onIncrement && (
+          <button className="btn-secondary" onClick={handleIncrement} title="Increment progress" disabled={isIncrementing}>
+            {isIncrementing ? <span className="spinner" /> : <Plus size={16} strokeWidth={2.5} />} 1
+          </button>
+        )}
         <button className="btn-ghost" onClick={(e) => {
           e.stopPropagation();
           const url = m.tracker_url;
@@ -131,9 +160,11 @@ export function MediaCard({ m, onEdit, onIncrement, onDelete }: {
         }} title="Continue (Open Tracker URL)" disabled={!m.tracker_url}>
           <ExternalLink size={16} />
         </button>
-        <button className="btn-danger" onClick={(e) => { e.stopPropagation(); onDelete?.(m._id); }} title="Delete">
-          <Trash2 size={16} />
-        </button>
+        {onDelete && (
+          <button className="btn-danger" onClick={handleDelete} title="Delete" disabled={isDeleting}>
+            {isDeleting ? <span className="spinner" /> : <Trash2 size={16} />}
+          </button>
+        )}
       </div>
     </div>
   );
