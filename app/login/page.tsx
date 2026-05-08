@@ -83,7 +83,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="auth-error">{error}</div>
+          {error && <div className="auth-error">{error}</div>}
 
           <div className="auth-actions">
             <button

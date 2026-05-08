@@ -6,22 +6,22 @@ export function StatsRow({ stats }: { stats: GlobalStats | null }) {
   if (!stats) return null;
 
   return (
-    <div className="stats-row">
-      <div className="stat-card" style={{ borderColor: "var(--accent)" }}>
-        <span className="stat-label">Total Entries</span>
-        <span className="stat-value">{stats.total}</span>
+    <div className="stats-row-compact">
+      <div className="stat-chip" style={{ borderColor: "var(--accent)" }}>
+        <span className="stat-chip-value">{stats.total}</span>
+        <span className="stat-chip-label">Total</span>
       </div>
-      <div className="stat-card">
-        <span className="stat-label" style={{ color: "var(--cyan)" }}>Active</span>
-        <span className="stat-value">{stats.watching}</span>
+      <div className="stat-chip">
+        <span className="stat-chip-value" style={{ color: "var(--cyan)" }}>{stats.watching}</span>
+        <span className="stat-chip-label">Active</span>
       </div>
-      <div className="stat-card">
-        <span className="stat-label" style={{ color: "var(--green)" }}>Completed</span>
-        <span className="stat-value">{stats.completed}</span>
+      <div className="stat-chip">
+        <span className="stat-chip-value" style={{ color: "var(--green)" }}>{stats.completed}</span>
+        <span className="stat-chip-label">Completed</span>
       </div>
-      <div className="stat-card">
-        <span className="stat-label" style={{ color: "var(--red)" }}>Dropped</span>
-        <span className="stat-value">{stats.dropped}</span>
+      <div className="stat-chip">
+        <span className="stat-chip-value" style={{ color: "var(--red)" }}>{stats.dropped}</span>
+        <span className="stat-chip-label">Dropped</span>
       </div>
     </div>
   );
