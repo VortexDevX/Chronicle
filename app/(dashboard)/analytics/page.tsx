@@ -131,47 +131,68 @@ export default function AnalyticsPage() {
   const maxTypeCount = Math.max(...Object.values(data.byType), 1);
 
   return (
-    <>
-      {/* Hero Stats Row */}
+    <div className="analytics-page">
+      <div className="analytics-page-header">
+        <div>
+          <span className="analytics-eyebrow">Collection pulse</span>
+          <h2>Analytics</h2>
+        </div>
+        <span className="analytics-page-summary">
+          {data.total} entries · {data.ratedCount} rated · {data.completionRate.toFixed(0)}% complete
+        </span>
+      </div>
+
       <div className="analytics-hero">
         <div className="analytics-hero-card" style={{ borderColor: "var(--accent)" }}>
-          <div className="analytics-hero-icon" style={{ color: "var(--accent)" }}>
-            <BarChart2 size={20} />
+          <div className="analytics-hero-top">
+            <div className="analytics-hero-icon" style={{ color: "var(--accent)" }}>
+              <BarChart2 size={20} />
+            </div>
+            <span className="analytics-hero-kicker">Library</span>
           </div>
           <span className="analytics-hero-value">{data.total}</span>
           <span className="analytics-hero-label">Total Entries</span>
         </div>
         <div className="analytics-hero-card">
-          <div className="analytics-hero-icon" style={{ color: "var(--green)" }}>
-            <TrendingUp size={20} />
+          <div className="analytics-hero-top">
+            <div className="analytics-hero-icon" style={{ color: "var(--green)" }}>
+              <TrendingUp size={20} />
+            </div>
+            <span className="analytics-hero-kicker">Finished</span>
           </div>
           <span className="analytics-hero-value">{data.completionRate.toFixed(0)}%</span>
           <span className="analytics-hero-label">Completion Rate</span>
         </div>
         <div className="analytics-hero-card">
-          <div className="analytics-hero-icon" style={{ color: "var(--amber)" }}>
-            <Star size={20} />
+          <div className="analytics-hero-top">
+            <div className="analytics-hero-icon" style={{ color: "var(--amber)" }}>
+              <Star size={20} />
+            </div>
+            <span className="analytics-hero-kicker">Taste</span>
           </div>
           <span className="analytics-hero-value">{data.ratedCount > 0 ? data.avgRating.toFixed(1) : "—"}</span>
           <span className="analytics-hero-label">Avg Rating ({data.ratedCount} rated)</span>
         </div>
         <div className="analytics-hero-card">
-          <div className="analytics-hero-icon" style={{ color: "var(--cyan)" }}>
-            <Activity size={20} />
+          <div className="analytics-hero-top">
+            <div className="analytics-hero-icon" style={{ color: "var(--cyan)" }}>
+              <Activity size={20} />
+            </div>
+            <span className="analytics-hero-kicker">Progress</span>
           </div>
           <span className="analytics-hero-value">{data.totalProgress.toLocaleString()}</span>
           <span className="analytics-hero-label">Total Episodes / Chapters</span>
         </div>
       </div>
 
-      {/* Main Grid */}
       <div className="analytics-grid">
-
-        {/* Status Distribution */}
         <div className="analytics-panel">
           <div className="analytics-panel-header">
-            <PieChart size={16} />
-            <h3>Status Distribution</h3>
+            <div className="analytics-panel-title">
+              <PieChart size={16} />
+              <h3>Status Distribution</h3>
+            </div>
+            <span>{data.total} total</span>
           </div>
           <div className="analytics-bars">
             {Object.entries(data.byStatus).map(([status, count]) => (
@@ -206,11 +227,13 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Type Distribution */}
         <div className="analytics-panel">
           <div className="analytics-panel-header">
-            <BarChart2 size={16} />
-            <h3>Media Types</h3>
+            <div className="analytics-panel-title">
+              <BarChart2 size={16} />
+              <h3>Media Types</h3>
+            </div>
+            <span>{Object.keys(data.byType).length} formats</span>
           </div>
           <div className="analytics-bars">
             {Object.entries(data.byType).map(([type, count]) => {
@@ -248,11 +271,12 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Top Rated */}
         <div className="analytics-panel">
           <div className="analytics-panel-header">
-            <Award size={16} />
-            <h3>Top Rated</h3>
+            <div className="analytics-panel-title">
+              <Award size={16} />
+              <h3>Top Rated</h3>
+            </div>
           </div>
           {data.topRated.length === 0 ? (
             <p className="analytics-muted">No rated entries yet. Add ratings to your entries to see them here.</p>
@@ -275,11 +299,12 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        {/* Recently Updated */}
         <div className="analytics-panel">
           <div className="analytics-panel-header">
-            <Clock size={16} />
-            <h3>Recently Updated</h3>
+            <div className="analytics-panel-title">
+              <Clock size={16} />
+              <h3>Recently Updated</h3>
+            </div>
           </div>
           {data.recentItems.length === 0 ? (
             <p className="analytics-muted">No recent activity.</p>
@@ -305,8 +330,7 @@ export default function AnalyticsPage() {
             </div>
           )}
         </div>
-
       </div>
-    </>
+    </div>
   );
 }
