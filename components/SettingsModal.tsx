@@ -41,6 +41,7 @@ function SettingsToggle({
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const [formData, setFormData] = useState({
+    email: "",
     notifications_enabled: false,
     telegram_chat_id: "",
   });
@@ -55,6 +56,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       .then((json) => {
         if (json.data) {
           setFormData({
+            email: json.data.email || "",
             notifications_enabled: json.data.notifications_enabled || false,
             telegram_chat_id: json.data.telegram_chat_id || "",
           });
@@ -134,6 +136,22 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         ) : (
           <form className="modal-form" onSubmit={handleSubmit}>
             <div className="modal-scroll">
+              <div className="modal-section-label">Account</div>
+              <div className="form-grid full">
+                <div className="form-group">
+                  <label>Recovery Email</label>
+                  <input
+                    className="form-input"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Enter recovery email"
+                    maxLength={254}
+                  />
+                </div>
+              </div>
+
               <div className="modal-section-label">Notifications</div>
               <div className="form-grid full">
                 <SettingsToggle

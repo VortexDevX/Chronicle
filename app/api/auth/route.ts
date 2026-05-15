@@ -2,24 +2,35 @@ import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import { User } from "@/lib/models";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { getClientIp } from "@/lib/rateLimit";
 import { enforceRateLimit, requireAuthUserId } from "@/lib/guards";
 import { logInternalError } from "@/lib/log";
 import { jsonOk, jsonError } from "@/lib/http";
 import { getRequiredEnv } from "@/lib/config";
+import { signAuthToken } from "@/lib/auth";
 
 const MAX_USERNAME = 30;
 const MIN_USERNAME = 3;
 const MIN_PASSWORD = 6;
 const MAX_PASSWORD = 128;
+const MAX_EMAIL = 254;
+const BCRYPT_ROUNDS = 12;
+
+function normalizeEmail(value: unknown): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isValidEmail(value: string): boolean {
+  return value.length <= MAX_EMAIL && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { action, username, password } = body;
+    const { action, username, password, email } = body;
     const normalizedUsername = String(username || "").trim();
     const normalizedPassword = String(password || "");
+    const normalizedEmail = normalizeEmail(email);
     const ip = getClientIp(req);
 
     const isRegister = action === "register";
@@ -75,20 +86,30 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      if (!isValidEmail(normalizedEmail)) {
+        return jsonError("INVALID_EMAIL", "Enter a valid email address", 400);
+      }
+
       const existing = await User.findOne({ username: normalizedUsername });
       if (existing) {
         return jsonError("USERNAME_TAKEN", "Username taken", 409);
       }
 
-      const password_hash = await bcrypt.hash(normalizedPassword, 10);
+      const existingEmail = await User.findOne({ email: normalizedEmail });
+      if (existingEmail) {
+        return jsonError("EMAIL_TAKEN", "Email already registered", 409);
+      }
+
+      const password_hash = await bcrypt.hash(normalizedPassword, BCRYPT_ROUNDS);
       const user = await User.create({
         username: normalizedUsername,
+        email: normalizedEmail,
+        email_verified_at: new Date(),
         password_hash,
       });
 
-      let jwtSecret: string;
       try {
-        jwtSecret = getRequiredEnv("JWT_SECRET");
+        getRequiredEnv("JWT_SECRET");
       } catch {
         logInternalError(
           "auth_handler_error",
@@ -104,9 +125,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const token = jwt.sign({ userId: user._id }, jwtSecret, {
-        expiresIn: "30d",
-      });
+      const token = signAuthToken(String(user._id), user.auth_version || 0);
 
       const res = jsonOk({ username: normalizedUsername });
       res.cookies.set("auth_token", token, {
@@ -133,9 +152,8 @@ export async function POST(req: NextRequest) {
         return jsonError("INVALID_CREDENTIALS", "Invalid credentials", 401);
       }
 
-      let jwtSecret: string;
       try {
-        jwtSecret = getRequiredEnv("JWT_SECRET");
+        getRequiredEnv("JWT_SECRET");
       } catch {
         logInternalError(
           "auth_handler_error",
@@ -151,9 +169,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const token = jwt.sign({ userId: user._id }, jwtSecret, {
-        expiresIn: "30d",
-      });
+      const token = signAuthToken(String(user._id), user.auth_version || 0);
 
       const res = jsonOk({ username: normalizedUsername });
       res.cookies.set("auth_token", token, {
@@ -187,7 +203,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) {
       return errorResponse;
     }
@@ -200,6 +216,7 @@ export async function GET(req: NextRequest) {
 
     return jsonOk({
       username: user.username,
+      email: user.email || null,
       loggedIn: true,
       userId: user._id,
     });

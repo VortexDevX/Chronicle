@@ -9,7 +9,7 @@ import mongoose from "mongoose";
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
 
     const { sourceId, targetId, action } = await req.json();

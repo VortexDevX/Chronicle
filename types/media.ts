@@ -12,6 +12,10 @@ export interface MediaItem {
   last_updated: string;
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   tracker_url?: string | null;
+  last_checked_at?: string | null;
+  last_scrape_status?: "ok" | "error" | null;
+  last_scrape_error?: string | null;
+  latest_remote_progress?: number | null;
   mangadex_id?: string | null;
   custom_cover_url?: string | null;
   drop_reason?: string | null;

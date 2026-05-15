@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { getAuthTokenClaims } from "@/lib/auth";
+import { connectDB } from "@/lib/db";
+import { User } from "@/lib/models";
 import { jsonError } from "@/lib/http";
 import { logSecurityEvent } from "@/lib/log";
 import { checkRateLimit, checkRateLimitStrict, getClientIp } from "@/lib/rateLimit";
@@ -16,14 +18,32 @@ type RateLimitGuardOptions = {
   userId?: string | null;
 };
 
-export function requireAuthUserId(
+export async function requireAuthUserId(
   req: NextRequest,
-): { userId: string | null; errorResponse?: NextResponse } {
-  const userId = getUser(req);
-  if (!userId) {
+): Promise<{ userId: string | null; errorResponse?: NextResponse }> {
+  const claims = getAuthTokenClaims(req);
+  if (!claims) {
     return { userId: null, errorResponse: jsonError("UNAUTHORIZED", "Unauthorized", 401) };
   }
-  return { userId };
+
+  await connectDB();
+  const user = (await User.findById(claims.userId)
+    .select("_id auth_version")
+    .lean()) as { auth_version?: number } | null;
+  if (!user) {
+    return { userId: null, errorResponse: jsonError("UNAUTHORIZED", "Unauthorized", 401) };
+  }
+
+  const authVersion =
+    typeof user.auth_version === "number" && user.auth_version >= 0
+      ? user.auth_version
+      : 0;
+
+  if (authVersion !== claims.authVersion) {
+    return { userId: null, errorResponse: jsonError("UNAUTHORIZED", "Session expired", 401) };
+  }
+
+  return { userId: claims.userId };
 }
 
 export async function enforceRateLimit(

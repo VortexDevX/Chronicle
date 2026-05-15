@@ -6,29 +6,29 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 
 ## ✨ Features
 
-| Category               | Highlights                                                                                                                          |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Media Tracking**     | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes                        |
-| **Smart Organization** | Client-side & server-side search/filter/sort · Pagination (`Load more`) for large libraries                                         |
-| **Statistics**         | Dashboard with breakdowns by type/status · Average rating                                                                           |
-| **Import / Export**    | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                          |
-| **Metadata Lookup**    | AniList primary + Jikan (MAL) fallback lookup for Anime and Donghua · MangaDex integration for Manhwa covers                        |
-| **High-Quality Covers**| Proxy image fetching to cache high-resolution covers from MangaDex, AniList, and Jikan without aggressive downscaling               |
-| **Droppedyard**        | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again             |
-| **Stale Alerts**       | Visual warnings on active entries not updated in 14+ days                                                                           |
-| **Auth**               | Next.js API-based JWT authentication · bcrypt password hashing                                                                      |
-| **Design System**      | Responsive, mobile-first "Soft Red" design system with instant sidebar transitions, modal scroll locking, and accessible badging    |
+| Category                | Highlights                                                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Media Tracking**      | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes                     |
+| **Smart Organization**  | Client-side & server-side search/filter/sort · Pagination (`Load more`) for large libraries                                      |
+| **Statistics**          | Dashboard with breakdowns by type/status · Average rating                                                                        |
+| **Import / Export**     | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                       |
+| **Metadata Lookup**     | AniList primary + Jikan (MAL) fallback lookup for Anime and Donghua · MangaDex integration for Manhwa covers                     |
+| **High-Quality Covers** | Proxy image fetching to cache high-resolution covers from MangaDex, AniList, and Jikan without aggressive downscaling            |
+| **Droppedyard**         | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again          |
+| **Stale Alerts**        | Visual warnings on active entries not updated in 14+ days                                                                        |
+| **Auth**                | Next.js API-based JWT authentication · bcrypt password hashing                                                                   |
+| **Design System**       | Responsive, mobile-first "Soft Red" design system with instant sidebar transitions, modal scroll locking, and accessible badging |
 
 ## 🛠️ Tech Stack
 
-| Layer    | Technology                                            |
-| -------- | ----------------------------------------------------- |
-| Frontend | Next.js 14 (App Router) · React 18 · Zustand · CSS    |
-| Backend  | Next.js API Routes (Serverless)                       |
-| Database | MongoDB (Atlas or local) via Mongoose                 |
-| Auth     | JWT · bcryptjs                                        |
-| APIs     | AniList GraphQL · Jikan v4 · MangaDex                 |
-| Testing  | Vitest                                                |
+| Layer    | Technology                                         |
+| -------- | -------------------------------------------------- |
+| Frontend | Next.js 14 (App Router) · React 18 · Zustand · CSS |
+| Backend  | Next.js API Routes (Serverless)                    |
+| Database | MongoDB (Atlas or local) via Mongoose              |
+| Auth     | JWT · bcryptjs                                     |
+| APIs     | AniList GraphQL · Jikan v4 · MangaDex              |
+| Testing  | Vitest                                             |
 
 ## 🚀 Getting Started
 
@@ -111,17 +111,17 @@ Chronicle/
 
 ## 📋 API Reference
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/auth` | No | Login or register (`action: "login"/"register"`) |
-| GET | `/api/media` | Yes | List media (with search/filter/sort/pagination) |
-| POST | `/api/media` | Yes | Create entry (single or `?bulk=1`) |
-| PUT | `/api/media?id=` | Yes | Update entry |
-| DELETE | `/api/media?id=` | Yes | Delete entry |
-| POST | `/api/media?bulk_delete=1` | Yes | Bulk delete |
-| GET | `/api/manga-cover` | No | Fetches proxy URLs for MangaDex covers |
-| GET | `/api/anime-cover` | No | Fetches proxy URLs for AniList/Jikan covers |
-| GET | `/api/image-proxy` | No | Bypasses CORS and referrer checks for external images |
+| Method | Endpoint                   | Auth | Description                                           |
+| ------ | -------------------------- | ---- | ----------------------------------------------------- |
+| POST   | `/api/auth`                | No   | Login or register (`action: "login"/"register"`)      |
+| GET    | `/api/media`               | Yes  | List media (with search/filter/sort/pagination)       |
+| POST   | `/api/media`               | Yes  | Create entry (single or `?bulk=1`)                    |
+| PUT    | `/api/media?id=`           | Yes  | Update entry                                          |
+| DELETE | `/api/media?id=`           | Yes  | Delete entry                                          |
+| POST   | `/api/media?bulk_delete=1` | Yes  | Bulk delete                                           |
+| GET    | `/api/manga-cover`         | No   | Fetches proxy URLs for MangaDex covers                |
+| GET    | `/api/anime-cover`         | No   | Fetches proxy URLs for AniList/Jikan covers           |
+| GET    | `/api/image-proxy`         | No   | Bypasses CORS and referrer checks for external images |
 
 ## 📄 License
 
