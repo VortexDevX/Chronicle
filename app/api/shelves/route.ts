@@ -19,7 +19,7 @@ function normalizeShelfText(value: unknown, maxLength: number): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
 
     await connectDB();
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
 
     const body = await req.json().catch(() => ({}));
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
 
     const id = req.nextUrl.searchParams.get("id");
@@ -135,7 +135,7 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
 
     const id = req.nextUrl.searchParams.get("id");

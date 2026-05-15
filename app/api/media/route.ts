@@ -205,7 +205,7 @@ function isValidObjectId(id: string): boolean {
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
 
     const userObjectId = new mongoose.Types.ObjectId(userId!);
@@ -305,7 +305,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
     const ip = getClientIp(req);
     const userObjectId = new mongoose.Types.ObjectId(userId!);
@@ -477,7 +477,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     await connectDB();
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
     const ip = getClientIp(req);
     const userObjectId = new mongoose.Types.ObjectId(userId!);
@@ -523,7 +523,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     await connectDB();
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
     const ip = getClientIp(req);
     const userObjectId = new mongoose.Types.ObjectId(userId!);

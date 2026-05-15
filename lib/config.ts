@@ -29,6 +29,9 @@ export function validateCoreConfig() {
     jwtSecret: getRequiredEnv("JWT_SECRET"),
     appOrigin: getOptionalEnv("APP_ORIGIN"),
     cronSecret: getOptionalEnv("CRON_SECRET"),
+    brevoApiKey: getOptionalEnv("BREVO_API_KEY"),
+    brevoFromEmail: getOptionalEnv("BREVO_FROM_EMAIL"),
+    brevoFromName: getOptionalEnv("BREVO_FROM_NAME", "Chronicle"),
     telegramBotToken: getOptionalEnv("TELEGRAM_BOT_TOKEN"),
     telegramChatId: getOptionalEnv("TELEGRAM_CHAT_ID"),
   };

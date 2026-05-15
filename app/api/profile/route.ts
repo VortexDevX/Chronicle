@@ -8,11 +8,11 @@ import { requireAuthUserId } from "@/lib/guards";
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
 
     const user = await User.findById(userId).select(
-      "username notifications_enabled telegram_chat_id created_at",
+      "username email email_verified_at notifications_enabled telegram_chat_id created_at",
     );
 
     if (!user) {
@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
 
     return jsonOk({
       username: user.username,
+      email: user.email || null,
+      email_verified_at: user.email_verified_at || null,
       notifications_enabled: user.notifications_enabled || false,
       telegram_chat_id: user.telegram_chat_id || null,
       created_at: user.created_at,
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     await connectDB();
-    const { userId, errorResponse } = requireAuthUserId(req);
+    const { userId, errorResponse } = await requireAuthUserId(req);
     if (!userId && errorResponse) return errorResponse;
 
     const body = await req.json().catch(() => ({}));
@@ -60,6 +62,26 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    if (body.email !== undefined) {
+      if (body.email === null || body.email === "") {
+        updates.email = null;
+        updates.email_verified_at = null;
+      } else {
+        const email = String(body.email).trim().toLowerCase();
+        if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return jsonError("INVALID_EMAIL", "Enter a valid email address", 400);
+        }
+
+        const existing = await User.findOne({ email, _id: { $ne: userId } }).select("_id");
+        if (existing) {
+          return jsonError("EMAIL_TAKEN", "Email already registered", 409);
+        }
+
+        updates.email = email;
+        updates.email_verified_at = new Date();
+      }
+    }
+
     if (Object.keys(updates).length === 0) {
       return jsonError("NO_UPDATES", "No valid fields to update", 400);
     }
@@ -68,7 +90,7 @@ export async function PUT(req: NextRequest) {
       new: true,
       runValidators: true,
     }).select(
-      "username notifications_enabled telegram_chat_id created_at",
+      "username email email_verified_at notifications_enabled telegram_chat_id created_at",
     );
 
     if (!updated) {
@@ -77,6 +99,8 @@ export async function PUT(req: NextRequest) {
 
     return jsonOk({
       username: updated.username,
+      email: updated.email || null,
+      email_verified_at: updated.email_verified_at || null,
       notifications_enabled: updated.notifications_enabled || false,
       telegram_chat_id: updated.telegram_chat_id || null,
       created_at: updated.created_at,

@@ -39,7 +39,9 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
   const [selectedShelfIds, setSelectedShelfIds] = useState<Set<string>>(new Set());
   const [originalShelfIds, setOriginalShelfIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [testingTracker, setTestingTracker] = useState(false);
   const [error, setError] = useState("");
+  const [trackerResult, setTrackerResult] = useState("");
 
   const [linkSearch, setLinkSearch] = useState("");
   const [searchResults, setSearchResults] = useState<LinkSearchResult[]>([]);
@@ -52,6 +54,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         initialData.status = "Active";
       }
       setFormData(initialData);
+      setTrackerResult("");
       if (media.linked_entries_data) {
         setLinkedEntries(media.linked_entries_data);
       }
@@ -71,6 +74,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         retry_flag: false,
       });
       setLinkedEntries([]);
+      setTrackerResult("");
     }
 
     setSelectedShelfIds(new Set());
@@ -219,6 +223,33 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     }
   };
 
+  const handleTestTracker = async () => {
+    setTestingTracker(true);
+    setError("");
+    setTrackerResult("");
+
+    try {
+      const res = await fetch("/api/media/test-tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: media?._id,
+          tracker_url: formData.tracker_url,
+          media_type: formData.media_type,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Tracker test failed");
+      }
+      setTrackerResult(`Latest found: ${data.data?.latest ?? "none"}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Tracker test failed");
+    } finally {
+      setTestingTracker(false);
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !loading) {
@@ -316,6 +347,20 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
               <div className="form-group">
                 <label>Tracker URL</label>
                 <input className="form-input" name="tracker_url" value={formData.tracker_url || ""} onChange={handleChange} placeholder="Optional tracker link" />
+                {(formData.media_type === "Manhwa" || formData.media_type === "Donghua") && (
+                  <div className="tracker-test-row">
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={handleTestTracker}
+                      disabled={testingTracker || !formData.tracker_url}
+                    >
+                      {testingTracker ? <span className="spinner" /> : <LinkIcon size={14} />}
+                      Test tracker
+                    </button>
+                    {trackerResult && <span>{trackerResult}</span>}
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label>Notes</label>
