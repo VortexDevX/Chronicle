@@ -4,7 +4,8 @@ const COVER_CACHE_KEY = "chronicle:cover-cache:v5";
 const COVER_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COVER_CACHE_NULL_TTL_MS = 1000 * 60 * 30;
 const COVER_CACHE_MAX = 600;
-const COVER_FETCH_BATCH_DELAY_MS = 700;
+const COVER_FETCH_BATCH_DELAY_MS = 120;
+const COVER_FETCH_CONCURRENCY = 4;
 
 export const coverCache = new Map<string, CoverCacheEntry>();
 export let coverQueue: { title: string; id: string; mangadexId?: string }[] = [];
@@ -14,6 +15,7 @@ let coverCacheDirty = false;
 let coverCacheTimer: ReturnType<typeof setTimeout> | null = null;
 let coverQueueRun = 0;
 let coverAbortController: AbortController | null = null;
+const coverListeners = new Map<string, Set<(url: string | null) => void>>();
 
 function scheduleCoverPersist(): void {
   if (typeof window === "undefined") return;
@@ -92,6 +94,7 @@ export function setCachedCover(title: string, url: string | null): void {
   if (typeof window === "undefined") return;
   coverCache.set(title, { url, ts: Date.now() });
   scheduleCoverPersist();
+  notifyCoverListeners(title, url);
 }
 
 export function resetCoverQueue(): void {
@@ -135,6 +138,56 @@ function applyCoverToThumb(id: string, imageUrl: string): void {
   thumbEl.classList.add("thumb-loaded");
 }
 
+function notifyCoverListeners(cacheKey: string, url: string | null): void {
+  const listeners = coverListeners.get(cacheKey);
+  if (!listeners) return;
+  listeners.forEach((listener) => listener(url));
+  coverListeners.delete(cacheKey);
+}
+
+export function subscribeCover(
+  cacheKey: string,
+  listener: (url: string | null) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const cached = getCachedCover(cacheKey);
+  if (cached !== undefined) {
+    queueMicrotask(() => listener(cached));
+    return () => {};
+  }
+
+  const listeners = coverListeners.get(cacheKey) || new Set();
+  listeners.add(listener);
+  coverListeners.set(cacheKey, listeners);
+
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) coverListeners.delete(cacheKey);
+  };
+}
+
+async function processCoverItem(
+  item: { title: string; id: string; mangadexId?: string },
+  signal: AbortSignal,
+  run: number,
+): Promise<void> {
+  const { title, id, mangadexId } = item;
+  const cacheKey = mangadexId ? `md-${mangadexId}` : title;
+  if (getCachedCover(cacheKey) !== undefined) return;
+
+  try {
+    const imageUrl = mangadexId
+      ? await fetchMangaCover(title, mangadexId, signal)
+      : await fetchAnimeCover(title, signal);
+    if (run !== coverQueueRun || signal.aborted) return;
+    setCachedCover(cacheKey, imageUrl);
+    if (imageUrl) applyCoverToThumb(id, imageUrl);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") return;
+    setCachedCover(cacheKey, null);
+  }
+}
+
 export async function processCoverQueue(): Promise<void> {
   if (typeof window === "undefined") return;
   if (coverProcessing || coverQueue.length === 0) return;
@@ -145,23 +198,8 @@ export async function processCoverQueue(): Promise<void> {
 
   try {
     while (coverQueue.length > 0 && run === coverQueueRun && !controller.signal.aborted) {
-      const item = coverQueue.shift();
-      if (!item) continue;
-      const { title, id, mangadexId } = item;
-      const cacheKey = mangadexId ? `md-${mangadexId}` : title;
-      if (getCachedCover(cacheKey) === undefined) {
-        try {
-          const imageUrl = mangadexId
-            ? await fetchMangaCover(title, mangadexId, controller.signal)
-            : await fetchAnimeCover(title, controller.signal);
-          if (run !== coverQueueRun || controller.signal.aborted) return;
-          setCachedCover(cacheKey, imageUrl);
-          if (imageUrl) applyCoverToThumb(id, imageUrl);
-        } catch (err) {
-          if (err instanceof DOMException && err.name === "AbortError") return;
-          setCachedCover(cacheKey, null);
-        }
-      }
+      const batch = coverQueue.splice(0, COVER_FETCH_CONCURRENCY);
+      await Promise.all(batch.map((item) => processCoverItem(item, controller.signal, run)));
       if (coverQueue.length > 0) {
         await new Promise((r) => setTimeout(r, COVER_FETCH_BATCH_DELAY_MS));
       }

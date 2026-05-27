@@ -1,7 +1,5 @@
+import { PageLoader } from "@/components/PageLoader";
+
 export default function DashboardLoading() {
-  return (
-    <div className="loading-state">
-      <span className="spinner" /> Loading...
-    </div>
-  );
+  return <PageLoader label="Loading page" detail="Arranging the next view" compact />;
 }

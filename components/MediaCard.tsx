@@ -3,7 +3,7 @@
 import { MediaItem } from "@/types/media";
 import { Edit2, Plus, Trash2, Star, ExternalLink, Link as LinkIcon, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getCachedCover, queueCoverFetch } from "@/store/coverCache";
+import { getCachedCover, queueCoverFetch, subscribeCover } from "@/store/coverCache";
 import { relativeTime, daysSince, progressLabel } from "@/utils/format";
 
 export function MediaCard({ m, onEdit, onIncrement, onDelete }: {
@@ -35,16 +35,7 @@ export function MediaCard({ m, onEdit, onIncrement, onDelete }: {
       }
 
       queueCoverFetch(m.title, m._id, m.mangadex_id || undefined);
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts += 1;
-        const c = getCachedCover(cacheKey);
-        if (c !== undefined || attempts >= 12) {
-          setCoverUrl(c || "");
-          clearInterval(interval);
-        }
-      }, 500);
-      return () => clearInterval(interval);
+      return subscribeCover(cacheKey, (url) => setCoverUrl(url || ""));
     }
   }, [m._id, m.title, m.media_type, m.mangadex_id, m.custom_cover_url]);
 

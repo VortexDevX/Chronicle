@@ -10,6 +10,7 @@ import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
 export default function LibraryPage() {
   const media = useMediaStore((state) => state.media);
   const loading = useMediaStore((state) => state.loading);
+  const loadingMore = useMediaStore((state) => state.loadingMore);
   const hasMore = useMediaStore((state) => state.hasMore);
   const page = useMediaStore((state) => state.page);
   const mediaRev = useMediaStore((state) => state.mediaRev);
@@ -147,13 +148,17 @@ export default function LibraryPage() {
     if (hasMore && !loading) fetchMedia(page + 1, false);
   };
 
+  const searchPending = search !== debouncedSearch;
+  const isRefining = (loading && media.length > 0 && !loadingMore) || searchPending;
+
   return (
     <>
       <div className="controls">
         <div className="controls-toolbar">
-          <div className="search-wrapper">
+          <div className="search-wrapper" data-loading={searchPending ? "true" : "false"}>
             <Search size={16} className="search-icon" />
             <input type="text" placeholder="Search entries..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            {searchPending && <span className="search-loading-dot" aria-hidden="true" />}
           </div>
           
           <div className="controls-filters">
@@ -185,6 +190,12 @@ export default function LibraryPage() {
       </div>
 
       <StatsRow stats={globalStats} />
+
+      {isRefining && (
+        <div className="results-loading-strip">
+          <span className="spinner" /> Updating results...
+        </div>
+      )}
 
       {loading && media.length === 0 ? (
         <div className="grid">
