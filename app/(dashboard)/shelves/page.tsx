@@ -6,6 +6,7 @@ import { Plus, FolderPlus, ArrowLeft, Trash2, Layers, AlignLeft } from "lucide-r
 import { useEffect, useState, useCallback } from "react";
 import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
 import { Shelf, MediaItem } from "@/types/media";
+import { PageLoader } from "@/components/PageLoader";
 
 export default function ShelvesPage() {
   const mediaRev = useMediaStore((state) => state.mediaRev);
@@ -108,11 +109,7 @@ export default function ShelvesPage() {
   const hasShelves = shelves.length > 0;
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
-        <span className="spinner" style={{ width: '32px', height: '32px', color: 'var(--accent)' }} />
-      </div>
-    );
+    return <PageLoader label="Opening shelves" detail="Collecting your collections" compact />;
   }
 
   // ACTIVE SHELF VIEW (Drill-down)
@@ -140,9 +137,7 @@ export default function ShelvesPage() {
         </div>
 
         {shelfLoading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
-            <span className="spinner" style={{ width: '32px', height: '32px', color: 'var(--accent)' }} />
-          </div>
+          <PageLoader label="Loading shelf" detail="Finding linked entries" compact />
         ) : shelfMedia.length === 0 ? (
           <div className="shelves-empty-state" style={{ minHeight: '30vh' }}>
             <AlignLeft size={48} strokeWidth={1} color="var(--text-muted)" />
@@ -206,7 +201,7 @@ export default function ShelvesPage() {
         <div className="shelves-empty-state">
           <FolderPlus size={64} strokeWidth={1} color="var(--text-muted)" />
           <h2>No Shelves Yet</h2>
-          <p>Shelves let you organize your library into custom collections — like "Top Tier", "Comfort Watches", or "Binge Queue".</p>
+          <p>Shelves let you organize your library into custom collections like Top Tier, Comfort Watches, or Binge Queue.</p>
           <button className="btn-primary" onClick={() => setShowCreate(true)} style={{ marginTop: '16px' }}>
             <FolderPlus size={16} /> Create Your First Shelf
           </button>

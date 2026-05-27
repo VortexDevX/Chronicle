@@ -16,12 +16,37 @@ type LinkSearchResult = {
   media_type: string;
 };
 
+type MediaFormData = Partial<
+  Omit<MediaItem, "progress_current" | "progress_total" | "rating">
+> & {
+  progress_current?: number | "";
+  progress_total?: number | "";
+  rating?: number | "";
+};
+
+const NUMBER_FIELDS = new Set(["progress_current", "progress_total", "rating"]);
+
 function getShelfMediaIds(shelf: Shelf): string[] {
   return Array.isArray(shelf.media_ids) ? shelf.media_ids.map(String) : [];
 }
 
+function numberInputValue(value: unknown): string {
+  return value === undefined || value === null ? "" : String(value);
+}
+
+function normalizeNumericFormFields(data: MediaFormData): Partial<MediaItem> {
+  return {
+    ...data,
+    progress_current:
+      data.progress_current === "" ? 0 : Number(data.progress_current || 0),
+    progress_total:
+      data.progress_total === "" ? 0 : Number(data.progress_total || 0),
+    rating: data.rating === "" ? 0 : Number(data.rating || 0),
+  };
+}
+
 export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
-  const [formData, setFormData] = useState<Partial<MediaItem>>({
+  const [formData, setFormData] = useState<MediaFormData>({
     title: "",
     media_type: "Anime",
     status: "Active",
@@ -137,10 +162,15 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     const { name, value, type } = e.target;
     if (type === "checkbox") {
       setFormData(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
+    } else if (NUMBER_FIELDS.has(name)) {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value === "" ? "" : Number(value),
+      }));
     } else {
       setFormData((prev) => ({
         ...prev,
-        [name]: type === "number" ? Number(value) : value,
+        [name]: value,
       }));
     }
   };
@@ -187,7 +217,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(normalizeNumericFormFields(formData)),
       });
 
       const data = await res.json();
@@ -306,15 +336,15 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
               </div>
               <div className="form-group">
                 <label>Current Progress</label>
-                <input type="number" min="0" className="form-input" name="progress_current" value={formData.progress_current || 0} onChange={handleChange} />
+                <input type="number" min="0" className="form-input" name="progress_current" value={numberInputValue(formData.progress_current)} onChange={handleChange} placeholder="0" />
               </div>
               <div className="form-group">
                 <label>Total Progress</label>
-                <input type="number" min="0" className="form-input" name="progress_total" value={formData.progress_total || 0} onChange={handleChange} />
+                <input type="number" min="0" className="form-input" name="progress_total" value={numberInputValue(formData.progress_total)} onChange={handleChange} placeholder="0" />
               </div>
               <div className="form-group">
                 <label>Rating (0-10)</label>
-                <input type="number" min="0" max="10" step="0.5" className="form-input" name="rating" value={formData.rating || 0} onChange={handleChange} />
+                <input type="number" min="0" max="10" step="0.5" className="form-input" name="rating" value={numberInputValue(formData.rating)} onChange={handleChange} placeholder="0" />
               </div>
               <div className="form-group">
                 <label>MangaDex ID</label>

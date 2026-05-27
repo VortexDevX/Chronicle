@@ -1,34 +1,37 @@
 # Chronicle
 
-A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and **Light Novels** — built with Next.js App Router, React, Zustand, and MongoDB.
+A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and **Light Novels** — built with Next.js App Router, React, Zustand, MongoDB, and serverless API routes.
 
 ![chronicle-preview](https://img.shields.io/badge/status-active-brightgreen) ![license](https://img.shields.io/badge/license-MIT-blue) ![vercel](https://img.shields.io/badge/deploy-Vercel-000?logo=vercel)
 
 ## ✨ Features
 
-| Category                | Highlights                                                                                                                       |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **Media Tracking**      | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes                     |
-| **Smart Organization**  | Client-side & server-side search/filter/sort · Pagination (`Load more`) for large libraries                                      |
-| **Statistics**          | Dashboard with breakdowns by type/status · Average rating                                                                        |
-| **Import / Export**     | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                       |
-| **Metadata Lookup**     | AniList primary + Jikan (MAL) fallback lookup for Anime and Donghua · MangaDex integration for Manhwa covers                     |
-| **High-Quality Covers** | Proxy image fetching to cache high-resolution covers from MangaDex, AniList, and Jikan without aggressive downscaling            |
-| **Droppedyard**         | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again          |
-| **Stale Alerts**        | Visual warnings on active entries not updated in 14+ days                                                                        |
-| **Auth**                | Next.js API-based JWT authentication · bcrypt password hashing                                                                   |
-| **Design System**       | Responsive, mobile-first "Soft Red" design system with instant sidebar transitions, modal scroll locking, and accessible badging |
+| Category                | Highlights                                                                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Media Tracking**      | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes                                    |
+| **Smart Organization**  | Search/filter/sort with visible loading states · Pagination (`Load more`) · Custom shelves · Linked entries                                     |
+| **Statistics**          | Analytics dashboard with type/status breakdowns, ratings, progress totals, and recent activity                                                  |
+| **Import / Export**     | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                                      |
+| **Metadata Lookup**     | AniList primary + Jikan fallback lookup for Anime/Donghua · MangaDex integration for Manhwa covers                                              |
+| **High-Quality Covers** | Cached cover pipeline with batched client fetching, proxy image caching, MangaDex/AniList/Jikan support, and custom cover URL overrides         |
+| **Tracker Scraping**    | Chapter/episode scraper for Manhwa and Donghua · Tracker URL testing · scrape status/error fields · Telegram update notifications                |
+| **Droppedyard**         | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again                         |
+| **Auth**                | JWT cookie auth · bcrypt password hashing · email recovery with Brevo reset links · session invalidation after password reset                    |
+| **Design System**       | Responsive, mobile-first "Soft Red" UI with sharp cards, modal scroll locking, accessible badging, skeleton cards, and animated page loaders    |
+| **CORS / Deployment**   | Comma-separated `APP_ORIGIN` support · Next.js `proxy.ts` CORS handling for API routes                                                          |
 
 ## 🛠️ Tech Stack
 
-| Layer    | Technology                                         |
-| -------- | -------------------------------------------------- |
-| Frontend | Next.js 14 (App Router) · React 18 · Zustand · CSS |
-| Backend  | Next.js API Routes (Serverless)                    |
-| Database | MongoDB (Atlas or local) via Mongoose              |
-| Auth     | JWT · bcryptjs                                     |
-| APIs     | AniList GraphQL · Jikan v4 · MangaDex              |
-| Testing  | Vitest                                             |
+| Layer         | Technology                                                                 |
+| ------------- | -------------------------------------------------------------------------- |
+| Frontend      | Next.js App Router · React · Zustand · CSS                                  |
+| Backend       | Next.js API Routes · Next.js Proxy middleware                               |
+| Database      | MongoDB (Atlas or local) via Mongoose                                       |
+| Auth          | JWT httpOnly cookies · bcryptjs · hashed one-time reset tokens              |
+| Email         | Brevo Transactional API                                                     |
+| Scraping      | Cheerio · fetch retry/timeout helpers · host-specific scraper rules         |
+| APIs          | AniList GraphQL · Jikan v4 · MangaDex · Telegram Bot API                    |
+| Testing       | Vitest · TypeScript · ESLint                                                |
 
 ## 🚀 Getting Started
 
@@ -60,6 +63,24 @@ Create a `.env.local` file:
 # Required
 MONGODB_URI=mongodb://localhost:27017/chronicle
 JWT_SECRET=your-32-char-secret-here
+
+# App origins (comma-separated). First origin is used in password reset emails.
+APP_ORIGIN=http://localhost:3000,https://chroniclex.vercel.app,https://chronicle.mvlab.cloud
+
+# Optional public URL fallback for metadata when no request host is available.
+NEXT_PUBLIC_APP_URL=https://chroniclex.vercel.app
+
+# Password reset email
+BREVO_API_KEY=your-brevo-api-key
+BREVO_FROM_EMAIL=no-reply@your-domain.com
+BREVO_FROM_NAME=Chronicle
+
+# Cron protection (required in production)
+CRON_SECRET=your-cron-secret
+
+# Telegram notifications
+TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+TELEGRAM_CHAT_ID=your-telegram-chat-id
 
 # Optional rate limiting
 UPSTASH_REDIS_REST_URL=https://your-redis.upstash.io
@@ -95,9 +116,10 @@ npm run build        # Production Next.js build
 ```txt
 Chronicle/
 ├── app/
-│   ├── (auth)/             # Login and Registration routes
 │   ├── (dashboard)/        # Main app (Library, Queue, Shelves, Droppedyard, Analytics)
-│   ├── api/                # Next.js API routes (Auth, Media, Profile, Covers, etc.)
+│   ├── api/                # Auth, Media, Profile, Covers, Cron, Tracker test routes
+│   ├── login/              # Login, registration, and forgot-password entry
+│   ├── reset-password/     # Password reset page
 │   ├── globals.css         # Global CSS variables, resets, and utility classes
 │   └── layout.tsx          # Root Next.js layout
 ├── components/             # Reusable UI components (Sidebar, TopBar, MediaCard, Modals)
@@ -105,23 +127,32 @@ Chronicle/
 ├── lib/                    # Shared utilities (DB, Auth, HTTP, Rate Limiting, Models)
 ├── store/                  # Zustand state management and Cover caching
 ├── types/                  # TypeScript interface definitions
+├── proxy.ts                # API CORS proxy using APP_ORIGIN allowlist
 ├── public/                 # Static assets (Favicon, etc.)
 └── scripts/                # Database migration and cron check utilities
 ```
 
 ## 📋 API Reference
 
-| Method | Endpoint                   | Auth | Description                                           |
-| ------ | -------------------------- | ---- | ----------------------------------------------------- |
-| POST   | `/api/auth`                | No   | Login or register (`action: "login"/"register"`)      |
-| GET    | `/api/media`               | Yes  | List media (with search/filter/sort/pagination)       |
-| POST   | `/api/media`               | Yes  | Create entry (single or `?bulk=1`)                    |
-| PUT    | `/api/media?id=`           | Yes  | Update entry                                          |
-| DELETE | `/api/media?id=`           | Yes  | Delete entry                                          |
-| POST   | `/api/media?bulk_delete=1` | Yes  | Bulk delete                                           |
-| GET    | `/api/manga-cover`         | No   | Fetches proxy URLs for MangaDex covers                |
-| GET    | `/api/anime-cover`         | No   | Fetches proxy URLs for AniList/Jikan covers           |
-| GET    | `/api/image-proxy`         | No   | Bypasses CORS and referrer checks for external images |
+| Method | Endpoint                    | Auth | Description                                      |
+| ------ | --------------------------- | ---- | ------------------------------------------------ |
+| POST   | `/api/auth`                 | No   | Login, register, or logout                       |
+| GET    | `/api/auth`                 | Yes  | Current session                                  |
+| POST   | `/api/auth/forgot-password` | No   | Send Brevo password reset email                  |
+| POST   | `/api/auth/reset-password`  | No   | Reset password with one-time token               |
+| GET    | `/api/profile`              | Yes  | Profile, recovery email, notification settings   |
+| PUT    | `/api/profile`              | Yes  | Update profile settings                          |
+| GET    | `/api/media`                | Yes  | List media with search/filter/sort/pagination    |
+| POST   | `/api/media`                | Yes  | Create entry (single or `?bulk=1`)               |
+| PUT    | `/api/media?id=`            | Yes  | Update entry                                     |
+| DELETE | `/api/media?id=`            | Yes  | Delete entry                                     |
+| POST   | `/api/media?bulk_delete=1`  | Yes  | Bulk delete                                      |
+| POST   | `/api/media/link`           | Yes  | Link or unlink related entries                   |
+| POST   | `/api/media/test-tracker`   | Yes  | Test a Manhwa/Donghua tracker URL                |
+| GET    | `/api/cron/checkChapters`   | Bearer `CRON_SECRET` | Check tracker URLs and send Telegram updates |
+| GET    | `/api/manga-cover`          | No   | Fetch MangaDex cover URL                         |
+| GET    | `/api/anime-cover`          | No   | Fetch AniList/Jikan cover URL                    |
+| GET    | `/api/image-proxy`          | No   | Cache/proxy external cover images                |
 
 ## 📄 License
 

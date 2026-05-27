@@ -8,6 +8,7 @@ import { TopBar } from "./TopBar";
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaModal } from "./MediaModal";
 import { SettingsModal } from "./SettingsModal";
+import { PageLoader } from "./PageLoader";
 
 export default function ClientSessionProvider({ children }: { children: React.ReactNode }) {
   const { authStatus } = useAuth();
@@ -28,7 +29,7 @@ export default function ClientSessionProvider({ children }: { children: React.Re
   if (authStatus === "loading") {
     return (
       <div className="auth-bg">
-        <div className="loading-state"><span className="spinner" /> Loading...</div>
+        <PageLoader label="Opening Chronicle" detail="Checking your session" />
       </div>
     );
   }

@@ -7,6 +7,7 @@ import { jsonOk } from "@/lib/http";
 import { getClientIp } from "@/lib/rateLimit";
 import { enforceRateLimit } from "@/lib/guards";
 import { logInternalError } from "@/lib/log";
+import { getPrimaryAppOrigin } from "@/lib/origin";
 
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
 const GENERIC_RESPONSE = {
@@ -26,14 +27,11 @@ function hashResetToken(token: string): string {
 }
 
 function getResetOrigin(req: NextRequest): string {
-  const appOrigin = process.env.APP_ORIGIN?.replace(/\/$/, "");
-  if (appOrigin) return appOrigin;
-
   if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL.replace(/\/$/, "")}`;
+    return getPrimaryAppOrigin(`https://${process.env.VERCEL_URL.replace(/\/$/, "")}`);
   }
 
-  return req.nextUrl.origin;
+  return getPrimaryAppOrigin(req.nextUrl.origin);
 }
 
 export async function POST(req: NextRequest) {

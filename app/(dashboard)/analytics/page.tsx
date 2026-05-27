@@ -4,6 +4,7 @@ import React from "react";
 import { useMediaStore } from "@/store/mediaStore";
 import { useEffect, useState, useCallback } from "react";
 import { MediaItem } from "@/types/media";
+import { PageLoader } from "@/components/PageLoader";
 import {
   TrendingUp, Award, Star, Clock, BarChart2, PieChart,
   Activity, Tv, BookOpen, Film, BookMarked,
@@ -120,11 +121,7 @@ export default function AnalyticsPage() {
   }, [fetchAnalytics, setActiveRoute]);
 
   if (loading || !data) {
-    return (
-      <div className="loading-state">
-        <span className="spinner" /> Loading analytics...
-      </div>
-    );
+    return <PageLoader label="Reading the numbers" detail="Building your analytics view" compact />;
   }
 
   const maxStatusCount = Math.max(...Object.values(data.byStatus), 1);
