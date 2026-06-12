@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import { NextRequest } from "next/server";
 import { getRequiredEnv } from "@/lib/config";
 
-export type JwtClaims = {
+type JwtClaims = {
   userId?: unknown;
   authVersion?: unknown;
 };
@@ -18,7 +18,7 @@ export const signAuthToken = (userId: string, authVersion = 0): string => {
   });
 };
 
-export const verifyToken = (token?: string): AuthTokenClaims | null => {
+const verifyToken = (token?: string): AuthTokenClaims | null => {
   if (!token) return null;
 
   const jwtSecret = process.env.JWT_SECRET;
@@ -45,7 +45,7 @@ export const verifyToken = (token?: string): AuthTokenClaims | null => {
   }
 };
 
-export const getUser = (req: NextRequest): string | null => {
+const getUser = (req: NextRequest): string | null => {
   const token = req.cookies.get("auth_token")?.value;
   return verifyToken(token)?.userId || null;
 };

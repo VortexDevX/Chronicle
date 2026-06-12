@@ -1,5 +1,5 @@
-export const MEDIA_TYPES = ["Anime", "Manhwa", "Donghua", "Light Novel"] as const;
-export const MEDIA_STATUSES = [
+const MEDIA_TYPES = ["Anime", "Manhwa", "Donghua", "Light Novel"] as const;
+const MEDIA_STATUSES = [
   "Planned",
   "Active",
   "On Hold",

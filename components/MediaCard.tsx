@@ -5,6 +5,7 @@ import { Edit2, Plus, Trash2, Star, ExternalLink, Link as LinkIcon, Clock } from
 import { useState, useEffect } from "react";
 import { getCachedCover, queueCoverFetch, subscribeCover } from "@/store/coverCache";
 import { relativeTime, daysSince, progressLabel } from "@/utils/format";
+import { normalizePublicHttpUrl } from "@/lib/publicUrl";
 
 export function MediaCard({ m, onEdit, onIncrement, onDelete }: {
   m: MediaItem;
@@ -74,6 +75,7 @@ export function MediaCard({ m, onEdit, onIncrement, onDelete }: {
   const staleClass = isStale ? " card-stale" : "";
   const thumbClass = coverUrl ? "card-thumb thumb-loaded" : "card-thumb";
   const thumbStyle = coverUrl ? { backgroundImage: `url('${coverUrl}')` } : {};
+  const safeTrackerUrl = m.tracker_url ? normalizePublicHttpUrl(m.tracker_url) : null;
 
   // For the active status
   const mappedStatus = m.status === "Watching/Reading" ? "Active" : m.status;
@@ -146,9 +148,8 @@ export function MediaCard({ m, onEdit, onIncrement, onDelete }: {
         )}
         <button className="btn-ghost" onClick={(e) => {
           e.stopPropagation();
-          const url = m.tracker_url;
-          if (url) window.open(url, "_blank");
-        }} title="Continue (Open Tracker URL)" disabled={!m.tracker_url}>
+          if (safeTrackerUrl) window.open(safeTrackerUrl, "_blank", "noopener,noreferrer");
+        }} title="Continue (Open Tracker URL)" disabled={!safeTrackerUrl}>
           <ExternalLink size={16} />
         </button>
         {onDelete && (

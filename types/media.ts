@@ -24,7 +24,7 @@ export interface MediaItem {
   linked_entries_data?: { _id: string; title: string }[];
 }
 
-export type ImportRow = {
+type ImportRow = {
   title: string;
   media_type: string;
   status: string;
@@ -39,7 +39,7 @@ export type CoverCacheEntry = {
   ts: number;
 };
 
-export type MediaLookup = {
+type MediaLookup = {
   title?: string;
   total?: number;
   source: "AniList" | "MAL";
