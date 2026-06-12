@@ -30,14 +30,14 @@ export function progressLabel(mediaType: string): string {
   return "ch";
 }
 
-export function escapeHtml(str: string): string {
+function escapeHtml(str: string): string {
   return str; // React handles escaping natively
 }
 
-export function dateStamp(): string {
+function dateStamp(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function slugType(mediaType: string): string {
+function slugType(mediaType: string): string {
   return mediaType.toLowerCase().replace(/\s+/g, "-");
 }

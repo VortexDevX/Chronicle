@@ -7,9 +7,9 @@ const COVER_CACHE_MAX = 600;
 const COVER_FETCH_BATCH_DELAY_MS = 120;
 const COVER_FETCH_CONCURRENCY = 4;
 
-export const coverCache = new Map<string, CoverCacheEntry>();
-export let coverQueue: { title: string; id: string; mangadexId?: string }[] = [];
-export let coverProcessing = false;
+const coverCache = new Map<string, CoverCacheEntry>();
+let coverQueue: { title: string; id: string; mangadexId?: string }[] = [];
+let coverProcessing = false;
 
 let coverCacheDirty = false;
 let coverCacheTimer: ReturnType<typeof setTimeout> | null = null;
@@ -29,7 +29,7 @@ function scheduleCoverPersist(): void {
   }
 }
 
-export function flushCoverCache(): void {
+function flushCoverCache(): void {
   if (typeof window === "undefined") return;
   if (coverCacheDirty) {
     persistCoverCache();
@@ -41,7 +41,7 @@ export function flushCoverCache(): void {
   }
 }
 
-export function setCoverProcessing(val: boolean) {
+function setCoverProcessing(val: boolean) {
   coverProcessing = val;
 }
 
@@ -63,7 +63,7 @@ export function loadCoverCache(): void {
   }
 }
 
-export function persistCoverCache(): void {
+function persistCoverCache(): void {
   if (typeof window === "undefined") return;
   try {
     const entries = Array.from(coverCache.entries());
@@ -90,7 +90,7 @@ export function getCachedCover(title: string): string | null | undefined {
   return entry.url;
 }
 
-export function setCachedCover(title: string, url: string | null): void {
+function setCachedCover(title: string, url: string | null): void {
   if (typeof window === "undefined") return;
   coverCache.set(title, { url, ts: Date.now() });
   scheduleCoverPersist();
@@ -188,7 +188,7 @@ async function processCoverItem(
   }
 }
 
-export async function processCoverQueue(): Promise<void> {
+async function processCoverQueue(): Promise<void> {
   if (typeof window === "undefined") return;
   if (coverProcessing || coverQueue.length === 0) return;
   coverProcessing = true;

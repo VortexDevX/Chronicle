@@ -1,4 +1,4 @@
-export class ConfigError extends Error {
+class ConfigError extends Error {
   constructor(key: string) {
     super(
       `Missing required environment variable: ${key}. ` +
@@ -18,7 +18,7 @@ export function getOptionalEnv(key: string, fallback = ""): string {
   return process.env[key] || fallback;
 }
 
-export function getOptionalEnvList(key: string): string[] {
+function getOptionalEnvList(key: string): string[] {
   return getOptionalEnv(key)
     .split(",")
     .map((value) => value.trim())
@@ -30,7 +30,7 @@ export function getOptionalEnvList(key: string): string[] {
  * Call this from route handlers that need DB/auth access.
  * Returns an object with the resolved values.
  */
-export function validateCoreConfig() {
+function validateCoreConfig() {
   return {
     mongoUri: getRequiredEnv("MONGODB_URI"),
     jwtSecret: getRequiredEnv("JWT_SECRET"),

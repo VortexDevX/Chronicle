@@ -5,7 +5,7 @@ export type ScraperRule = {
   selectors: string[];
 };
 
-export const SCRAPER_RULES: ScraperRule[] = [
+const SCRAPER_RULES: ScraperRule[] = [
   {
     hosts: ["arenascan.com"],
     selectors: [".eplister li a", ".eph-num a", ".bxcl ul li a"],
@@ -48,7 +48,7 @@ export const GENERIC_CHAPTER_SELECTORS = [
 
 const MAX_TRACKER_NUMBER = 10000;
 
-export function normalizeHost(host: string): string {
+function normalizeHost(host: string): string {
   return host.toLowerCase().replace(/^www\./, "");
 }
 
