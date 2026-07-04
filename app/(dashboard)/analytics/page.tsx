@@ -52,65 +52,10 @@ export default function AnalyticsPage() {
   const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     try {
-      const statuses = ["Watching/Reading", "Completed", "Planned", "On Hold", "Dropped"];
-      const types = ["Anime", "Manhwa", "Donghua", "Light Novel"];
-
-      const [totalRes, ...rest] = await Promise.all([
-        fetch("/api/media?limit=1", { cache: "no-store" }),
-        ...statuses.map((s) => fetch(`/api/media?status=${encodeURIComponent(s)}&limit=1`, { cache: "no-store" })),
-        ...types.map((t) => fetch(`/api/media?media_type=${encodeURIComponent(t)}&limit=1`, { cache: "no-store" })),
-      ]);
-
-      const totalJson = totalRes.ok ? await totalRes.json() : { data: { total: 0 } };
-      const byStatus: Record<string, number> = {};
-      const byType: Record<string, number> = {};
-
-      for (let i = 0; i < statuses.length; i++) {
-        const json = rest[i].ok ? await rest[i].json() : { data: { total: 0 } };
-        const key = statuses[i] === "Watching/Reading" ? "Active" : statuses[i];
-        byStatus[key] = json.data.total || 0;
-      }
-      for (let i = 0; i < types.length; i++) {
-        const json = rest[statuses.length + i].ok ? await rest[statuses.length + i].json() : { data: { total: 0 } };
-        byType[types[i]] = json.data.total || 0;
-      }
-
-      const [recentRes, ratedRes] = await Promise.all([
-        fetch("/api/media?limit=5&sort_by=last_updated", { cache: "no-store" }),
-        fetch("/api/media?limit=100&sort_by=rating", { cache: "no-store" }),
-      ]);
-
-      const recentJson = recentRes.ok ? await recentRes.json() : { data: { items: [] } };
-      const ratedJson = ratedRes.ok ? await ratedRes.json() : { data: { items: [] } };
-
-      const allRated: MediaItem[] = (ratedJson.data.items || []).filter((m: MediaItem) => m.rating && m.rating > 0);
-      const avgRating = allRated.length > 0
-        ? allRated.reduce((sum: number, m: MediaItem) => sum + (m.rating || 0), 0) / allRated.length
-        : 0;
-
-      const total = totalJson.data.total || 0;
-      const completed = byStatus["Completed"] || 0;
-      const completionRate = total > 0 ? (completed / total) * 100 : 0;
-
-      const totalProgress = (ratedJson.data.items || []).reduce(
-        (sum: number, m: MediaItem) => sum + (m.progress_current || 0), 0
-      );
-
-      const topRated = [...allRated]
-        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-        .slice(0, 5);
-
-      setData({
-        total,
-        byStatus,
-        byType,
-        avgRating,
-        ratedCount: allRated.length,
-        totalProgress,
-        completionRate,
-        recentItems: recentJson.data.items || [],
-        topRated,
-      });
+      const res = await fetch("/api/analytics", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to load analytics");
+      const json = await res.json();
+      setData(json.data);
     } catch {}
     finally { setLoading(false); }
   }, []);

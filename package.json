@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "cron:check": "tsx --env-file=.env scripts/checkCron.ts"
+    "cron:check": "tsx --env-file=.env scripts/checkCron.ts",
+    "media:dedupe:backfill": "tsx --env-file=.env scripts/backfillMediaDedupeKeys.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

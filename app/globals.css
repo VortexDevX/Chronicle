@@ -1327,6 +1327,38 @@ button:disabled {
   color: var(--text-secondary);
 }
 
+.settings-email-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.settings-email-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.settings-email-status[data-state="verified"] {
+  color: var(--green);
+}
+
+.settings-email-status[data-state="unverified"] {
+  color: var(--amber);
+}
+
+.settings-inline-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
 /* Empty State */
 .empty-state {
   display: flex;

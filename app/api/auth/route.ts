@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       const user = await User.create({
         username: normalizedUsername,
         email: normalizedEmail,
-        email_verified_at: new Date(),
+        email_verified_at: null,
         password_hash,
       });
 

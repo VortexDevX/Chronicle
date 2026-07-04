@@ -77,8 +77,15 @@ export async function PUT(req: NextRequest) {
           return jsonError("EMAIL_TAKEN", "Email already registered", 409);
         }
 
-        updates.email = email;
-        updates.email_verified_at = new Date();
+        const current = await User.findById(userId).select("email");
+        if (!current) {
+          return jsonError("NOT_FOUND", "User not found", 404);
+        }
+
+        if (String(current.email || "").toLowerCase() !== email) {
+          updates.email = email;
+          updates.email_verified_at = null;
+        }
       }
     }
 
