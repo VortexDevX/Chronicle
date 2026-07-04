@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BookHeart } from "lucide-react";
 import { useMediaStore } from "@/store/mediaStore";
@@ -16,6 +16,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const setAuth = useMediaStore((state) => state.setAuth);
+
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("email");
+    if (status === "verified") {
+      setSuccess("Email verified. You can sign in.");
+    } else if (status === "invalid") {
+      setError("Verification link is invalid or expired.");
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

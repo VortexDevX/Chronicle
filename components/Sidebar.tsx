@@ -5,7 +5,23 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useMediaStore } from "@/store/mediaStore";
 import { useState } from "react";
-import { BookOpen, ListTodo, ArchiveX, Library, BarChart2, Plus, Download, Upload, LogOut, Settings, ChevronDown, FileJson, FileText } from "lucide-react";
+import { BookOpen, ListTodo, ArchiveX, Library, BarChart2, Plus, Download, Upload, LogOut, Settings } from "lucide-react";
+import { fetchAllMediaForExport } from "@/lib/services/media/exportMedia";
+
+const IMPORT_CHUNK_SIZE = 200;
+
+function stripImportMetadata(item: Record<string, unknown>) {
+  const rest = { ...item };
+  delete rest._id;
+  delete rest.user_id;
+  delete rest.created_at;
+  delete rest.linked_entries_data;
+  delete rest.last_checked_at;
+  delete rest.last_scrape_status;
+  delete rest.last_scrape_error;
+  delete rest.latest_remote_progress;
+  return rest;
+}
 
 export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileOpen: (v: boolean) => void }) {
   const pathname = usePathname();
@@ -28,9 +44,8 @@ export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; se
     if (isExporting) return;
     setIsExporting(true);
     try {
-      const res = await fetch("/api/media?limit=9999");
-      const json = await res.json();
-      const dataStr = JSON.stringify(json.data?.items || [], null, 2);
+      const items = await fetchAllMediaForExport();
+      const dataStr = JSON.stringify(items, null, 2);
       const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
       const exportFileDefaultName = "chronicle_export.json";
       const linkElement = document.createElement("a");
@@ -58,17 +73,25 @@ export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; se
         try {
           const data = JSON.parse(ev.target?.result as string);
           if (!Array.isArray(data)) throw new Error("Invalid format");
-          let success = 0;
-          for (const item of data) {
-            const { _id, ...rest } = item;
-            await fetch('/api/media', {
+          let inserted = 0;
+          let skipped = 0;
+          const items = data
+            .filter((item): item is Record<string, unknown> => item && typeof item === "object")
+            .map(stripImportMetadata);
+
+          for (let i = 0; i < items.length; i += IMPORT_CHUNK_SIZE) {
+            const chunk = items.slice(i, i + IMPORT_CHUNK_SIZE);
+            const res = await fetch('/api/media?bulk=1', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(rest)
+              body: JSON.stringify(chunk)
             });
-            success++;
+            const json = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(json?.message || "Import failed");
+            inserted += Number(json?.data?.inserted || 0);
+            skipped += Number(json?.data?.skipped || 0);
           }
-          alert(`Successfully imported ${success} items. Please refresh.`);
+          alert(`Imported ${inserted} items. Skipped ${skipped}. Please refresh.`);
         } catch {
           alert("Import failed");
         } finally {

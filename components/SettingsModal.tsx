@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { MailCheck, Send, X } from "lucide-react";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -42,11 +42,13 @@ function SettingsToggle({
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const [formData, setFormData] = useState({
     email: "",
+    email_verified_at: null as string | null,
     notifications_enabled: false,
     telegram_chat_id: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [sendingVerification, setSendingVerification] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -57,6 +59,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         if (json.data) {
           setFormData({
             email: json.data.email || "",
+            email_verified_at: json.data.email_verified_at || null,
             notifications_enabled: json.data.notifications_enabled || false,
             telegram_chat_id: json.data.telegram_chat_id || "",
           });
@@ -75,6 +78,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
+      ...(name === "email" ? { email_verified_at: null } : {}),
     }));
   };
 
@@ -86,6 +90,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
     try {
       const payload: Partial<typeof formData> = { ...formData };
+      delete payload.email_verified_at;
 
       const res = await fetch("/api/profile", {
         method: "PUT",
@@ -98,12 +103,46 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         throw new Error(data.error?.message || "Failed to save settings");
       }
 
+      const data = await res.json();
+      if (data.data) {
+        setFormData((prev) => ({
+          ...prev,
+          email: data.data.email || "",
+          email_verified_at: data.data.email_verified_at || null,
+          notifications_enabled: data.data.notifications_enabled || false,
+          telegram_chat_id: data.data.telegram_chat_id || "",
+        }));
+      }
       setSuccess("Settings saved successfully!");
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendVerification = async () => {
+    if (!formData.email || formData.email_verified_at || sendingVerification) {
+      return;
+    }
+
+    setSendingVerification(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const res = await fetch("/api/auth/verify-email", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Failed to send verification email");
+      }
+      setSuccess(data.data?.message || "Verification email sent");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setSendingVerification(false);
     }
   };
 
@@ -149,6 +188,29 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     placeholder="Enter recovery email"
                     maxLength={254}
                   />
+                  <div className="settings-email-row">
+                    <span
+                      className="settings-email-status"
+                      data-state={formData.email_verified_at ? "verified" : "unverified"}
+                    >
+                      <MailCheck size={14} />
+                      {formData.email_verified_at ? "Verified" : "Unverified"}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-ghost settings-inline-btn"
+                      onClick={handleSendVerification}
+                      disabled={
+                        !formData.email ||
+                        Boolean(formData.email_verified_at) ||
+                        sendingVerification ||
+                        saving
+                      }
+                    >
+                      {sendingVerification ? <span className="spinner" /> : <Send size={14} />}
+                      Send link
+                    </button>
+                  </div>
                 </div>
               </div>
 

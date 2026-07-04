@@ -6,197 +6,22 @@ import { getClientIp } from "@/lib/rateLimit";
 import { requireAuthUserId, enforceRateLimit } from "@/lib/guards";
 import { logInternalError } from "@/lib/log";
 import { jsonOk, jsonError } from "@/lib/http";
-import { normalizePublicHttpUrl } from "@/lib/publicUrl";
 import {
-  isAllowedMediaStatus,
-  isAllowedMediaType,
-} from "@/lib/mediaValidation";
-
-type MediaPayload = {
-  title?: string;
-  media_type?: string;
-  status?: string;
-  progress_current?: number;
-  progress_total?: number;
-  rating?: number;
-  notes?: string;
-  external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
-  tracker_url?: string | null;
-  mangadex_id?: string | null;
-  custom_cover_url?: string | null;
-  drop_reason?: string | null;
-  retry_flag?: boolean;
-};
-
-const MAX_TITLE_LENGTH = 200;
-const MAX_NOTES_LENGTH = 2000;
-const allowedExternalStatuses = new Set([
-  "ongoing",
-  "completed",
-  "hiatus",
-  "cancelled",
-]);
-
-function validatePayload(
-  payload: MediaPayload,
-  partial = false,
-): { ok: true; normalized: MediaPayload } | { ok: false; message: string } {
-  const normalized: MediaPayload = {};
-
-  if (!partial || payload.title !== undefined) {
-    const title = String(payload.title || "").trim();
-    if (!title) return { ok: false, message: "Title is required" };
-    if (title.length > MAX_TITLE_LENGTH) {
-      return {
-        ok: false,
-        message: `Title must be at most ${MAX_TITLE_LENGTH} characters`,
-      };
-    }
-    normalized.title = title;
-  }
-
-  if (!partial || payload.media_type !== undefined) {
-    const mediaType = String(payload.media_type || "");
-    if (!isAllowedMediaType(mediaType)) {
-      return { ok: false, message: "Invalid media type" };
-    }
-    normalized.media_type = mediaType;
-  }
-
-  if (!partial || payload.status !== undefined) {
-    const status = String(payload.status || "");
-    if (!isAllowedMediaStatus(status)) {
-      return { ok: false, message: "Invalid status" };
-    }
-    normalized.status = status;
-  }
-
-  if (payload.progress_current !== undefined) {
-    const current = Number(payload.progress_current);
-    if (!Number.isFinite(current) || current < 0) {
-      return { ok: false, message: "progress_current must be >= 0" };
-    }
-    normalized.progress_current = Math.floor(current);
-  }
-
-  if (payload.progress_total !== undefined) {
-    const total = Number(payload.progress_total);
-    if (!Number.isFinite(total) || total < 0) {
-      return { ok: false, message: "progress_total must be >= 0" };
-    }
-    normalized.progress_total = Math.floor(total);
-  }
-
-  const currentForCheck =
-    normalized.progress_current ?? payload.progress_current ?? 0;
-  const totalForCheck =
-    normalized.progress_total ?? payload.progress_total ?? 0;
-  if (
-    Number(totalForCheck) > 0 &&
-    Number(currentForCheck) > Number(totalForCheck)
-  ) {
-    return {
-      ok: false,
-      message: "progress_current cannot exceed progress_total",
-    };
-  }
-
-  if (payload.rating !== undefined && payload.rating !== null) {
-    const rating = Number(payload.rating);
-    if (!Number.isFinite(rating) || rating < 0 || rating > 10) {
-      return { ok: false, message: "rating must be between 0 and 10" };
-    }
-    normalized.rating = rating;
-  }
-
-  if (payload.notes !== undefined) {
-    const notes = String(payload.notes || "").trim();
-    if (notes.length > MAX_NOTES_LENGTH) {
-      return {
-        ok: false,
-        message: `Notes must be at most ${MAX_NOTES_LENGTH} characters`,
-      };
-    }
-    normalized.notes = notes;
-  }
-
-  if (payload.drop_reason !== undefined) {
-    normalized.drop_reason = payload.drop_reason ? String(payload.drop_reason).trim().substring(0, 500) : null;
-  }
-  if (payload.retry_flag !== undefined) {
-    normalized.retry_flag = Boolean(payload.retry_flag);
-  }
-
-  if (payload.external_status !== undefined) {
-    if (
-      payload.external_status !== null &&
-      !allowedExternalStatuses.has(payload.external_status)
-    ) {
-      return { ok: false, message: "Invalid external_status" };
-    }
-    normalized.external_status = payload.external_status ?? null;
-  }
-
-
-
-  if (payload.tracker_url !== undefined) {
-    if (payload.tracker_url === null || payload.tracker_url === "") {
-      normalized.tracker_url = null;
-    } else {
-      const url = normalizePublicHttpUrl(String(payload.tracker_url).trim());
-      if (!url) {
-        return {
-          ok: false,
-          message:
-            "tracker_url must be a valid public http/https URL under 500 characters",
-        };
-      }
-      normalized.tracker_url = url;
-    }
-  }
-
-  if (payload.mangadex_id !== undefined) {
-    if (payload.mangadex_id === null || payload.mangadex_id === "") {
-      normalized.mangadex_id = null;
-    } else {
-      const id = String(payload.mangadex_id).trim();
-      if (id.length > 100) {
-        return { ok: false, message: "mangadex_id is too long" };
-      }
-      normalized.mangadex_id = id;
-    }
-  }
-
-  if (payload.custom_cover_url !== undefined) {
-    if (payload.custom_cover_url === null || payload.custom_cover_url === "") {
-      normalized.custom_cover_url = null;
-    } else {
-      const url = normalizePublicHttpUrl(String(payload.custom_cover_url).trim());
-      if (!url) {
-        return {
-          ok: false,
-          message:
-            "custom_cover_url must be a valid public http/https URL under 500 characters",
-        };
-      }
-      normalized.custom_cover_url = url;
-    }
-  }
-
-  return { ok: true, normalized };
-}
-
-function escapeRegex(text: string) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function normalizeQueryValue(
-  value: string | string[] | null | undefined,
-  fallback = "",
-): string {
-  const raw = Array.isArray(value) ? value.join(" ") : String(value || fallback);
-  return raw.replace(/\+/g, " ").replace(/\s+/g, " ").trim();
-}
+  buildTitleKey,
+  MediaPayload,
+  validateMediaPayload,
+} from "@/lib/services/media/validation";
+import {
+  buildMediaMatch,
+  buildMediaSortStage,
+  escapeRegex,
+  parseMediaListParams,
+} from "@/lib/services/media/query";
+import {
+  isDuplicateKeyError,
+  mediaIdentityKey,
+  prepareBulkMediaDocs,
+} from "@/lib/services/media/bulkImport";
 
 function isValidObjectId(id: string): boolean {
   return mongoose.Types.ObjectId.isValid(id);
@@ -209,53 +34,9 @@ export async function GET(req: NextRequest) {
     if (!userId && errorResponse) return errorResponse;
 
     const userObjectId = new mongoose.Types.ObjectId(userId!);
-    const searchParams = req.nextUrl.searchParams;
-
-    const search = normalizeQueryValue(searchParams.get("search"));
-    const mediaType = normalizeQueryValue(searchParams.get("media_type"));
-    const status = normalizeQueryValue(searchParams.get("status"));
-    const statusNe = normalizeQueryValue(searchParams.get("status_ne"));
-    const hasTracker = normalizeQueryValue(searchParams.get("has_tracker"));
-    const sortBy = normalizeQueryValue(searchParams.get("sort_by"), "last_updated");
-    const page = Math.max(
-      1,
-      parseInt(String(searchParams.get("page") || "1"), 10) || 1,
-    );
-    const limit = Math.min(
-      100,
-      Math.max(1, parseInt(String(searchParams.get("limit") || "24"), 10) || 24),
-    );
-    const skip = (page - 1) * limit;
-
-    const match: Record<string, unknown> = { user_id: userObjectId };
-    if (search) match.title = { $regex: escapeRegex(search), $options: "i" };
-    if (mediaType && isAllowedMediaType(mediaType)) match.media_type = mediaType;
-    if (status && isAllowedMediaStatus(status)) {
-      if (status === "Active") {
-        match.status = { $in: ["Active", "Watching/Reading"] };
-      } else {
-        match.status = status;
-      }
-    }
-    if (statusNe && isAllowedMediaStatus(statusNe)) {
-      if (statusNe === "Active") {
-        match.status = { $nin: ["Active", "Watching/Reading"] };
-      } else {
-        match.status = { $ne: statusNe };
-      }
-    }
-    if (hasTracker === "1" || hasTracker === "true") {
-      match.tracker_url = { $ne: null, $exists: true, $regex: /.+/ };
-    }
-
-    const sortStage: Record<string, 1 | -1> =
-      sortBy === "title"
-        ? { title: 1 }
-        : sortBy === "rating"
-          ? { rating: -1, last_updated: -1 }
-          : sortBy === "progress"
-            ? { progress_pct: -1, last_updated: -1 }
-            : { last_updated: -1 };
+    const params = parseMediaListParams(req.nextUrl.searchParams);
+    const match = buildMediaMatch(params, userObjectId);
+    const sortStage = buildMediaSortStage(params.sortBy);
 
     const pipeline: mongoose.PipelineStage[] = [
       { $match: match },
@@ -271,8 +52,8 @@ export async function GET(req: NextRequest) {
         },
       },
       { $sort: sortStage },
-      { $skip: skip },
-      { $limit: limit },
+      { $skip: params.skip },
+      { $limit: params.limit },
       {
         $lookup: {
           from: "mediaitems",
@@ -292,9 +73,9 @@ export async function GET(req: NextRequest) {
     return jsonOk({
       items,
       total,
-      page,
-      limit,
-      has_more: skip + items.length < total,
+      page: params.page,
+      limit: params.limit,
+      has_more: params.skip + items.length < total,
     });
   } catch (err) {
     logInternalError("media_handler_error", err, { route: "media", method: "GET" });
@@ -398,33 +179,67 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const docs: Record<string, unknown>[] = [];
-      let skipped = 0;
-      for (const entry of parsed as MediaPayload[]) {
-        const validated = validatePayload(entry, false);
-        if (!validated.ok) {
-          skipped += 1;
-          continue;
-        }
-        docs.push({
-          ...validated.normalized,
-          user_id: userObjectId,
-          last_updated: new Date(),
-        });
-      }
+      const firstPass = prepareBulkMediaDocs(
+        parsed as MediaPayload[],
+        userObjectId,
+      );
+      const candidateTypes = Array.from(
+        new Set(
+          firstPass.docs
+            .map((doc) => String(doc.media_type || ""))
+            .filter(Boolean),
+        ),
+      );
+
+      const existing =
+        candidateTypes.length > 0
+          ? await MediaItem.find({
+              user_id: userObjectId,
+              media_type: { $in: candidateTypes },
+            })
+              .select("title media_type dedupe_key")
+              .lean()
+          : [];
+
+      const existingKeys = new Set(
+        existing
+          .map((item) => {
+            const titleKey = String(item.dedupe_key || item.title || "");
+            return titleKey
+              ? mediaIdentityKey(String(item.media_type || ""), titleKey)
+              : null;
+          })
+          .filter((key): key is string => Boolean(key)),
+      );
+      const { docs, skipped } = prepareBulkMediaDocs(
+        parsed as MediaPayload[],
+        userObjectId,
+        existingKeys,
+      );
 
       if (docs.length === 0) {
         return jsonOk({ inserted: 0, skipped });
       }
 
-      const insertedDocs = await MediaItem.insertMany(docs, {
-        ordered: false,
-      });
-      return jsonOk({ inserted: insertedDocs.length, skipped }, 201);
+      try {
+        const insertedDocs = await MediaItem.insertMany(docs, {
+          ordered: false,
+        });
+        return jsonOk({ inserted: insertedDocs.length, skipped }, 201);
+      } catch (err) {
+        if (isDuplicateKeyError(err)) {
+          return jsonError(
+            "DUPLICATE_TITLE",
+            "One or more imported titles already exist for this type.",
+            409,
+          );
+        }
+        throw err;
+      }
     }
 
     const raw = parsed as MediaPayload;
-    const validated = validatePayload(raw, false);
+    const validated = validateMediaPayload(raw, false);
     if (!validated.ok) {
       return jsonError("INVALID_MEDIA_PAYLOAD", validated.message, 400);
     }
@@ -434,20 +249,30 @@ export async function POST(req: NextRequest) {
       .trim()
       .replace(/\s+/g, " ");
     const normalizedType = String(validated.normalized.media_type || "");
+    const dedupeKey = buildTitleKey(normalizedTitle);
     const duplicate = await MediaItem.findOne({
       user_id: userObjectId,
       media_type: normalizedType,
-      title: {
-        $regex: `^${escapeRegex(normalizedTitle)}$`,
-        $options: "i",
-      },
+      $or: [
+        { dedupe_key: dedupeKey },
+        {
+          title: {
+            $regex: `^${escapeRegex(normalizedTitle)}$`,
+            $options: "i",
+          },
+        },
+      ],
     });
 
     if (duplicate && duplicateMode !== "keep_both") {
       if (duplicateMode === "merge") {
         const merged = await MediaItem.findOneAndUpdate(
           { _id: duplicate._id, user_id: userObjectId },
-          { ...validated.normalized, last_updated: new Date() },
+          {
+            ...validated.normalized,
+            dedupe_key: dedupeKey,
+            last_updated: new Date(),
+          },
           { new: true },
         );
         if (!merged) {
@@ -462,12 +287,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const newItem = await MediaItem.create({
-      ...validated.normalized,
-      user_id: userObjectId,
-      last_updated: new Date(),
-    });
-    return jsonOk(newItem, 201);
+    try {
+      const newItem = await MediaItem.create({
+        ...validated.normalized,
+        dedupe_key: duplicateMode === "keep_both" ? null : dedupeKey,
+        user_id: userObjectId,
+        last_updated: new Date(),
+      });
+      return jsonOk(newItem, 201);
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        return jsonError(
+          "DUPLICATE_TITLE",
+          "A similar title already exists for this type. Merge or keep both?",
+          409,
+        );
+      }
+      throw err;
+    }
   } catch (err) {
     logInternalError("media_handler_error", err, { route: "media", method: "POST" });
     return jsonError("MEDIA_INTERNAL_ERROR", "Internal Server Error", 500);
@@ -500,16 +337,81 @@ export async function PUT(req: NextRequest) {
     }
 
     const raw = (await req.json().catch(() => ({}))) as MediaPayload;
-    const validated = validatePayload(raw, true);
+    const validated = validateMediaPayload(raw, true);
     if (!validated.ok) {
       return jsonError("INVALID_MEDIA_PAYLOAD", validated.message, 400);
     }
 
-    const updated = await MediaItem.findOneAndUpdate(
-      { _id: id, user_id: userObjectId },
-      validated.normalized,
-      { new: true },
-    );
+    const updateDoc: Record<string, unknown> = { ...validated.normalized };
+    if (
+      validated.normalized.title !== undefined ||
+      validated.normalized.media_type !== undefined
+    ) {
+      const existing = (await MediaItem.findOne({
+        _id: id,
+        user_id: userObjectId,
+      })
+        .select("title media_type dedupe_key")
+        .lean()) as {
+        title: string;
+        media_type: string;
+        dedupe_key?: string | null;
+      } | null;
+      if (!existing) {
+        return jsonError("NOT_FOUND", "Not found", 404);
+      }
+
+      const nextTitle = String(validated.normalized.title || existing.title);
+      const nextType = String(
+        validated.normalized.media_type || existing.media_type,
+      );
+      const nextDedupeKey =
+        existing.dedupe_key === null ? null : buildTitleKey(nextTitle);
+
+      if (nextDedupeKey) {
+        const duplicate = await MediaItem.findOne({
+          _id: { $ne: id },
+          user_id: userObjectId,
+          media_type: nextType,
+          $or: [
+            { dedupe_key: nextDedupeKey },
+            {
+              title: {
+                $regex: `^${escapeRegex(nextTitle)}$`,
+                $options: "i",
+              },
+            },
+          ],
+        }).select("_id");
+        if (duplicate) {
+          return jsonError(
+            "DUPLICATE_TITLE",
+            "A similar title already exists for this type.",
+            409,
+          );
+        }
+      }
+
+      updateDoc.dedupe_key = nextDedupeKey;
+    }
+
+    let updated;
+    try {
+      updated = await MediaItem.findOneAndUpdate(
+        { _id: id, user_id: userObjectId },
+        updateDoc,
+        { new: true },
+      );
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        return jsonError(
+          "DUPLICATE_TITLE",
+          "A similar title already exists for this type.",
+          409,
+        );
+      }
+      throw err;
+    }
     if (!updated) {
       return jsonError("NOT_FOUND", "Not found", 404);
     }

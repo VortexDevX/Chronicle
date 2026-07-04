@@ -8,6 +8,7 @@ const mediaSchema = new mongoose.Schema(
       required: true,
     },
     title: { type: String, required: true },
+    dedupe_key: { type: String, default: null },
     media_type: {
       type: String,
       enum: ["Anime", "Manhwa", "Donghua", "Light Novel"],
@@ -51,6 +52,13 @@ mediaSchema.index({ user_id: 1, media_type: 1 });
 mediaSchema.index({ user_id: 1, status: 1, last_updated: -1 });
 mediaSchema.index({ user_id: 1, media_type: 1, status: 1, last_updated: -1 });
 mediaSchema.index({ user_id: 1, title: 1 });
+mediaSchema.index(
+  { user_id: 1, media_type: 1, dedupe_key: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { dedupe_key: { $type: "string" } },
+  },
+);
 
 mediaSchema.pre("findOneAndUpdate", function (next) {
   this.set({ last_updated: new Date() });

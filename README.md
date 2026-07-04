@@ -16,7 +16,7 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 | **High-Quality Covers** | Cached cover pipeline with batched client fetching, proxy image caching, MangaDex/AniList/Jikan support, and custom cover URL overrides         |
 | **Tracker Scraping**    | Chapter/episode scraper for Manhwa and Donghua · Tracker URL testing · scrape status/error fields · Telegram update notifications                |
 | **Droppedyard**         | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again                         |
-| **Auth**                | JWT cookie auth · bcrypt password hashing · email recovery with Brevo reset links · session invalidation after password reset                    |
+| **Auth**                | JWT cookie auth · bcrypt password hashing · email recovery/verification with Brevo links · session invalidation after password reset             |
 | **Design System**       | Responsive, mobile-first "Soft Red" UI with sharp cards, modal scroll locking, accessible badging, skeleton cards, and animated page loaders    |
 | **CORS / Deployment**   | Comma-separated `APP_ORIGIN` support · Next.js `proxy.ts` CORS handling for API routes                                                          |
 
@@ -111,6 +111,25 @@ npm run test         # Run Vitest suite
 npm run build        # Production Next.js build
 ```
 
+CI runs these same checks on pushes to `main` and pull requests.
+
+### Production Notes
+
+- Set `CRON_SECRET` in production so `/api/cron/checkChapters` rejects unauthenticated requests.
+- Configure `APP_ORIGIN` to the exact deployed origins that may call the API.
+- Upstash Redis rate limiting is optional for local/single-instance installs, but recommended for serverless or horizontally scaled production. Without it, rate limits use process-local memory.
+- `package.json` pins `postcss` through `overrides` so transitive tooling uses the patched 8.5.x line consistently.
+
+### Maintenance
+
+After upgrading an existing database to the duplicate-protected media model, run:
+
+```bash
+npm run media:dedupe:backfill
+```
+
+The command fills normalized title keys for existing media rows where safe. Existing duplicate groups are reported and left for manual review.
+
 ## 📁 Project Structure
 
 ```txt
@@ -129,7 +148,7 @@ Chronicle/
 ├── types/                  # TypeScript interface definitions
 ├── proxy.ts                # API CORS proxy using APP_ORIGIN allowlist
 ├── public/                 # Static assets (Favicon, etc.)
-└── scripts/                # Database migration and cron check utilities
+└── scripts/                # Local operator utilities, including cron and data checks
 ```
 
 ## 📋 API Reference
@@ -140,8 +159,11 @@ Chronicle/
 | GET    | `/api/auth`                 | Yes  | Current session                                  |
 | POST   | `/api/auth/forgot-password` | No   | Send Brevo password reset email                  |
 | POST   | `/api/auth/reset-password`  | No   | Reset password with one-time token               |
+| POST   | `/api/auth/verify-email`    | Yes  | Send email verification link                     |
+| GET    | `/api/auth/verify-email`    | No   | Verify email token and redirect to login         |
 | GET    | `/api/profile`              | Yes  | Profile, recovery email, notification settings   |
 | PUT    | `/api/profile`              | Yes  | Update profile settings                          |
+| GET    | `/api/analytics`            | Yes  | Aggregated library analytics                     |
 | GET    | `/api/media`                | Yes  | List media with search/filter/sort/pagination    |
 | POST   | `/api/media`                | Yes  | Create entry (single or `?bulk=1`)               |
 | PUT    | `/api/media?id=`            | Yes  | Update entry                                     |
