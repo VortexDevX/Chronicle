@@ -8,6 +8,7 @@ import {
 } from "@/lib/notify";
 import { jsonOk, jsonError } from "@/lib/http";
 import { logInfo, logInternalError } from "@/lib/log";
+import { runBoundedQueue } from "@/lib/services/cron/boundedQueue";
 import {
   getErrorMessage,
   isTransientScrapeError,
@@ -17,6 +18,8 @@ import {
 
 const MAX_USERS = 50;
 const MAX_ENTRIES_PER_RUN = 200;
+const DEFAULT_CRON_CONCURRENCY = 4;
+const MAX_CRON_CONCURRENCY = 8;
 
 const HOST_COOLDOWN_MS = 10 * 60 * 1000;
 const hostCooldownUntil = new Map<string, number>();
@@ -37,16 +40,18 @@ function progressUnit(mediaType: MediaTypeSupported): string {
   return mediaType === "Donghua" ? "Episode" : "Chapter";
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
 function getHostFromUrl(url: string): string | null {
   try {
     return new URL(url).host.toLowerCase();
   } catch {
     return null;
   }
+}
+
+function getCronConcurrency(): number {
+  const raw = Number(process.env.CRON_CHECK_CONCURRENCY || "");
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_CRON_CONCURRENCY;
+  return Math.min(MAX_CRON_CONCURRENCY, Math.floor(raw));
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -81,7 +86,8 @@ export async function GET(req: NextRequest) {
       status: "Active",
       tracker_url: { $exists: true, $nin: [null, ""] },
     })
-      .select("title progress_current tracker_url user_id media_type")
+      .select("title progress_current tracker_url user_id media_type last_checked_at")
+      .sort({ last_checked_at: 1, _id: 1 })
       .limit(MAX_ENTRIES_PER_RUN)
       .lean();
 
@@ -116,13 +122,15 @@ export async function GET(req: NextRequest) {
       { title: string; message: string }[]
     >();
     let totalChecked = 0;
+    const selectedEntries = entries.filter((entry) =>
+      userIds.includes(String(entry.user_id)),
+    );
 
-    for (const uid of userIds) {
-      const userEntries = byUser.get(uid) || [];
-      const updates: ChapterUpdate[] = [];
-      const errors: { title: string; message: string }[] = [];
-
-      for (const entry of userEntries) {
+    await runBoundedQueue(
+      selectedEntries,
+      getCronConcurrency(),
+      async (entry) => {
+        const uid = String(entry.user_id);
         const mediaType = entry.media_type as MediaTypeSupported;
         const trackerUrl = String(entry.tracker_url || "");
         const host = getHostFromUrl(trackerUrl);
@@ -136,7 +144,7 @@ export async function GET(req: NextRequest) {
           }
 
           const latest = await scrapeTrackerUrl(trackerUrl, mediaType);
-          totalChecked++;
+          totalChecked += 1;
 
           await MediaItem.updateOne(
             { _id: entry._id },
@@ -151,6 +159,7 @@ export async function GET(req: NextRequest) {
           );
 
           if (latest !== null && latest > (entry.progress_current as number)) {
+            const updates = updatesByUser.get(uid) || [];
             updates.push({
               title: entry.title as string,
               latest,
@@ -158,6 +167,7 @@ export async function GET(req: NextRequest) {
               tracker_url: trackerUrl,
               media_type: mediaType,
             });
+            updatesByUser.set(uid, updates);
           }
         } catch (err) {
           const message = getErrorMessage(err);
@@ -176,19 +186,16 @@ export async function GET(req: NextRequest) {
             },
           );
           if (!transient) {
+            const errors = errorsByUser.get(uid) || [];
             errors.push({
               title: entry.title as string,
               message,
             });
+            errorsByUser.set(uid, errors);
           }
         }
-
-        await sleep(mediaType === "Donghua" ? 500 : 300);
-      }
-
-      if (updates.length > 0) updatesByUser.set(uid, updates);
-      if (errors.length > 0) errorsByUser.set(uid, errors);
-    }
+      },
+    );
 
     let usersNotified = 0;
     let failures = 0;
@@ -262,6 +269,7 @@ export async function GET(req: NextRequest) {
 
     const payload = {
       checked: totalChecked,
+      scanned: selectedEntries.length,
       users_scanned: userIds.length,
       users_notified: usersNotified,
       failures,
@@ -276,6 +284,7 @@ export async function GET(req: NextRequest) {
     logInfo("cron_check_chapters_complete", {
       at: new Date().toISOString(),
       checked: payload.checked,
+      scanned: payload.scanned,
       users_scanned: payload.users_scanned,
       users_notified: payload.users_notified,
       failures: payload.failures,

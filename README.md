@@ -78,6 +78,9 @@ BREVO_FROM_NAME=Chronicle
 # Cron protection (required in production)
 CRON_SECRET=your-cron-secret
 
+# Optional cron tuning (default 4, max 8)
+CRON_CHECK_CONCURRENCY=4
+
 # Telegram notifications
 TELEGRAM_BOT_TOKEN=your-telegram-bot-token
 TELEGRAM_CHAT_ID=your-telegram-chat-id
@@ -116,6 +119,7 @@ CI runs these same checks on pushes to `main` and pull requests.
 ### Production Notes
 
 - Set `CRON_SECRET` in production so `/api/cron/checkChapters` rejects unauthenticated requests.
+- Tune `CRON_CHECK_CONCURRENCY` if tracker notifications arrive late. Default is `4`; values above `8` are capped to avoid hammering tracker sites.
 - Configure `APP_ORIGIN` to the exact deployed origins that may call the API.
 - Upstash Redis rate limiting is optional for local/single-instance installs, but recommended for serverless or horizontally scaled production. Without it, rate limits use process-local memory.
 - `package.json` pins `postcss` through `overrides` so transitive tooling uses the patched 8.5.x line consistently.
