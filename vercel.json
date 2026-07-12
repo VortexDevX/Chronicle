@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/checkChapters",
-      "schedule": "30 2 * * *"
+      "schedule": "30 1 * * *"
     }
   ]
 }
