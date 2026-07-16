@@ -168,6 +168,12 @@ describe("cron chapter notification state", () => {
     expect(res.status).toBe(200);
     expect(mocks.sendTelegramToChat).toHaveBeenCalledOnce();
     expect(mocks.sendTelegramToChat.mock.calls[0][1]).toContain(
+      "Chronicle Update",
+    );
+    expect(mocks.sendTelegramToChat.mock.calls[0][1]).not.toContain(
+      "Reader Updates",
+    );
+    expect(mocks.sendTelegramToChat.mock.calls[0][1]).toContain(
       "Chapter 111 (+2)",
     );
     expect(mocks.mediaBulkWrite).toHaveBeenCalledWith([
@@ -178,6 +184,37 @@ describe("cron chapter notification state", () => {
         },
       },
     ]);
+  });
+
+  it("includes previously announced items that remain unread", async () => {
+    mockFindResults(
+      [
+        makeEntry({
+          _id: "media-old",
+          title: "Already Announced",
+          latest_remote_progress: 112,
+          last_notified_progress: 112,
+        }),
+        makeEntry({
+          _id: "media-new",
+          title: "New Release",
+          latest_remote_progress: 112,
+          last_notified_progress: 112,
+        }),
+      ],
+      [makeUser()],
+    );
+    mocks.scrapeTrackerUrl
+      .mockResolvedValueOnce(112)
+      .mockResolvedValueOnce(113);
+
+    await GET(authorizedRequest());
+
+    const message = mocks.sendTelegramToChat.mock.calls[0][1];
+    expect(message).toContain("Already Announced");
+    expect(message).toContain("Chapter 111 (+1)");
+    expect(message).toContain("New Release");
+    expect(message).toContain("Chapter 111 (+2)");
   });
 
   it("does not announce same release on next run", async () => {

@@ -1,11 +1,7 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import { MediaItem, User } from "@/lib/models";
-import {
-  sendTelegram,
-  sendTelegramToChat,
-  escapeHtml,
-} from "@/lib/notify";
+import { sendTelegram, sendTelegramToChat, escapeHtml } from "@/lib/notify";
 import { jsonOk, jsonError } from "@/lib/http";
 import { logInfo, logInternalError } from "@/lib/log";
 import { runBoundedQueue } from "@/lib/services/cron/boundedQueue";
@@ -125,6 +121,7 @@ export async function GET(req: NextRequest) {
     const userMap = new Map(users.map((u) => [String(u._id), u]));
 
     const updatesByUser = new Map<string, ChapterUpdate[]>();
+    const unreadByUser = new Map<string, ChapterUpdate[]>();
     const errorsByUser = new Map<
       string,
       { title: string; message: string }[]
@@ -147,6 +144,17 @@ export async function GET(req: NextRequest) {
           latestRemoteProgress: entry.latest_remote_progress as number | null,
           lastNotifiedProgress: entry.last_notified_progress as number | null,
         });
+        const storedLatest = Number(entry.latest_remote_progress);
+        if (Number.isFinite(storedLatest) && storedLatest > current) {
+          setUnreadUpdate(unreadByUser, uid, {
+            media_id: String(entry._id),
+            title: entry.title as string,
+            latest: storedLatest,
+            current,
+            tracker_url: trackerUrl,
+            media_type: mediaType,
+          });
+        }
         const host = getHostFromUrl(trackerUrl);
         const cooldownUntil = host ? hostCooldownUntil.get(host) || 0 : 0;
 
@@ -175,17 +183,22 @@ export async function GET(req: NextRequest) {
             },
           );
 
-          if (shouldNotifyProgress(latest, notificationBaseline)) {
-            const updates = updatesByUser.get(uid) || [];
-            updates.push({
+          if (latest !== null && latest > current) {
+            const update: ChapterUpdate = {
               media_id: String(entry._id),
               title: entry.title as string,
               latest,
               current,
               tracker_url: trackerUrl,
               media_type: mediaType,
-            });
-            updatesByUser.set(uid, updates);
+            };
+            setUnreadUpdate(unreadByUser, uid, update);
+
+            if (shouldNotifyProgress(latest, notificationBaseline)) {
+              const updates = updatesByUser.get(uid) || [];
+              updates.push(update);
+              updatesByUser.set(uid, updates);
+            }
           }
         } catch (err) {
           const message = getErrorMessage(err);
@@ -224,7 +237,7 @@ export async function GET(req: NextRequest) {
     }[] = [];
 
     for (const uid of updatesByUser.keys()) {
-      const updates = updatesByUser.get(uid) || [];
+      const unreadUpdates = unreadByUser.get(uid) || [];
       const errors = errorsByUser.get(uid) || [];
       const user = userMap.get(uid);
       const username = user?.username || "Unknown";
@@ -236,16 +249,12 @@ export async function GET(req: NextRequest) {
       }
 
       if (hasPersonalChat) {
-        const sentUpdates = takeUserUpdatesThatFit(username, updates);
-        const messageWithErrors = buildNotificationMessage(
-          username,
-          sentUpdates,
-          errors,
-        );
+        const sentUpdates = takeUserUpdatesThatFit(unreadUpdates);
+        const messageWithErrors = buildNotificationMessage(sentUpdates, errors);
         const sentMessage =
           messageWithErrors.length <= TELEGRAM_MESSAGE_LIMIT
             ? messageWithErrors
-            : buildNotificationMessage(username, sentUpdates, []);
+            : buildNotificationMessage(sentUpdates, []);
         const ok = await sendTelegramToChat(
           user.telegram_chat_id as string,
           sentMessage,
@@ -257,7 +266,11 @@ export async function GET(req: NextRequest) {
           failures++;
         }
       } else {
-        globalFallbackUpdates.push({ username, updates, errors });
+        globalFallbackUpdates.push({
+          username,
+          updates: unreadUpdates,
+          errors,
+        });
       }
     }
 
@@ -273,9 +286,7 @@ export async function GET(req: NextRequest) {
 
       const ok = await sendTelegram(globalMessage);
       if (ok) {
-        await markUpdatesNotified(
-          sentGroups.flatMap(({ updates }) => updates),
-        );
+        await markUpdatesNotified(sentGroups.flatMap(({ updates }) => updates));
         usersNotified += sentGroups.length;
       } else {
         failures += sentGroups.length;
@@ -327,6 +338,22 @@ async function markUpdatesNotified(updates: ChapterUpdate[]): Promise<void> {
   );
 }
 
+function setUnreadUpdate(
+  unreadByUser: Map<string, ChapterUpdate[]>,
+  uid: string,
+  update: ChapterUpdate,
+): void {
+  const unread = unreadByUser.get(uid) || [];
+  const existingIndex = unread.findIndex(
+    (candidate) => candidate.media_id === update.media_id,
+  );
+
+  if (existingIndex === -1) unread.push(update);
+  else unread[existingIndex] = update;
+
+  unreadByUser.set(uid, unread);
+}
+
 // ══════════════════════════════════════════════════════════════════
 //  NOTIFICATION HELPERS
 // ══════════════════════════════════════════════════════════════════
@@ -366,7 +393,6 @@ function formatErrorSection(
 }
 
 function buildNotificationMessage(
-  username: string,
   updates: ChapterUpdate[],
   errors: { title: string; message: string }[],
 ): string {
@@ -374,7 +400,7 @@ function buildNotificationMessage(
   const donghua = updates.filter((u) => u.media_type === "Donghua");
 
   const parts = [
-    `━━━━ 🔔 <b>${escapeHtml(username)} Updates</b> ━━━━`,
+    `━━━━ 🔔 <b>Chronicle Update</b> ━━━━`,
     formatMediaSection("Manhwa", "📖", manhwa),
     formatMediaSection("Donghua", "🎬", donghua),
     formatErrorSection(errors),
@@ -384,16 +410,13 @@ function buildNotificationMessage(
   return parts.join("\n\n");
 }
 
-function takeUserUpdatesThatFit(
-  username: string,
-  updates: ChapterUpdate[],
-): ChapterUpdate[] {
+function takeUserUpdatesThatFit(updates: ChapterUpdate[]): ChapterUpdate[] {
   const included: ChapterUpdate[] = [];
 
   for (const update of updates) {
     const candidate = [...included, update];
     if (
-      buildNotificationMessage(username, candidate, []).length >
+      buildNotificationMessage(candidate, []).length >
       TELEGRAM_MESSAGE_LIMIT
     ) {
       break;
@@ -431,7 +454,7 @@ function buildGlobalNotificationMessage(
   }
 
   return [
-    `━━━━ 🔔 <b>Chronicle Global Updates</b> ━━━━`,
+    `━━━━ 🔔 <b>Chronicle Update</b> ━━━━`,
     ``,
     ...allLines,
     `━━ <i>✨ Total: ${totalUpdates} update${totalUpdates !== 1 ? "s" : ""}</i> ━━`,
