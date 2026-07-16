@@ -20,6 +20,7 @@ function stripImportMetadata(item: Record<string, unknown>) {
   delete rest.last_scrape_status;
   delete rest.last_scrape_error;
   delete rest.latest_remote_progress;
+  delete rest.last_notified_progress;
   return rest;
 }
 

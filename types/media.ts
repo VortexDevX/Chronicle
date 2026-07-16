@@ -16,6 +16,7 @@ export interface MediaItem {
   last_scrape_status?: "ok" | "error" | null;
   last_scrape_error?: string | null;
   latest_remote_progress?: number | null;
+  last_notified_progress?: number | null;
   mangadex_id?: string | null;
   custom_cover_url?: string | null;
   drop_reason?: string | null;

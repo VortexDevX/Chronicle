@@ -40,6 +40,7 @@ const mediaSchema = new mongoose.Schema(
     },
     last_scrape_error: { type: String, default: null },
     latest_remote_progress: { type: Number, default: null },
+    last_notified_progress: { type: Number, default: null },
     mangadex_id: { type: String, default: null },
     custom_cover_url: { type: String, default: null },
     linked_entries: [{ type: mongoose.Schema.Types.ObjectId, ref: "MediaItem" }],

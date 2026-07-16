@@ -6,32 +6,32 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 
 ## ✨ Features
 
-| Category                | Highlights                                                                                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Media Tracking**      | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes                                    |
-| **Smart Organization**  | Search/filter/sort with visible loading states · Pagination (`Load more`) · Custom shelves · Linked entries                                     |
-| **Statistics**          | Analytics dashboard with type/status breakdowns, ratings, progress totals, and recent activity                                                  |
-| **Import / Export**     | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                                      |
-| **Metadata Lookup**     | AniList primary + Jikan fallback lookup for Anime/Donghua · MangaDex integration for Manhwa covers                                              |
-| **High-Quality Covers** | Cached cover pipeline with batched client fetching, proxy image caching, MangaDex/AniList/Jikan support, and custom cover URL overrides         |
-| **Tracker Scraping**    | Chapter/episode scraper for Manhwa and Donghua · Tracker URL testing · scrape status/error fields · Telegram update notifications                |
-| **Droppedyard**         | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again                         |
-| **Auth**                | JWT cookie auth · bcrypt password hashing · email recovery/verification with Brevo links · session invalidation after password reset             |
-| **Design System**       | Responsive, mobile-first "Soft Red" UI with sharp cards, modal scroll locking, accessible badging, skeleton cards, and animated page loaders    |
-| **CORS / Deployment**   | Comma-separated `APP_ORIGIN` support · Next.js `proxy.ts` CORS handling for API routes                                                          |
+| Category                | Highlights                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Media Tracking**      | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes                                 |
+| **Smart Organization**  | Search/filter/sort with visible loading states · Pagination (`Load more`) · Custom shelves · Linked entries                                  |
+| **Statistics**          | Analytics dashboard with type/status breakdowns, ratings, progress totals, and recent activity                                               |
+| **Import / Export**     | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                                   |
+| **Metadata Lookup**     | AniList primary + Jikan fallback lookup for Anime/Donghua · MangaDex integration for Manhwa covers                                           |
+| **High-Quality Covers** | Cached cover pipeline with batched client fetching, proxy image caching, MangaDex/AniList/Jikan support, and custom cover URL overrides      |
+| **Tracker Scraping**    | Chapter/episode scraper for Manhwa and Donghua · Tracker URL testing · scrape status/error fields · Telegram update notifications            |
+| **Droppedyard**         | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again                      |
+| **Auth**                | JWT cookie auth · bcrypt password hashing · email recovery/verification with Brevo links · session invalidation after password reset         |
+| **Design System**       | Responsive, mobile-first "Soft Red" UI with sharp cards, modal scroll locking, accessible badging, skeleton cards, and animated page loaders |
+| **CORS / Deployment**   | Comma-separated `APP_ORIGIN` support · Next.js `proxy.ts` CORS handling for API routes                                                       |
 
 ## 🛠️ Tech Stack
 
-| Layer         | Technology                                                                 |
-| ------------- | -------------------------------------------------------------------------- |
-| Frontend      | Next.js App Router · React · Zustand · CSS                                  |
-| Backend       | Next.js API Routes · Next.js Proxy middleware                               |
-| Database      | MongoDB (Atlas or local) via Mongoose                                       |
-| Auth          | JWT httpOnly cookies · bcryptjs · hashed one-time reset tokens              |
-| Email         | Brevo Transactional API                                                     |
-| Scraping      | Cheerio · fetch retry/timeout helpers · host-specific scraper rules         |
-| APIs          | AniList GraphQL · Jikan v4 · MangaDex · Telegram Bot API                    |
-| Testing       | Vitest · TypeScript · ESLint                                                |
+| Layer    | Technology                                                          |
+| -------- | ------------------------------------------------------------------- |
+| Frontend | Next.js App Router · React · Zustand · CSS                          |
+| Backend  | Next.js API Routes · Next.js Proxy middleware                       |
+| Database | MongoDB (Atlas or local) via Mongoose                               |
+| Auth     | JWT httpOnly cookies · bcryptjs · hashed one-time reset tokens      |
+| Email    | Brevo Transactional API                                             |
+| Scraping | Cheerio · fetch retry/timeout helpers · host-specific scraper rules |
+| APIs     | AniList GraphQL · Jikan v4 · MangaDex · Telegram Bot API            |
+| Testing  | Vitest · TypeScript · ESLint                                        |
 
 ## 🚀 Getting Started
 
@@ -65,7 +65,7 @@ MONGODB_URI=mongodb://localhost:27017/chronicle
 JWT_SECRET=your-32-char-secret-here
 
 # App origins (comma-separated). First origin is used in password reset emails.
-APP_ORIGIN=http://localhost:3000,https://chroniclex.vercel.app,https://chronicle.mvlab.cloud
+APP_ORIGIN=http://localhost:3000,https://chroniclex.vercel.app,https://chroniclex.vercel.app
 
 # Optional public URL fallback for metadata when no request host is available.
 NEXT_PUBLIC_APP_URL=https://chroniclex.vercel.app
@@ -124,6 +124,34 @@ CI runs these same checks on pushes to `main` and pull requests.
 - Upstash Redis rate limiting is optional for local/single-instance installs, but recommended for serverless or horizontally scaled production. Without it, rate limits use process-local memory.
 - `package.json` pins `postcss` through `overrides` so transitive tooling uses the patched 8.5.x line consistently.
 
+### cron-job.org Chapter Check
+
+Vercel Cron is not configured for this project. Create one job in the
+[cron-job.org console](https://console.cron-job.org/) with these settings:
+
+| Setting              | Value                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| Title                | `Chronicle 4-hour chapter check`                                                    |
+| URL                  | `https://chroniclex.vercel.app/api/cron/checkChapters`                              |
+| Enabled              | Yes                                                                                 |
+| Schedule             | Every 4 hours, at minute `0` (`00:00`, `04:00`, `08:00`, `12:00`, `16:00`, `20:00`) |
+| Time zone            | `Asia/Kolkata`                                                                      |
+| Request method       | `GET`                                                                               |
+| Request body         | Empty                                                                               |
+| HTTP authentication  | Disabled                                                                            |
+| Custom header name   | `Authorization`                                                                     |
+| Custom header value  | `Bearer <CRON_SECRET>`                                                              |
+| Save response        | Disabled after setup                                                                |
+| Failure notification | Enabled                                                                             |
+
+If `https://chroniclex.vercel.app` is the active deployment, use
+`https://chroniclex.vercel.app/api/cron/checkChapters` instead. Replace
+`<CRON_SECRET>` with the same production secret configured in the deployment;
+never commit the real value. Run one manual test from the cron-job.org dashboard
+and confirm an HTTP `200` JSON response before enabling the four-hour schedule.
+cron-job.org supports custom request headers and stops requests after 30 seconds,
+so keep `CRON_CHECK_CONCURRENCY` tuned for the tracker count and response times.
+
 ### Maintenance
 
 After upgrading an existing database to the duplicate-protected media model, run:
@@ -157,28 +185,28 @@ Chronicle/
 
 ## 📋 API Reference
 
-| Method | Endpoint                    | Auth | Description                                      |
-| ------ | --------------------------- | ---- | ------------------------------------------------ |
-| POST   | `/api/auth`                 | No   | Login, register, or logout                       |
-| GET    | `/api/auth`                 | Yes  | Current session                                  |
-| POST   | `/api/auth/forgot-password` | No   | Send Brevo password reset email                  |
-| POST   | `/api/auth/reset-password`  | No   | Reset password with one-time token               |
-| POST   | `/api/auth/verify-email`    | Yes  | Send email verification link                     |
-| GET    | `/api/auth/verify-email`    | No   | Verify email token and redirect to login         |
-| GET    | `/api/profile`              | Yes  | Profile, recovery email, notification settings   |
-| PUT    | `/api/profile`              | Yes  | Update profile settings                          |
-| GET    | `/api/analytics`            | Yes  | Aggregated library analytics                     |
-| GET    | `/api/media`                | Yes  | List media with search/filter/sort/pagination    |
-| POST   | `/api/media`                | Yes  | Create entry (single or `?bulk=1`)               |
-| PUT    | `/api/media?id=`            | Yes  | Update entry                                     |
-| DELETE | `/api/media?id=`            | Yes  | Delete entry                                     |
-| POST   | `/api/media?bulk_delete=1`  | Yes  | Bulk delete                                      |
-| POST   | `/api/media/link`           | Yes  | Link or unlink related entries                   |
-| POST   | `/api/media/test-tracker`   | Yes  | Test a Manhwa/Donghua tracker URL                |
-| GET    | `/api/cron/checkChapters`   | Bearer `CRON_SECRET` | Check tracker URLs and send Telegram updates |
-| GET    | `/api/manga-cover`          | No   | Fetch MangaDex cover URL                         |
-| GET    | `/api/anime-cover`          | No   | Fetch AniList/Jikan cover URL                    |
-| GET    | `/api/image-proxy`          | No   | Cache/proxy external cover images                |
+| Method | Endpoint                    | Auth                 | Description                                    |
+| ------ | --------------------------- | -------------------- | ---------------------------------------------- |
+| POST   | `/api/auth`                 | No                   | Login, register, or logout                     |
+| GET    | `/api/auth`                 | Yes                  | Current session                                |
+| POST   | `/api/auth/forgot-password` | No                   | Send Brevo password reset email                |
+| POST   | `/api/auth/reset-password`  | No                   | Reset password with one-time token             |
+| POST   | `/api/auth/verify-email`    | Yes                  | Send email verification link                   |
+| GET    | `/api/auth/verify-email`    | No                   | Verify email token and redirect to login       |
+| GET    | `/api/profile`              | Yes                  | Profile, recovery email, notification settings |
+| PUT    | `/api/profile`              | Yes                  | Update profile settings                        |
+| GET    | `/api/analytics`            | Yes                  | Aggregated library analytics                   |
+| GET    | `/api/media`                | Yes                  | List media with search/filter/sort/pagination  |
+| POST   | `/api/media`                | Yes                  | Create entry (single or `?bulk=1`)             |
+| PUT    | `/api/media?id=`            | Yes                  | Update entry                                   |
+| DELETE | `/api/media?id=`            | Yes                  | Delete entry                                   |
+| POST   | `/api/media?bulk_delete=1`  | Yes                  | Bulk delete                                    |
+| POST   | `/api/media/link`           | Yes                  | Link or unlink related entries                 |
+| POST   | `/api/media/test-tracker`   | Yes                  | Test a Manhwa/Donghua tracker URL              |
+| GET    | `/api/cron/checkChapters`   | Bearer `CRON_SECRET` | Check tracker URLs and send Telegram updates   |
+| GET    | `/api/manga-cover`          | No                   | Fetch MangaDex cover URL                       |
+| GET    | `/api/anime-cover`          | No                   | Fetch AniList/Jikan cover URL                  |
+| GET    | `/api/image-proxy`          | No                   | Cache/proxy external cover images              |
 
 ## 📄 License
 
