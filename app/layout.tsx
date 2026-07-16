@@ -21,7 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 const supportedOrigins = [
   "https://chroniclex.vercel.app",
-  "https://chronicle.mvlab.cloud",
+  "https://chroniclex.vercel.app",
 ] as const;
 const defaultOrigin = supportedOrigins[0];
 const siteName = "Chronicle X";
@@ -53,7 +53,9 @@ async function getMetadataOrigin() {
 
   if (
     requestOrigin &&
-    supportedOrigins.includes(requestOrigin as (typeof supportedOrigins)[number])
+    supportedOrigins.includes(
+      requestOrigin as (typeof supportedOrigins)[number],
+    )
   ) {
     return requestOrigin;
   }

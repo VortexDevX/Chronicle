@@ -39,6 +39,7 @@ export function prepareBulkMediaDocs(
     seenKeys.add(identityKey);
     docs.push({
       ...validated.normalized,
+      last_notified_progress: validated.normalized.progress_current ?? 0,
       dedupe_key: titleKey,
       user_id: userObjectId,
       last_updated: new Date(),

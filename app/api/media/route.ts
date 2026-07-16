@@ -27,6 +27,18 @@ function isValidObjectId(id: string): boolean {
   return mongoose.Types.ObjectId.isValid(id);
 }
 
+function buildMediaUpdate(updateDoc: Record<string, unknown>) {
+  const progressCurrent = updateDoc.progress_current;
+  if (typeof progressCurrent !== "number") {
+    return { $set: updateDoc };
+  }
+
+  return {
+    $set: updateDoc,
+    $max: { last_notified_progress: progressCurrent },
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -268,11 +280,11 @@ export async function POST(req: NextRequest) {
       if (duplicateMode === "merge") {
         const merged = await MediaItem.findOneAndUpdate(
           { _id: duplicate._id, user_id: userObjectId },
-          {
+          buildMediaUpdate({
             ...validated.normalized,
             dedupe_key: dedupeKey,
             last_updated: new Date(),
-          },
+          }),
           { new: true },
         );
         if (!merged) {
@@ -290,6 +302,7 @@ export async function POST(req: NextRequest) {
     try {
       const newItem = await MediaItem.create({
         ...validated.normalized,
+        last_notified_progress: validated.normalized.progress_current ?? 0,
         dedupe_key: duplicateMode === "keep_both" ? null : dedupeKey,
         user_id: userObjectId,
         last_updated: new Date(),
@@ -399,7 +412,7 @@ export async function PUT(req: NextRequest) {
     try {
       updated = await MediaItem.findOneAndUpdate(
         { _id: id, user_id: userObjectId },
-        updateDoc,
+        buildMediaUpdate(updateDoc),
         { new: true },
       );
     } catch (err) {
