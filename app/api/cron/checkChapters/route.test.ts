@@ -186,6 +186,33 @@ describe("cron chapter notification state", () => {
     ]);
   });
 
+  it("shows fractional unread chapter progress", async () => {
+    mockFindResults(
+      [
+        makeEntry({
+          progress_current: 112,
+          latest_remote_progress: 112,
+          last_notified_progress: 112,
+        }),
+      ],
+      [makeUser()],
+    );
+    mocks.scrapeTrackerUrl.mockResolvedValue(112.6);
+
+    await GET(authorizedRequest());
+
+    const message = mocks.sendTelegramToChat.mock.calls[0][1];
+    expect(message).toContain("Chapter 112 (+0.6)");
+    expect(mocks.mediaBulkWrite).toHaveBeenCalledWith([
+      {
+        updateOne: {
+          filter: { _id: "media-1" },
+          update: { $max: { last_notified_progress: 112.6 } },
+        },
+      },
+    ]);
+  });
+
   it("includes previously announced items that remain unread", async () => {
     mockFindResults(
       [

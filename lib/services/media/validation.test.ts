@@ -21,7 +21,7 @@ describe("media validation", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.normalized.progress_current).toBe(10);
+      expect(result.normalized.progress_current).toBe(10.8);
     }
   });
 

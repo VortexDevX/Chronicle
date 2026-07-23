@@ -336,11 +336,11 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
               </div>
               <div className="form-group">
                 <label>Current Progress</label>
-                <input type="number" min="0" className="form-input" name="progress_current" value={numberInputValue(formData.progress_current)} onChange={handleChange} placeholder="0" />
+                <input type="number" min="0" step="any" inputMode="decimal" className="form-input" name="progress_current" value={numberInputValue(formData.progress_current)} onChange={handleChange} placeholder="0" />
               </div>
               <div className="form-group">
                 <label>Total Progress</label>
-                <input type="number" min="0" className="form-input" name="progress_total" value={numberInputValue(formData.progress_total)} onChange={handleChange} placeholder="0" />
+                <input type="number" min="0" step="any" inputMode="decimal" className="form-input" name="progress_total" value={numberInputValue(formData.progress_total)} onChange={handleChange} placeholder="0" />
               </div>
               <div className="form-group">
                 <label>Rating (0-10)</label>
