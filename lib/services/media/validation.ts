@@ -73,7 +73,7 @@ export function validateMediaPayload(
     if (!Number.isFinite(current) || current < 0) {
       return { ok: false, message: "progress_current must be >= 0" };
     }
-    normalized.progress_current = Math.floor(current);
+    normalized.progress_current = current;
   }
 
   if (payload.progress_total !== undefined) {
@@ -81,7 +81,7 @@ export function validateMediaPayload(
     if (!Number.isFinite(total) || total < 0) {
       return { ok: false, message: "progress_total must be >= 0" };
     }
-    normalized.progress_total = Math.floor(total);
+    normalized.progress_total = total;
   }
 
   const currentForCheck =

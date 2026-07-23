@@ -359,7 +359,10 @@ function setUnreadUpdate(
 // ══════════════════════════════════════════════════════════════════
 
 function formatUpdateItem(update: ChapterUpdate): string {
-  const unread = Math.max(0, Math.floor(update.latest - update.current));
+  const unread = Math.max(
+    0,
+    Math.round((update.latest - update.current) * 1000) / 1000,
+  );
   const unreadStr = unread > 0 ? ` (+${unread})` : "";
   const unit = progressUnit(update.media_type);
 
