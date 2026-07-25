@@ -3166,6 +3166,12 @@ textarea:focus-visible {
   color: var(--text-muted);
 }
 
+.view-toggle svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2.35;
+}
+
 .view-toggle button:hover {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.06);
@@ -3338,75 +3344,85 @@ textarea:focus-visible {
 
 .media-card-hover-actions {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
   z-index: 3;
   display: flex;
-  gap: 6px;
-  opacity: 1;
-  transform: none;
+  gap: 4px;
+  opacity: 0;
+  transform: translateY(-6px);
   transition:
-    opacity var(--transition-fast),
-    transform var(--transition-fast);
+    opacity 180ms ease-out,
+    transform 180ms ease-out;
+  pointer-events: none;
 }
 
 .media-card:hover .media-card-hover-actions {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
-.media-card-hover-actions button,
-.poster-play {
+.media-card-hover-actions button {
   display: flex;
-  min-height: 36px;
-  width: 38px;
-  height: 38px;
+  min-height: 0;
+  width: 30px;
+  height: 30px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   padding: 0;
-  border-radius: 10px;
-  background: rgba(31, 37, 47, 0.88);
-  color: #fff;
-  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.42);
+  border-radius: 8px;
+  background: rgba(10, 12, 16, 0.82);
+  color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(12px);
+  cursor: pointer;
+}
+
+.poster-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .media-card-hover-actions button > svg {
   display: block;
-  width: 16px;
-  height: 16px;
+  width: 13px;
+  height: 13px;
   color: currentColor;
   opacity: 1;
 }
 
 .media-card-hover-actions button:hover {
-  border-color: var(--accent-hover);
-  background: #4a5669;
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(30, 35, 44, 0.95);
   color: #fff;
 }
 
 .media-card-hover-actions .media-card-delete:hover {
   border-color: #ff8177;
-  background: #ba3f38;
+  background: rgba(186, 63, 56, 0.9);
 }
 
 .poster-play {
   position: absolute;
-  right: 12px;
-  bottom: 12px;
+  right: 10px;
+  bottom: 10px;
   z-index: 4;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
   border: 0;
   border-radius: 50%;
   background: #f4f3ef;
   color: #111216;
-  opacity: 1;
-  transform: scale(1);
+  opacity: 0.88;
+  transform: scale(0.92);
   transition:
-    opacity var(--transition-fast),
-    transform var(--transition-fast);
+    opacity 180ms ease-out,
+    transform 180ms ease-out;
 }
 
 .media-card:hover .poster-play {
@@ -3439,7 +3455,7 @@ textarea:focus-visible {
 }
 
 .media-card:has(.poster-play) .poster-badges {
-  right: 58px;
+  right: 50px;
 }
 
 .new-badge,
@@ -3654,33 +3670,34 @@ textarea:focus-visible {
 
 .home-hero-art {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background-position: center 24%;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 52%;
+  background-position: center 20%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.4) 18%, rgba(0,0,0,0.85) 50%, black 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.4) 18%, rgba(0,0,0,0.85) 50%, black 100%);
 }
 
 .home-hero-art.has-cover {
-  filter: saturate(0.72) contrast(1.04);
+  filter: saturate(0.78) contrast(1.06) brightness(0.92);
   transform: scale(1.02);
 }
 
 .home-hero-art::after {
   background:
-    linear-gradient(
-      90deg,
-      rgba(7, 9, 11, 0.98) 0%,
-      rgba(7, 9, 11, 0.82) 35%,
-      rgba(7, 9, 11, 0.2) 72%,
-      rgba(7, 9, 11, 0.08)
-    ),
-    linear-gradient(0deg, rgba(7, 9, 11, 0.78), transparent 62%);
+    linear-gradient(0deg, rgba(7, 9, 11, 0.72), transparent 52%),
+    linear-gradient(180deg, rgba(7, 9, 11, 0.35), transparent 30%);
 }
 
 .home-hero-shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(0deg, rgba(8, 9, 12, 0.48), transparent 60%);
+  background:
+    radial-gradient(ellipse at 78% 50%, rgba(255, 107, 95, 0.04), transparent 60%),
+    linear-gradient(0deg, rgba(8, 9, 12, 0.42), transparent 55%);
 }
 
 .home-hero-content {
@@ -4985,6 +5002,7 @@ textarea:focus-visible {
     display: flex;
     width: 36px;
     height: 36px;
+    padding: 0;
     align-items: center;
     justify-content: center;
     margin-left: auto;
@@ -5069,6 +5087,7 @@ textarea:focus-visible {
     display: flex;
     width: 40px;
     height: 40px;
+    padding: 0;
     align-items: center;
     justify-content: center;
     border: 1px solid var(--border);
@@ -5176,6 +5195,14 @@ textarea:focus-visible {
   .home-hero {
     min-height: 540px;
     border-radius: 16px;
+  }
+
+  .home-hero-art {
+    left: 0;
+    width: 100%;
+    background-position: center 20%;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 
   .home-hero-content {
@@ -5305,6 +5332,48 @@ textarea:focus-visible {
 
   .media-card-poster {
     height: 248px;
+  }
+
+  .media-card-hover-actions {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    gap: 3px;
+    top: 6px;
+    right: 6px;
+  }
+
+  .media-card-hover-actions button {
+    width: 26px;
+    height: 26px;
+    min-height: 0;
+    border-radius: 7px;
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.6);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+
+  .media-card-hover-actions button > svg {
+    width: 11px;
+    height: 11px;
+  }
+
+  .poster-play {
+    width: 30px;
+    height: 30px;
+    right: 8px;
+    bottom: 8px;
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .poster-play svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .media-card:has(.poster-play) .poster-badges {
+    right: 44px;
   }
 
   .media-list-row {
