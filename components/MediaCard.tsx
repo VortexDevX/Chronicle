@@ -160,7 +160,7 @@ export function MediaCard({
             disabled={Boolean(pendingAction)}
             aria-label={`Log next for ${m.title}`}
           >
-            {pendingAction === "increment" ? <span className="spinner" /> : <Play size={18} fill="currentColor" />}
+            {pendingAction === "increment" ? <span className="spinner" /> : <Play size={15} fill="currentColor" />}
           </button>
         )}
       </div>

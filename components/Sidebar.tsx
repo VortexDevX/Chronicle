@@ -63,7 +63,13 @@ export function Sidebar({
   return (
     <aside className={`sidebar app-rail ${mobileOpen ? "mobile-open" : ""}`}>
       <div className="rail-brand">
-        <Image src="/favicon.png" alt="Chronicle" width={28} height={28} priority />
+        <Image
+          src="/favicon.png"
+          alt="Chronicle"
+          width={28}
+          height={28}
+          priority
+        />
         <span>Chronicle</span>
         <button
           className="rail-close"
@@ -74,7 +80,11 @@ export function Sidebar({
         </button>
       </div>
 
-      <button className="rail-add" onClick={() => openModal(null)} aria-label="Add entry">
+      <button
+        className="rail-add"
+        onClick={() => openModal(null)}
+        aria-label="Add entry"
+      >
         <Plus size={20} />
         <span>Add entry</span>
       </button>
