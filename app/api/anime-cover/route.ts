@@ -3,6 +3,7 @@ import { jsonOk, jsonError } from "@/lib/http";
 import { enforceRateLimit } from "@/lib/guards";
 import { getClientIp } from "@/lib/rateLimit";
 import { logInternalError } from "@/lib/log";
+import { fetchWithTimeout } from "@/lib/externalFetch";
 
 type AniListCoverResponse = {
   data?: {
@@ -28,7 +29,7 @@ type JikanCoverResponse = {
 };
 
 async function fetchAniListCover(title: string): Promise<string | null> {
-  const res = await fetch("https://graphql.anilist.co", {
+  const res = await fetchWithTimeout("https://graphql.anilist.co", {
     method: "POST",
     cache: "no-store",
     headers: {
@@ -58,7 +59,7 @@ async function fetchAniListCover(title: string): Promise<string | null> {
 }
 
 async function fetchJikanCover(title: string): Promise<string | null> {
-  const res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`, {
+  const res = await fetchWithTimeout(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`, {
     cache: "no-store",
     headers: {
       Accept: "application/json",
@@ -75,7 +76,11 @@ async function fetchJikanCover(title: string): Promise<string | null> {
 export async function GET(req: NextRequest) {
   try {
     const title = req.nextUrl.searchParams.get("title");
-    if (!title) return jsonError("MISSING_TITLE", "Missing title", 400);
+    const normalizedTitle = String(title || "").trim();
+    if (!normalizedTitle) return jsonError("MISSING_TITLE", "Missing title", 400);
+    if (normalizedTitle.length > 200) {
+      return jsonError("TITLE_TOO_LONG", "Title is too long", 400);
+    }
 
     const ip = getClientIp(req);
     const guard = await enforceRateLimit(req, {
@@ -89,7 +94,19 @@ export async function GET(req: NextRequest) {
     });
     if (!guard.allowed && guard.errorResponse) return guard.errorResponse;
 
-    const imageUrl = await fetchAniListCover(title) || await fetchJikanCover(title);
+    let imageUrl: string | null = null;
+    try {
+      imageUrl = await fetchAniListCover(normalizedTitle);
+    } catch {
+      // Jikan remains a separate fallback when AniList is unavailable.
+    }
+    if (!imageUrl) {
+      try {
+        imageUrl = await fetchJikanCover(normalizedTitle);
+      } catch {
+        imageUrl = null;
+      }
+    }
 
     return jsonOk({ imageUrl });
   } catch (err) {

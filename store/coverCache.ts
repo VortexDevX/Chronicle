@@ -228,3 +228,15 @@ export function queueCoverFetch(
     processCoverQueue();
   }
 }
+
+export function retryCoverFetch(
+  title: string,
+  id: string,
+  mangadexId?: string,
+): void {
+  if (typeof window === "undefined") return;
+  const cacheKey = mangadexId ? `md-${mangadexId}` : title;
+  coverCache.delete(cacheKey);
+  scheduleCoverPersist();
+  queueCoverFetch(title, id, mangadexId);
+}

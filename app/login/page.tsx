@@ -70,7 +70,7 @@ export default function LoginPage() {
       }
 
       setAuth("authenticated", data.data?.username || username);
-      router.push("/library");
+      router.push("/home");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {

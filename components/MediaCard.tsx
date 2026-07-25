@@ -1,163 +1,185 @@
 "use client";
 
-import { MediaItem } from "@/types/media";
-import { Edit2, Plus, Trash2, Star, ExternalLink, Link as LinkIcon, Clock } from "lucide-react";
-import { useState, useEffect } from "react";
-import { getCachedCover, queueCoverFetch, subscribeCover } from "@/store/coverCache";
-import { relativeTime, daysSince, progressLabel } from "@/utils/format";
+import {
+  Clock3,
+  Edit3,
+  ExternalLink,
+  Link as LinkIcon,
+  Play,
+  Plus,
+  Star,
+  Trash2,
+} from "lucide-react";
+import { useState } from "react";
+import type { MediaItem } from "@/types/media";
+import { daysSince, progressLabel, relativeTime } from "@/utils/format";
 import { normalizePublicHttpUrl } from "@/lib/publicUrl";
+import { MediaArtwork } from "@/components/MediaArtwork";
 
-export function MediaCard({ m, onEdit, onIncrement, onDelete }: {
+function formatProgress(value: number) {
+  return Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+export function MediaCard({
+  m,
+  mode = "grid",
+  priority = false,
+  onEdit,
+  onIncrement,
+  onDelete,
+}: {
   m: MediaItem;
-  onEdit?: (m: MediaItem) => void;
-  onIncrement?: (id: string) => void;
-  onDelete?: (id: string) => void;
+  mode?: "grid" | "list";
+  priority?: boolean;
+  onEdit?: (media: MediaItem) => void;
+  onIncrement?: (id: string) => void | Promise<void>;
+  onDelete?: (id: string) => void | Promise<void>;
 }) {
-  const [coverUrl, setCoverUrl] = useState("");
+  const [pendingAction, setPendingAction] = useState<"increment" | "delete" | null>(null);
+  const normalizedStatus = m.status === "Watching/Reading" ? "Active" : m.status;
+  const isActive = normalizedStatus === "Active";
+  const isStale = isActive && daysSince(m.last_updated) >= 14;
+  const safeTrackerUrl = m.tracker_url
+    ? normalizePublicHttpUrl(m.tracker_url)
+    : null;
+  const pct =
+    m.progress_total > 0
+      ? Math.max(0, Math.min(100, (m.progress_current / m.progress_total) * 100))
+      : 0;
+  const total = m.progress_total > 0 ? formatProgress(m.progress_total) : "—";
+  const unit = progressLabel(m.media_type) === "ep" ? "episodes" : "chapters";
+  const unread = Math.max(
+    0,
+    Number(m.latest_remote_progress || m.progress_current) - m.progress_current,
+  );
 
-  useEffect(() => {
-    setCoverUrl("");
-
-    if (m.custom_cover_url) {
-      setCoverUrl(m.custom_cover_url);
-      return;
-    }
-
-    const isAnime = m.media_type === "Anime" || m.media_type === "Donghua";
-    const isManhwa = m.media_type === "Manhwa" && m.mangadex_id;
-    
-    if (isAnime || isManhwa) {
-      const cacheKey = isManhwa && m.mangadex_id ? `md-${m.mangadex_id}` : m.title;
-      const cached = getCachedCover(cacheKey);
-      
-      if (cached !== undefined) {
-        setCoverUrl(cached || "");
-        return;
-      }
-
-      queueCoverFetch(m.title, m._id, m.mangadex_id || undefined);
-      return subscribeCover(cacheKey, (url) => setCoverUrl(url || ""));
-    }
-  }, [m._id, m.title, m.media_type, m.mangadex_id, m.custom_cover_url]);
-
-  const [isIncrementing, setIsIncrementing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleIncrement = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!onIncrement) return;
-    setIsIncrementing(true);
+  const increment = async () => {
+    if (!onIncrement || pendingAction) return;
+    setPendingAction("increment");
     try {
       await onIncrement(m._id);
     } finally {
-      setIsIncrementing(false);
+      setPendingAction(null);
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!onDelete) return;
-    setIsDeleting(true);
+  const remove = async () => {
+    if (!onDelete || pendingAction) return;
+    setPendingAction("delete");
     try {
       await onDelete(m._id);
     } finally {
-      setIsDeleting(false);
+      setPendingAction(null);
     }
   };
 
-  const pct = m.progress_total
-    ? Math.min(100, Math.round((m.progress_current / m.progress_total) * 100))
-    : 0;
-  const unit = progressLabel(m.media_type).toUpperCase();
-  const totalStr = m.progress_total ? m.progress_total : "?";
-  
-  const isStale = m.status === "Watching/Reading" && daysSince(m.last_updated) >= 14;
-  const staleClass = isStale ? " card-stale" : "";
-  const thumbClass = coverUrl ? "card-thumb thumb-loaded" : "card-thumb";
-  const thumbStyle = coverUrl ? { backgroundImage: `url('${coverUrl}')` } : {};
-  const safeTrackerUrl = m.tracker_url ? normalizePublicHttpUrl(m.tracker_url) : null;
-
-  // For the active status
-  const mappedStatus = m.status === "Watching/Reading" ? "Active" : m.status;
-
-  const progressColorMap: Record<string, string> = {
-    "Active": "var(--cyan)",
-    "Completed": "var(--green)",
-    "Planned": "var(--violet)",
-    "On Hold": "var(--amber)",
-    "Dropped": "var(--red)",
-  };
-  const progressColor = progressColorMap[mappedStatus] ?? "var(--text-secondary)";
+  if (mode === "list") {
+    return (
+      <article className="media-list-row" data-id={m._id}>
+        <MediaArtwork media={m} className="media-list-art" />
+        <div className="media-list-main">
+          <div>
+            <h3>{m.title}</h3>
+            <span className="media-status" data-status={normalizedStatus}>
+              {normalizedStatus}
+            </span>
+          </div>
+          <p>
+            {m.media_type} · Updated {relativeTime(m.last_updated)}
+            {m.linked_entries_data?.length ? (
+              <span title={m.linked_entries_data.map((item) => item.title).join(", ")}>
+                <LinkIcon size={11} /> {m.linked_entries_data.length} linked
+              </span>
+            ) : null}
+          </p>
+        </div>
+        <div className="media-list-progress">
+          <strong>{formatProgress(m.progress_current)}</strong>
+          <span>/ {total} {unit}</span>
+          <div className="progress-track">
+            <i style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+        {unread > 0 && <span className="release-badge">+{formatProgress(unread)} new</span>}
+        <div className="media-list-actions">
+          {isActive && onIncrement && (
+            <button onClick={increment} disabled={Boolean(pendingAction)} aria-label={`Log next for ${m.title}`}>
+              {pendingAction === "increment" ? <span className="spinner" /> : <Plus size={16} />}
+            </button>
+          )}
+          {onEdit && (
+            <button onClick={() => onEdit(m)} aria-label={`Edit ${m.title}`}>
+              <Edit3 size={16} />
+            </button>
+          )}
+          {safeTrackerUrl ? (
+            <a href={safeTrackerUrl} target="_blank" rel="noreferrer" aria-label={`Open tracker for ${m.title}`}>
+              <ExternalLink size={16} />
+            </a>
+          ) : (
+            <button type="button" disabled aria-label={`No tracker link for ${m.title}`} title="No tracker link">
+              <ExternalLink size={16} />
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={remove} disabled={Boolean(pendingAction)} aria-label={`Delete ${m.title}`}>
+              {pendingAction === "delete" ? <span className="spinner" /> : <Trash2 size={16} />}
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  }
 
   return (
-    <div className={`card${staleClass}`} data-status={mappedStatus} data-id={m._id}>
-      <div className="card-poster">
-        <div className={thumbClass} style={thumbStyle} data-cover-id={m._id}></div>
-        <div className="card-poster-overlay">
-          <div className="card-badges">
-            <span className="badge">{m.media_type}</span>
-            <span className="badge" data-status={mappedStatus}>{mappedStatus}</span>
-            {isStale && (
-              <span className="badge badge-stale" title={`Not updated in ${daysSince(m.last_updated)} days`} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Clock size={12} /> Stale
-              </span>
-            )}
-          </div>
-          <h3 className="card-title" title={m.title}>{m.title}</h3>
-          
-          <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", gap: "6px", alignItems: "center" }}>
-            {relativeTime(m.last_updated)}
-            {m.linked_entries_data && m.linked_entries_data.length > 0 && (
-              <span title={m.linked_entries_data.map(l => l.title).join(", ")} style={{ display: "flex", alignItems: "center", gap: "2px" }}>
-                <LinkIcon size={10} /> {m.linked_entries_data.length}
-              </span>
-            )}
-          </span>
+    <article className={`media-card ${priority ? "is-priority" : ""}`} data-id={m._id}>
+      <div className="media-card-poster">
+        <MediaArtwork media={m} priority={priority} />
+        <div className="media-card-hover-actions">
+          {onEdit && (
+            <button onClick={() => onEdit(m)} aria-label={`Edit ${m.title}`}>
+              <Edit3 size={17} />
+            </button>
+          )}
+          {onDelete && (
+            <button className="media-card-delete" onClick={remove} disabled={Boolean(pendingAction)} aria-label={`Delete ${m.title}`}>
+              {pendingAction === "delete" ? <span className="spinner" /> : <Trash2 size={16} />}
+            </button>
+          )}
         </div>
+        <div className="poster-badges">
+          {unread > 0 && <span className="new-badge">+{formatProgress(unread)} new</span>}
+          {isStale && <span className="stale-badge"><Clock3 size={11} /> Stale</span>}
+        </div>
+        {isActive && onIncrement && (
+          <button
+            className="poster-play"
+            onClick={increment}
+            disabled={Boolean(pendingAction)}
+            aria-label={`Log next for ${m.title}`}
+          >
+            {pendingAction === "increment" ? <span className="spinner" /> : <Play size={18} fill="currentColor" />}
+          </button>
+        )}
       </div>
-
-      <div className="card-body">
-        <div className="card-progress-header">
-          <span className="card-progress-text">
-            <strong>{m.progress_current}</strong>
-            <span style={{ opacity: 0.5, margin: "0 4px" }}>/ {totalStr}</span>
-            <span style={{ fontSize: "0.75rem", fontWeight: "bold" }}>{unit}</span>
-          </span>
+      <div className="media-card-content">
+        <div className="media-card-title-row">
+          <h3 title={m.title}>{m.title}</h3>
           {m.rating ? (
-            <div className="card-rating">
-              <Star size={14} fill="currentColor" strokeWidth={0} />
-              <span>{m.rating}<span style={{ opacity: 0.5, fontSize: "0.8em" }}>/10</span></span>
-            </div>
+            <span><Star size={11} fill="currentColor" /> {m.rating}</span>
           ) : null}
         </div>
-        <div className="card-progress-track">
-          <div className="card-progress-fill" style={{ width: `${pct}%`, background: progressColor }}></div>
+        <p>{m.media_type} · {normalizedStatus}</p>
+        <div className="media-card-progress-row">
+          <span>{formatProgress(m.progress_current)} / {total}</span>
+          <span>{unit}</span>
+        </div>
+        <div className="progress-track" aria-label={`${Math.round(pct)}% complete`}>
+          <i style={{ width: `${pct}%` }} />
         </div>
       </div>
-
-      <div className="card-actions">
-        {onEdit && (
-          <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); onEdit(m); }} title="Edit">
-            <Edit2 size={16} />
-          </button>
-        )}
-        {onIncrement && (
-          <button className="btn-secondary" onClick={handleIncrement} title="Increment progress" disabled={isIncrementing}>
-            {isIncrementing ? <span className="spinner" /> : <Plus size={16} strokeWidth={2.5} />} 1
-          </button>
-        )}
-        <button className="btn-ghost" onClick={(e) => {
-          e.stopPropagation();
-          if (safeTrackerUrl) window.open(safeTrackerUrl, "_blank", "noopener,noreferrer");
-        }} title="Continue (Open Tracker URL)" disabled={!safeTrackerUrl}>
-          <ExternalLink size={16} />
-        </button>
-        {onDelete && (
-          <button className="btn-danger" onClick={handleDelete} title="Delete" disabled={isDeleting}>
-            {isDeleting ? <span className="spinner" /> : <Trash2 size={16} />}
-          </button>
-        )}
-      </div>
-    </div>
+    </article>
   );
 }

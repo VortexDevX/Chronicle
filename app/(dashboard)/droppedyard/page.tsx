@@ -2,10 +2,15 @@
 
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
-import { Plus } from "lucide-react";
+import { ArchiveX, Plus } from "lucide-react";
 import { useEffect, useCallback, useState } from "react";
 import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
 import { MediaItem } from "@/types/media";
+import { useFeedback } from "@/components/FeedbackProvider";
+import { apiRequest, getErrorMessage } from "@/lib/client/api";
+import { MediaViewMode, MediaViewToggle } from "@/components/MediaViewToggle";
+
+const DROPPEDYARD_VIEW_KEY = "chronicle:droppedyard-view:v1";
 
 export default function DroppedyardPage() {
   const media = useMediaStore((state) => state.media);
@@ -17,17 +22,24 @@ export default function DroppedyardPage() {
   const [activeTab, setActiveTab] = useState<"graveyard" | "revisit">("graveyard");
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [loadingData, setLoadingData] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [viewMode, setViewMode] = useState<MediaViewMode>("grid");
+  const { toast, confirm } = useFeedback();
 
   const fetchMedia = useCallback(async () => {
     resetCoverQueue();
     setLoading(true, false);
     setLoadingData(true);
+    setLoadError("");
     try {
-      const res = await fetch(`/api/media?limit=1000&status=Dropped`, { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to fetch");
-      const json = await res.json();
-      setMedia(json.data.items, json.data.total, false, true);
-    } catch {}
+      const data = await apiRequest<{ items: MediaItem[]; total: number }>(
+        "/api/media?limit=1000&status=Dropped",
+        { cache: "no-store" },
+      );
+      setMedia(data.items, data.total, false, true);
+    } catch (err) {
+      setLoadError(getErrorMessage(err, "Droppedyard could not load"));
+    }
     finally { setLoading(false); setLoadingData(false); }
   }, [setMedia, setLoading]);
 
@@ -38,13 +50,32 @@ export default function DroppedyardPage() {
     fetchMedia();
   }, [fetchMedia, setActiveRoute, mediaRev]);
 
+  useEffect(() => {
+    const saved = window.localStorage.getItem(DROPPEDYARD_VIEW_KEY);
+    if (saved === "grid" || saved === "list") setViewMode(saved);
+  }, []);
+
+  const updateViewMode = (mode: MediaViewMode) => {
+    setViewMode(mode);
+    window.localStorage.setItem(DROPPEDYARD_VIEW_KEY, mode);
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this entry entirely?")) return;
+    const approved = await confirm({
+      title: "Delete dropped entry?",
+      message: "This permanently removes the entry and its recent activity.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!approved) return;
     setPendingIds(prev => new Set(prev).add(id));
     try {
-      await fetch(`/api/media?id=${id}`, { method: "DELETE" });
+      await apiRequest(`/api/media?id=${id}`, { method: "DELETE" });
+      toast("Entry deleted", "success");
       fetchMedia();
-    } catch {}
+    } catch (err) {
+      toast(getErrorMessage(err, "Delete failed"), "error");
+    }
     finally {
       setPendingIds(prev => { const n = new Set(prev); n.delete(id); return n; });
     }
@@ -54,13 +85,16 @@ export default function DroppedyardPage() {
     if (pendingIds.has(m._id)) return;
     setPendingIds(prev => new Set(prev).add(m._id));
     try {
-      await fetch(`/api/media?id=${m._id}`, {
+      await apiRequest(`/api/media?id=${m._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ retry_flag: !m.retry_flag }),
       });
+      toast(m.retry_flag ? "Moved to graveyard" : "Marked to revisit", "success");
       fetchMedia();
-    } catch {}
+    } catch (err) {
+      toast(getErrorMessage(err, "Could not update revisit status"), "error");
+    }
     finally {
       setPendingIds(prev => { const n = new Set(prev); n.delete(m._id); return n; });
     }
@@ -74,26 +108,35 @@ export default function DroppedyardPage() {
   return (
     <>
       <div className="controls" style={{ marginBottom: "24px" }}>
-        <div style={{ display: "flex", gap: "12px" }}>
+        <div className="droppedyard-toolbar">
+          <div style={{ display: "flex", gap: "12px" }}>
           <button className={`filter-pill ${activeTab === "graveyard" ? "active" : ""}`} onClick={() => setActiveTab("graveyard")}>Graveyard ({graveyardItems.length})</button>
           <button className={`filter-pill ${activeTab === "revisit" ? "active" : ""}`} onClick={() => setActiveTab("revisit")}>Maybe Revisit ({revisitItems.length})</button>
+          </div>
+          <MediaViewToggle value={viewMode} onChange={updateViewMode} label="Droppedyard view" />
         </div>
       </div>
 
-      {loadingData && media.length === 0 ? (
+      {loadError && media.length === 0 ? (
+        <div className="state-panel state-error">
+          <h2>Droppedyard unavailable.</h2>
+          <p>{loadError}</p>
+          <button className="btn-primary" onClick={fetchMedia}>Try again</button>
+        </div>
+      ) : loadingData && media.length === 0 ? (
         <div className="loading-state"><span className="spinner" /> Loading entries...</div>
       ) : (
-        <div className="grid">
+        <div className={viewMode === "grid" ? "grid media-grid" : "library-media-list droppedyard-media-list"}>
           {displayItems.length === 0 ? (
             <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
-              <div className="empty-state-icon">🪦</div>
+              <div className="empty-state-icon"><ArchiveX size={42} /></div>
               <h3>Nothing here yet</h3>
               <p>{activeTab === "revisit" ? "You haven't marked any dropped entries for a second chance." : "No permanently dropped entries."}</p>
             </div>
           ) : (
             displayItems.map((m) => (
-              <div key={m._id} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <MediaCard m={m} onEdit={openModal} onDelete={handleDelete} />
+              <div key={m._id} className="droppedyard-media-item">
+                <MediaCard m={m} mode={viewMode} onEdit={openModal} onDelete={handleDelete} />
                 <button 
                   onClick={() => handleToggleRetry(m)}
                   className="btn-ghost"
