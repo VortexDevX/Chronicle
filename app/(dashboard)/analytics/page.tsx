@@ -3,12 +3,14 @@
 import React from "react";
 import { useMediaStore } from "@/store/mediaStore";
 import { useEffect, useState, useCallback } from "react";
-import { MediaItem } from "@/types/media";
+import { ActivityPayload, MediaItem } from "@/types/media";
 import { PageLoader } from "@/components/PageLoader";
 import {
   TrendingUp, Award, Star, Clock, BarChart2, PieChart,
   Activity, Tv, BookOpen, Film, BookMarked,
+  RefreshCw,
 } from "lucide-react";
+import { apiRequest, getErrorMessage } from "@/lib/client/api";
 
 type AnalyticsData = {
   total: number;
@@ -47,16 +49,31 @@ const TYPE_ICON_MAP: Record<string, React.ElementType> = {
 export default function AnalyticsPage() {
   const setActiveRoute = useMediaStore((state) => state.setActiveRoute);
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [activity, setActivity] = useState<ActivityPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [activityError, setActivityError] = useState("");
 
   const fetchAnalytics = useCallback(async () => {
     setLoading(true);
+    setError("");
+    setActivityError("");
     try {
-      const res = await fetch("/api/analytics", { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to load analytics");
-      const json = await res.json();
-      setData(json.data);
-    } catch {}
+      const [analyticsResult, activityResult] = await Promise.allSettled([
+        apiRequest<AnalyticsData>("/api/analytics", { cache: "no-store" }),
+        apiRequest<ActivityPayload>("/api/activity", { cache: "no-store" }),
+      ]);
+      if (analyticsResult.status === "rejected") throw analyticsResult.reason;
+      setData(analyticsResult.value);
+      if (activityResult.status === "fulfilled") {
+        setActivity(activityResult.value);
+      } else {
+        setActivity(null);
+        setActivityError("Seven-day activity is temporarily unavailable.");
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, "Analytics could not load"));
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -65,15 +82,35 @@ export default function AnalyticsPage() {
     fetchAnalytics();
   }, [fetchAnalytics, setActiveRoute]);
 
-  if (loading || !data) {
+  if (loading && !data) {
     return <PageLoader label="Reading the numbers" detail="Building your analytics view" compact />;
   }
+
+  if (error && !data) {
+    return (
+      <div className="state-panel state-error">
+        <RefreshCw size={22} />
+        <h2>Analytics unavailable.</h2>
+        <p>{error}</p>
+        <button className="btn-primary" onClick={fetchAnalytics}>Try again</button>
+      </div>
+    );
+  }
+
+  if (!data) return null;
 
   const maxStatusCount = Math.max(...Object.values(data.byStatus), 1);
   const maxTypeCount = Math.max(...Object.values(data.byType), 1);
 
   return (
     <div className="analytics-page">
+      {activityError ? (
+        <div className="partial-notice">
+          <RefreshCw size={15} />
+          {activityError}
+          <button onClick={fetchAnalytics}>Retry</button>
+        </div>
+      ) : null}
       <div className="analytics-page-header">
         <div>
           <span className="analytics-eyebrow">Collection pulse</span>
@@ -126,6 +163,25 @@ export default function AnalyticsPage() {
           <span className="analytics-hero-label">Total Episodes / Chapters</span>
         </div>
       </div>
+
+      <section className="analytics-rhythm-panel">
+        <div>
+          <span className="analytics-eyebrow">7 day rhythm</span>
+          <h3>Consistency, not pressure</h3>
+        </div>
+        <div className="analytics-rhythm-grid">
+          {activity?.days.map((day) => (
+            <div key={day.date}>
+              <i data-active={day.events > 0 ? "true" : "false"} />
+              <span>{new Date(`${day.date}T12:00:00Z`).toLocaleDateString("en", { weekday: "short" }).charAt(0)}</span>
+              <small>{day.events ? `${day.units} units` : "Rest"}</small>
+            </div>
+          ))}
+        </div>
+        {!activity?.events.length && (
+          <p>History starts now. Log progress to build a real rhythm.</p>
+        )}
+      </section>
 
       <div className="analytics-grid">
         <div className="analytics-panel">

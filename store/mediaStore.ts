@@ -32,10 +32,11 @@ export interface AppState {
   selectedIds: Set<string>;
   pendingActionIds: Set<string>;
   globalStats: GlobalStats | null;
-  activeRoute: "library" | "analytics" | "queue" | "droppedyard" | "shelves";
+  activeRoute: "home" | "library" | "updates" | "analytics" | "queue" | "droppedyard" | "shelves";
   modalOpen: boolean;
   modalMedia: MediaItem | null;
   settingsOpen: boolean;
+  commandOpen: boolean;
   
   // Actions
   setAuth: (status: "loading" | "authenticated" | "unauthenticated", username?: string) => void;
@@ -48,12 +49,13 @@ export interface AppState {
   setLoading: (loading: boolean, loadingMore?: boolean) => void;
   setPendingAction: (id: string, isPending: boolean) => void;
   setGlobalStats: (stats: GlobalStats | null) => void;
-  setActiveRoute: (route: "library" | "analytics" | "queue" | "droppedyard" | "shelves") => void;
+  setActiveRoute: (route: "home" | "library" | "updates" | "analytics" | "queue" | "droppedyard" | "shelves") => void;
   openModal: (media?: MediaItem | null) => void;
   closeModal: () => void;
   refreshMedia: () => void;
   openSettings: () => void;
   closeSettings: () => void;
+  setCommandOpen: (open: boolean) => void;
 }
 
 export const useMediaStore = create<AppState>((set, get) => ({
@@ -80,6 +82,7 @@ export const useMediaStore = create<AppState>((set, get) => ({
   modalOpen: false,
   modalMedia: null,
   settingsOpen: false,
+  commandOpen: false,
 
   setAuth: (status, username) => {
     set({ authStatus: status, username: username || "" });
@@ -146,4 +149,6 @@ export const useMediaStore = create<AppState>((set, get) => ({
   openSettings: () => set({ settingsOpen: true }),
   
   closeSettings: () => set({ settingsOpen: false }),
+
+  setCommandOpen: (commandOpen) => set({ commandOpen }),
 }));

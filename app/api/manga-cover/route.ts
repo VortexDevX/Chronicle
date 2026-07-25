@@ -3,6 +3,7 @@ import { jsonOk, jsonError } from "@/lib/http";
 import { enforceRateLimit } from "@/lib/guards";
 import { getClientIp } from "@/lib/rateLimit";
 import { logInternalError } from "@/lib/log";
+import { fetchWithTimeout } from "@/lib/externalFetch";
 
 type MangaDexRelationship = {
   type?: string;
@@ -28,6 +29,9 @@ export async function GET(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     const title = req.nextUrl.searchParams.get("title");
     if (!id && !title) return jsonError("MISSING_QUERY", "Missing id or title", 400);
+    if (title && title.trim().length > 200) {
+      return jsonError("TITLE_TOO_LONG", "Title is too long", 400);
+    }
 
     const ip = getClientIp(req);
     const guard = await enforceRateLimit(req, {
@@ -45,7 +49,7 @@ export async function GET(req: NextRequest) {
       ? `https://api.mangadex.org/manga/${encodeURIComponent(id)}?includes[]=cover_art`
       : `https://api.mangadex.org/manga?title=${encodeURIComponent(title!)}&includes[]=cover_art&limit=1`;
 
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       cache: "no-store",
     });
     if (!res.ok) return jsonOk({ imageUrl: null });

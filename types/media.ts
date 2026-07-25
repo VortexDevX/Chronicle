@@ -52,3 +52,48 @@ export interface Shelf {
   description?: string;
   media_ids: string[];
 }
+
+export type TelegramUpdateState =
+  | "fully_notified"
+  | "previously_notified"
+  | "not_notified";
+
+export interface UpdateFeedItem extends MediaItem {
+  unread_delta: number;
+  telegram_state: TelegramUpdateState;
+}
+
+export interface ActivityItem {
+  _id: string;
+  media_id: string;
+  title: string;
+  media_type: string;
+  delta: number;
+  occurred_at: string;
+}
+
+export interface ActivityDay {
+  date: string;
+  units: number;
+  events: number;
+}
+
+export interface ActivityPayload {
+  events: ActivityItem[];
+  days: ActivityDay[];
+}
+
+export interface UpdatesPayload {
+  items: UpdateFeedItem[];
+  tracker_errors: MediaItem[];
+  partial_failures?: string[];
+}
+
+export interface HomePayload {
+  featured: MediaItem | null;
+  continue_items: MediaItem[];
+  updates: UpdateFeedItem[];
+  activity: ActivityItem[];
+  rhythm: ActivityDay[];
+  partial_failures?: string[];
+}

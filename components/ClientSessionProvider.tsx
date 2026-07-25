@@ -9,6 +9,8 @@ import { useMediaStore } from "@/store/mediaStore";
 import { MediaModal } from "./MediaModal";
 import { SettingsModal } from "./SettingsModal";
 import { PageLoader } from "./PageLoader";
+import { FeedbackProvider } from "./FeedbackProvider";
+import { CommandPalette } from "./CommandPalette";
 
 export default function ClientSessionProvider({ children }: { children: React.ReactNode }) {
   const { authStatus } = useAuth();
@@ -42,27 +44,32 @@ export default function ClientSessionProvider({ children }: { children: React.Re
   if (!isDashboard) return <>{children}</>;
 
   return (
-    <div className="shell">
-      {mobileOpen && <div id="sidebar-overlay" className="sidebar-overlay active" onClick={() => setMobileOpen(false)}></div>}
-      <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-      
-      <main className="main">
-        <TopBar setMobileOpen={setMobileOpen} />
-        <div className="page-content">
-          {children}
-        </div>
-      </main>
+    <FeedbackProvider>
+      <div className="shell">
+        {mobileOpen && (
+          <div
+            id="sidebar-overlay"
+            className="sidebar-overlay active"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+        <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
-      {modalOpen && (
-        <MediaModal
-          media={modalMedia}
-          onClose={closeModal}
-          onSave={refreshMedia}
-        />
-      )}
-      {settingsOpen && (
-        <SettingsModal onClose={closeSettings} />
-      )}
-    </div>
+        <main className="main">
+          <TopBar setMobileOpen={setMobileOpen} />
+          <div className="page-content">{children}</div>
+        </main>
+
+        {modalOpen && (
+          <MediaModal
+            media={modalMedia}
+            onClose={closeModal}
+            onSave={refreshMedia}
+          />
+        )}
+        {settingsOpen && <SettingsModal onClose={closeSettings} />}
+        <CommandPalette />
+      </div>
+    </FeedbackProvider>
   );
 }

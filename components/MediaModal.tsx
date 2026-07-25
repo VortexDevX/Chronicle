@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { MediaItem, Shelf } from "@/types/media";
 import { X, Link as LinkIcon, Tv, Book, Video, BookOpen } from "lucide-react";
+import { useFeedback } from "@/components/FeedbackProvider";
+import { apiRequest, getErrorMessage } from "@/lib/client/api";
 
 interface MediaModalProps {
   media: MediaItem | null;
@@ -46,6 +48,7 @@ function normalizeNumericFormFields(data: MediaFormData): Partial<MediaItem> {
 }
 
 export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
+  const { toast } = useFeedback();
   const [formData, setFormData] = useState<MediaFormData>({
     title: "",
     media_type: "Anime",
@@ -123,8 +126,9 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       })
       .catch(() => {
         setShelves([]);
+        toast("Shelves are temporarily unavailable", "info");
       });
-  }, [media]);
+  }, [media, toast]);
 
   useEffect(() => {
     if (linkSearch.length > 2) {
@@ -177,33 +181,37 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
 
   const handleLink = async (targetId: string, title: string) => {
     if (!media) {
-      alert("Please save this entry first before linking.");
+      toast("Save this entry before linking another title.", "info");
       return;
     }
     if (linkedEntries.find(l => l._id === targetId)) return;
     if (targetId === media._id) return;
     
     try {
-      await fetch("/api/media/link", {
+      await apiRequest("/api/media/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceId: media._id, targetId, action: "link" })
       });
       setLinkedEntries(prev => [...prev, { _id: targetId, title }]);
       setLinkSearch("");
-    } catch {}
+    } catch (err) {
+      toast(getErrorMessage(err, "Could not link entry"), "error");
+    }
   };
 
   const handleUnlink = async (targetId: string) => {
     if (!media) return;
     try {
-      await fetch("/api/media/link", {
+      await apiRequest("/api/media/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceId: media._id, targetId, action: "unlink" })
       });
       setLinkedEntries(prev => prev.filter(l => l._id !== targetId));
-    } catch {}
+    } catch (err) {
+      toast(getErrorMessage(err, "Could not unlink entry"), "error");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -236,7 +244,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
           const newMediaIds = isSelected
             ? Array.from(new Set([...shelfMediaIds, mediaId]))
             : shelfMediaIds.filter(id => id !== mediaId);
-          await fetch(`/api/shelves?id=${s._id}`, {
+          await apiRequest(`/api/shelves?id=${s._id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ media_ids: newMediaIds }),
@@ -245,6 +253,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       }
 
       onSave();
+      toast(media ? "Entry updated" : "Entry added", "success");
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");

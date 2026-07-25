@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
-import { MediaItem } from "@/lib/models";
+import { MediaItem, ProgressActivity } from "@/lib/models";
 import mongoose from "mongoose";
 import { getClientIp } from "@/lib/rateLimit";
 import { requireAuthUserId, enforceRateLimit } from "@/lib/guards";
@@ -151,6 +151,18 @@ export async function POST(req: NextRequest) {
         _id: { $in: objectIds },
         user_id: userObjectId,
       });
+      try {
+        await ProgressActivity.deleteMany({
+          user_id: userObjectId,
+          media_id: { $in: objectIds },
+        });
+      } catch (err) {
+        logInternalError("media_activity_cleanup_error", err, {
+          route: "media",
+          method: "POST",
+          operation: "bulk_delete",
+        });
+      }
       return jsonOk({
         deleted: Number(result.deletedCount || 0),
         requested: ids.length,
@@ -355,25 +367,28 @@ export async function PUT(req: NextRequest) {
       return jsonError("INVALID_MEDIA_PAYLOAD", validated.message, 400);
     }
 
+    const existing = (await MediaItem.findOne({
+      _id: id,
+      user_id: userObjectId,
+    })
+      .select("title media_type dedupe_key progress_current")
+      .lean()) as {
+      _id: unknown;
+      title: string;
+      media_type: string;
+      dedupe_key?: string | null;
+      progress_current?: number;
+    } | null;
+
+    if (!existing) {
+      return jsonError("NOT_FOUND", "Not found", 404);
+    }
+
     const updateDoc: Record<string, unknown> = { ...validated.normalized };
     if (
       validated.normalized.title !== undefined ||
       validated.normalized.media_type !== undefined
     ) {
-      const existing = (await MediaItem.findOne({
-        _id: id,
-        user_id: userObjectId,
-      })
-        .select("title media_type dedupe_key")
-        .lean()) as {
-        title: string;
-        media_type: string;
-        dedupe_key?: string | null;
-      } | null;
-      if (!existing) {
-        return jsonError("NOT_FOUND", "Not found", 404);
-      }
-
       const nextTitle = String(validated.normalized.title || existing.title);
       const nextType = String(
         validated.normalized.media_type || existing.media_type,
@@ -428,6 +443,28 @@ export async function PUT(req: NextRequest) {
     if (!updated) {
       return jsonError("NOT_FOUND", "Not found", 404);
     }
+
+    const previousProgress = Number(existing.progress_current || 0);
+    const updatedProgress = Number(updated.progress_current || 0);
+    const progressDelta =
+      Math.round((updatedProgress - previousProgress) * 1000) / 1000;
+    if (progressDelta !== 0) {
+      try {
+        await ProgressActivity.create({
+          user_id: userObjectId,
+          media_id: updated._id,
+          delta: progressDelta,
+          occurred_at: new Date(),
+        });
+      } catch (err) {
+        logInternalError("media_activity_record_error", err, {
+          route: "media",
+          method: "PUT",
+          media_id: String(updated._id),
+        });
+      }
+    }
+
     return jsonOk(updated);
   } catch (err) {
     logInternalError("media_handler_error", err, { route: "media", method: "PUT" });
@@ -466,6 +503,18 @@ export async function DELETE(req: NextRequest) {
     });
     if (!deleted) {
       return jsonError("NOT_FOUND", "Not found", 404);
+    }
+    try {
+      await ProgressActivity.deleteMany({
+        user_id: userObjectId,
+        media_id: deleted._id,
+      });
+    } catch (err) {
+      logInternalError("media_activity_cleanup_error", err, {
+        route: "media",
+        method: "DELETE",
+        media_id: String(deleted._id),
+      });
     }
     return jsonOk({ success: true });
   } catch (err) {

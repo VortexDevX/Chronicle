@@ -2,9 +2,15 @@
 
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
-import { Search, Plus, ListTodo } from "lucide-react";
-import { useEffect, useCallback, useState } from "react";
+import { Search, Plus, ListTodo, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
+import { useFeedback } from "@/components/FeedbackProvider";
+import { apiRequest, getErrorMessage } from "@/lib/client/api";
+import { useMediaList } from "@/hooks/useMediaList";
+import { MediaViewMode, MediaViewToggle } from "@/components/MediaViewToggle";
+
+const QUEUE_VIEW_KEY = "chronicle:queue-view:v1";
 
 export default function QueuePage() {
   const media = useMediaStore((state) => state.media);
@@ -14,36 +20,27 @@ export default function QueuePage() {
   const page = useMediaStore((state) => state.page);
   const mediaRev = useMediaStore((state) => state.mediaRev);
   const setMedia = useMediaStore((state) => state.setMedia);
-  const setLoading = useMediaStore((state) => state.setLoading);
   const setActiveRoute = useMediaStore((state) => state.setActiveRoute);
-  const updateFilters = useMediaStore((state) => state.updateFilters);
   const openModal = useMediaStore((state) => state.openModal);
+  const { toast, confirm } = useFeedback();
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterType, setFilterType] = useState("");
   const [sortBy, setSortBy] = useState("last_updated");
+  const [viewMode, setViewMode] = useState<MediaViewMode>("grid");
+  const query = useMemo(() => {
+    const params = new URLSearchParams({ sort_by: sortBy, status: "Planned" });
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (filterType) params.set("media_type", filterType);
+    return params.toString();
+  }, [debouncedSearch, filterType, sortBy]);
+  const { fetchMedia, loadError } = useMediaList(query, "Queue could not load");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-
-  const fetchMedia = useCallback(async (pg = 1, replace = true) => {
-    if (replace) resetCoverQueue();
-    setLoading(true, pg > 1);
-    try {
-      const params = new URLSearchParams({ page: String(pg), limit: "24", sort_by: sortBy, status: "Planned" });
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      if (filterType) params.set("media_type", filterType);
-      const res = await fetch(`/api/media?${params}`, { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to fetch");
-      const json = await res.json();
-      setMedia(json.data.items, json.data.total, json.data.has_more, replace);
-      updateFilters({ page: pg });
-    } catch {}
-    finally { setLoading(false); }
-  }, [debouncedSearch, filterType, sortBy, setMedia, setLoading, updateFilters]);
 
   useEffect(() => {
     setActiveRoute("queue");
@@ -53,15 +50,34 @@ export default function QueuePage() {
   }, [setActiveRoute, setMedia]);
 
   useEffect(() => {
+    const saved = window.localStorage.getItem(QUEUE_VIEW_KEY);
+    if (saved === "grid" || saved === "list") setViewMode(saved);
+  }, []);
+
+  const updateViewMode = (mode: MediaViewMode) => {
+    setViewMode(mode);
+    window.localStorage.setItem(QUEUE_VIEW_KEY, mode);
+  };
+
+  useEffect(() => {
     fetchMedia(1, true);
   }, [fetchMedia, mediaRev]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this entry?")) return;
+    const approved = await confirm({
+      title: "Delete queued entry?",
+      message: "This removes the entry from Chronicle, not only from Queue.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!approved) return;
     try {
-      await fetch(`/api/media?id=${id}`, { method: "DELETE" });
+      await apiRequest(`/api/media?id=${id}`, { method: "DELETE" });
+      toast("Entry deleted", "success");
       fetchMedia(1, true);
-    } catch {}
+    } catch (err) {
+      toast(getErrorMessage(err, "Delete failed"), "error");
+    }
   };
 
   const handleLoadMore = () => {
@@ -94,6 +110,7 @@ export default function QueuePage() {
               <option value="last_updated">Recently Added</option>
               <option value="title">Alphabetical (A-Z)</option>
             </select>
+            <MediaViewToggle value={viewMode} onChange={updateViewMode} label="Queue view" />
           </div>
         </div>
       </div>
@@ -104,7 +121,14 @@ export default function QueuePage() {
         </div>
       )}
 
-      {loading && media.length === 0 ? (
+      {loadError && media.length === 0 ? (
+        <div className="state-panel state-error">
+          <RefreshCw size={22} />
+          <h2>Queue unavailable.</h2>
+          <p>{loadError}</p>
+          <button className="btn-primary" onClick={() => fetchMedia(1, true)}>Try again</button>
+        </div>
+      ) : loading && media.length === 0 ? (
         <div className="grid">
           {[1,2,3,4].map(i => (
             <div key={i} className="card skeleton-card">
@@ -130,9 +154,9 @@ export default function QueuePage() {
           <p>No planned entries found.</p>
         </div>
       ) : (
-        <div className="grid">
+        <div className={viewMode === "grid" ? "grid media-grid" : "library-media-list"}>
           {media.map((m) => (
-            <MediaCard key={m._id} m={m} onDelete={handleDelete} />
+            <MediaCard key={m._id} m={m} mode={viewMode} onEdit={openModal} onDelete={handleDelete} />
           ))}
         </div>
       )}

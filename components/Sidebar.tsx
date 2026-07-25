@@ -1,189 +1,117 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  ArchiveX,
+  BarChart3,
+  BellRing,
+  BookOpen,
+  Home,
+  Layers3,
+  ListTodo,
+  LogOut,
+  Plus,
+  Settings,
+  X,
+} from "lucide-react";
 import { useMediaStore } from "@/store/mediaStore";
-import { useState } from "react";
-import { BookOpen, ListTodo, ArchiveX, Library, BarChart2, Plus, Download, Upload, LogOut, Settings } from "lucide-react";
-import { fetchAllMediaForExport } from "@/lib/services/media/exportMedia";
+import { apiRequest } from "@/lib/client/api";
+import { useFeedback } from "@/components/FeedbackProvider";
 
-const IMPORT_CHUNK_SIZE = 200;
+const NAV_ITEMS = [
+  { path: "/home", label: "Home", icon: Home },
+  { path: "/library", label: "Library", icon: BookOpen },
+  { path: "/updates", label: "Updates", icon: BellRing },
+  { path: "/queue", label: "Queue", icon: ListTodo },
+  { path: "/droppedyard", label: "Droppedyard", icon: ArchiveX },
+  { path: "/shelves", label: "Shelves", icon: Layers3 },
+  { path: "/analytics", label: "Analytics", icon: BarChart3 },
+] as const;
 
-function stripImportMetadata(item: Record<string, unknown>) {
-  const rest = { ...item };
-  delete rest._id;
-  delete rest.user_id;
-  delete rest.created_at;
-  delete rest.linked_entries_data;
-  delete rest.last_checked_at;
-  delete rest.last_scrape_status;
-  delete rest.last_scrape_error;
-  delete rest.latest_remote_progress;
-  delete rest.last_notified_progress;
-  return rest;
-}
-
-export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean; setMobileOpen: (v: boolean) => void }) {
+export function Sidebar({
+  mobileOpen,
+  setMobileOpen,
+}: {
+  mobileOpen: boolean;
+  setMobileOpen: (value: boolean) => void;
+}) {
   const pathname = usePathname();
+  const router = useRouter();
   const username = useMediaStore((state) => state.username);
   const setAuth = useMediaStore((state) => state.setAuth);
   const openModal = useMediaStore((state) => state.openModal);
   const openSettings = useMediaStore((state) => state.openSettings);
-  const avatarLetters = username?.substring(0, 2).toUpperCase() || "??";
-  const [isExporting, setIsExporting] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
+  const { toast } = useFeedback();
+  const avatarLetter = username?.charAt(0).toUpperCase() || "C";
 
-  const handleLogout = async () => {
+  const logout = async () => {
     try {
-      await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) });
+      await apiRequest("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      });
       setAuth("unauthenticated");
-    } catch {}
-  };
-
-  const handleExportJSON = async () => {
-    if (isExporting) return;
-    setIsExporting(true);
-    try {
-      const items = await fetchAllMediaForExport();
-      const dataStr = JSON.stringify(items, null, 2);
-      const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
-      const exportFileDefaultName = "chronicle_export.json";
-      const linkElement = document.createElement("a");
-      linkElement.setAttribute("href", dataUri);
-      linkElement.setAttribute("download", exportFileDefaultName);
-      linkElement.click();
+      router.push("/login");
     } catch {
-      alert("Export failed");
-    } finally {
-      setIsExporting(false);
+      toast("Could not sign out. Try again.", "error");
     }
   };
 
-  const handleImportJSON = () => {
-    if (isImporting) return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      setIsImporting(true);
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        try {
-          const data = JSON.parse(ev.target?.result as string);
-          if (!Array.isArray(data)) throw new Error("Invalid format");
-          let inserted = 0;
-          let skipped = 0;
-          const items = data
-            .filter((item): item is Record<string, unknown> => item && typeof item === "object")
-            .map(stripImportMetadata);
-
-          for (let i = 0; i < items.length; i += IMPORT_CHUNK_SIZE) {
-            const chunk = items.slice(i, i + IMPORT_CHUNK_SIZE);
-            const res = await fetch('/api/media?bulk=1', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(chunk)
-            });
-            const json = await res.json().catch(() => null);
-            if (!res.ok) throw new Error(json?.message || "Import failed");
-            inserted += Number(json?.data?.inserted || 0);
-            skipped += Number(json?.data?.skipped || 0);
-          }
-          alert(`Imported ${inserted} items. Skipped ${skipped}. Please refresh.`);
-        } catch {
-          alert("Import failed");
-        } finally {
-          setIsImporting(false);
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
-
-  const navItems = [
-    { 
-      path: "/library", 
-      label: "Library", 
-      icon: <BookOpen size={16} />
-    },
-    { 
-      path: "/queue", 
-      label: "Queue", 
-      icon: <ListTodo size={16} />
-    },
-    { 
-      path: "/droppedyard", 
-      label: "Droppedyard", 
-      icon: <ArchiveX size={16} />
-    },
-    { 
-      path: "/shelves", 
-      label: "Shelves", 
-      icon: <Library size={16} />
-    },
-    { 
-      path: "/analytics", 
-      label: "Analytics", 
-      icon: <BarChart2 size={16} />
-    },
-  ];
-
   return (
-    <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`} role="navigation" aria-label="Main navigation">
-      <div className="sidebar-brand">
-        <Image src="/favicon.png" alt="Chronicle logo" width={32} height={32} className="sidebar-brand-logo" />
-        <h1>Chronicle</h1>
+    <aside className={`sidebar app-rail ${mobileOpen ? "mobile-open" : ""}`}>
+      <div className="rail-brand">
+        <Image src="/favicon.png" alt="Chronicle" width={28} height={28} priority />
+        <span>Chronicle</span>
+        <button
+          className="rail-close"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Close navigation"
+        >
+          <X size={19} />
+        </button>
       </div>
 
-      <div className="sidebar-nav">
-        <button className="btn-primary" onClick={() => openModal(null)} style={{ marginBottom: "24px", justifyContent: "center" }}>
-          <Plus size={16} strokeWidth={3} />
-          <span>Add Entry</span>
-        </button>
+      <button className="rail-add" onClick={() => openModal(null)} aria-label="Add entry">
+        <Plus size={20} />
+        <span>Add entry</span>
+      </button>
 
-        <div className="sidebar-nav-group">
-          {navItems.map((item) => (
-            <Link key={item.path} href={item.path} onClick={() => setMobileOpen(false)} style={{ textDecoration: "none" }}
-              className={`sidebar-link ${pathname === item.path ? "nav-active" : ""}`}>
-              {item.icon}
+      <nav className="rail-nav" aria-label="Main navigation">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const active = pathname === item.path;
+          return (
+            <Link
+              key={item.path}
+              href={item.path}
+              className={active ? "is-active" : ""}
+              aria-current={active ? "page" : undefined}
+              title={item.label}
+              onClick={() => setMobileOpen(false)}
+            >
+              <Icon size={19} />
               <span>{item.label}</span>
             </Link>
-          ))}
-        </div>
+          );
+        })}
+      </nav>
 
-        <div className="sidebar-divider"></div>
-
-        <button className="sidebar-link" onClick={handleImportJSON} disabled={isImporting}>
-          {isImporting ? <span className="spinner" style={{ width: 16, height: 16 }} /> : <Download size={16} />}
-          <span>{isImporting ? "Importing..." : "Import JSON"}</span>
+      <div className="rail-footer">
+        <button onClick={openSettings} title="Settings">
+          <Settings size={18} />
+          <span>Settings</span>
         </button>
-
-        <button className="sidebar-link" onClick={handleExportJSON} disabled={isExporting}>
-          {isExporting ? <span className="spinner" style={{ width: 16, height: 16 }} /> : <Upload size={16} />}
-          <span>{isExporting ? "Exporting..." : "Export JSON"}</span>
+        <button onClick={logout} title="Logout">
+          <LogOut size={18} />
+          <span>Logout</span>
         </button>
-      </div>
-
-      <div className="sidebar-footer">
-        <div className="sidebar-user">
-          <div className="sidebar-user-avatar">{avatarLetters}</div>
-          <div className="sidebar-user-info">
-            <div className="sidebar-user-name">{username}</div>
-          </div>
-        </div>
-        <div className="sidebar-user-actions">
-          <button className="btn-ghost sidebar-footer-btn" onClick={openSettings} title="Settings">
-            <Settings size={14} />
-            Settings
-          </button>
-          <button className="btn-ghost sidebar-footer-btn" onClick={handleLogout} title="Logout">
-            <LogOut size={14} />
-            Logout
-          </button>
+        <div className="rail-avatar" title={username || "Chronicle user"}>
+          {avatarLetter}
+          <i />
+          <span>{username}</span>
         </div>
       </div>
     </aside>

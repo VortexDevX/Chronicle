@@ -6,7 +6,7 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["**/*.{test,spec}.{ts,tsx}"],
-    exclude: ["node_modules", ".next", "dist", "out"],
+    exclude: ["node_modules", ".next", "dist", "out", "e2e"],
     passWithNoTests: true,
   },
   resolve: {

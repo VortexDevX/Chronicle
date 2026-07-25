@@ -1,7 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { MailCheck, Send, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Database,
+  Download,
+  LogOut,
+  MailCheck,
+  Send,
+  Upload,
+  X,
+} from "lucide-react";
+import { apiRequest, getErrorMessage } from "@/lib/client/api";
+import {
+  downloadMediaBackup,
+  importMediaBackup,
+} from "@/lib/client/backup";
+import { useMediaStore } from "@/store/mediaStore";
+import { useFeedback } from "@/components/FeedbackProvider";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -40,6 +56,11 @@ function SettingsToggle({
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
+  const router = useRouter();
+  const refreshMedia = useMediaStore((state) => state.refreshMedia);
+  const setAuth = useMediaStore((state) => state.setAuth);
+  const { toast } = useFeedback();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     email: "",
     email_verified_at: null as string | null,
@@ -49,6 +70,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sendingVerification, setSendingVerification] = useState(false);
+  const [dataAction, setDataAction] = useState<"import" | "export" | "logout" | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -146,6 +168,55 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     }
   };
 
+  const handleExport = async () => {
+    if (dataAction) return;
+    setDataAction("export");
+    try {
+      const count = await downloadMediaBackup();
+      toast(`Exported ${count} entries`, "success");
+    } catch (err) {
+      toast(getErrorMessage(err, "Export failed"), "error");
+    } finally {
+      setDataAction(null);
+    }
+  };
+
+  const handleImport = async (file: File | undefined) => {
+    if (!file || dataAction) return;
+    setDataAction("import");
+    try {
+      const result = await importMediaBackup(file);
+      refreshMedia();
+      toast(
+        `Imported ${result.inserted} entries · skipped ${result.skipped}`,
+        "success",
+      );
+    } catch (err) {
+      toast(getErrorMessage(err, "Import failed"), "error");
+    } finally {
+      setDataAction(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleLogout = async () => {
+    if (dataAction) return;
+    setDataAction("logout");
+    try {
+      await apiRequest("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      });
+      setAuth("unauthenticated");
+      onClose();
+      router.push("/login");
+    } catch (err) {
+      toast(getErrorMessage(err, "Logout failed"), "error");
+      setDataAction(null);
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !saving) {
@@ -234,6 +305,51 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   />
                 </div>
               </div>
+
+              <div className="modal-section-label">Data and session</div>
+              <div className="settings-data-grid">
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  disabled={Boolean(dataAction)}
+                >
+                  <span><Upload size={18} /></span>
+                  <strong>Export library</strong>
+                  <small>Download every Chronicle entry as JSON.</small>
+                  {dataAction === "export" && <i className="spinner" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={Boolean(dataAction)}
+                >
+                  <span><Download size={18} /></span>
+                  <strong>Import library</strong>
+                  <small>Restore compatible Chronicle JSON without duplicates.</small>
+                  {dataAction === "import" && <i className="spinner" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={Boolean(dataAction)}
+                >
+                  <span><LogOut size={18} /></span>
+                  <strong>Sign out</strong>
+                  <small>End this browser session securely.</small>
+                  {dataAction === "logout" && <i className="spinner" />}
+                </button>
+              </div>
+              <div className="settings-data-note">
+                <Database size={15} />
+                <span>Media stays in your MongoDB account. Import keeps existing duplicate protection.</span>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                hidden
+                onChange={(event) => handleImport(event.target.files?.[0])}
+              />
 
               {error && <div className="auth-error">{error}</div>}
               {success && <div className="auth-success">{success}</div>}

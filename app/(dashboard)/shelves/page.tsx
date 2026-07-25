@@ -7,6 +7,11 @@ import { useEffect, useState, useCallback } from "react";
 import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
 import { Shelf, MediaItem } from "@/types/media";
 import { PageLoader } from "@/components/PageLoader";
+import { useFeedback } from "@/components/FeedbackProvider";
+import { apiRequest, getErrorMessage } from "@/lib/client/api";
+import { MediaViewMode, MediaViewToggle } from "@/components/MediaViewToggle";
+
+const SHELF_VIEW_KEY = "chronicle:shelf-view:v1";
 
 export default function ShelvesPage() {
   const mediaRev = useMediaStore((state) => state.mediaRev);
@@ -25,15 +30,20 @@ export default function ShelvesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [viewMode, setViewMode] = useState<MediaViewMode>("grid");
+  const { toast, confirm } = useFeedback();
 
   const fetchShelves = useCallback(async () => {
+    setLoadError("");
     try {
-      const res = await fetch("/api/shelves", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setShelves(data.data?.items || []);
-      }
-    } catch {}
+      const data = await apiRequest<{ items?: Shelf[] }>("/api/shelves", {
+        cache: "no-store",
+      });
+      setShelves(data.items || []);
+    } catch (err) {
+      setLoadError(getErrorMessage(err, "Shelves could not load"));
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -41,22 +51,18 @@ export default function ShelvesPage() {
     resetCoverQueue();
     setShelfLoading(true);
     try {
-      const res = await fetch(`/api/shelves?id=${shelfId}`, { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        const items = Array.isArray(data.data?.items)
-          ? data.data.items
-          : Array.isArray(data.items)
-            ? data.items
-            : [];
-        setShelfMedia(items);
-      }
-    } catch {
+      const data = await apiRequest<{ items?: MediaItem[] }>(
+        `/api/shelves?id=${shelfId}`,
+        { cache: "no-store" },
+      );
+      setShelfMedia(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
       setShelfMedia([]);
+      toast(getErrorMessage(err, "Shelf could not load"), "error");
     } finally {
       setShelfLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     setActiveRoute("shelves");
@@ -69,40 +75,59 @@ export default function ShelvesPage() {
     if (activeShelf) fetchShelfMedia(activeShelf._id!);
   }, [activeShelf, fetchShelfMedia]);
 
+  useEffect(() => {
+    const saved = window.localStorage.getItem(SHELF_VIEW_KEY);
+    if (saved === "grid" || saved === "list") setViewMode(saved);
+  }, []);
+
+  const updateViewMode = (mode: MediaViewMode) => {
+    setViewMode(mode);
+    window.localStorage.setItem(SHELF_VIEW_KEY, mode);
+  };
+
   const handleCreateShelf = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newShelfName) return;
     setCreateLoading(true);
     try {
-      const res = await fetch("/api/shelves", {
+      await apiRequest("/api/shelves", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newShelfName, description: newShelfDesc }),
       });
-      if (res.ok) {
-        setNewShelfName("");
-        setNewShelfDesc("");
-        setShowCreate(false);
-        fetchShelves();
-      }
-    } catch {}
-    finally { setCreateLoading(false); }
+      setNewShelfName("");
+      setNewShelfDesc("");
+      setShowCreate(false);
+      toast("Shelf created", "success");
+      fetchShelves();
+    } catch (err) {
+      toast(getErrorMessage(err, "Could not create shelf"), "error");
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
   const handleDeleteShelf = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!confirm("Delete this shelf? Media entries will not be deleted.")) return;
+    const approved = await confirm({
+      title: "Delete shelf?",
+      message: "Media entries remain in your Library.",
+      confirmLabel: "Delete shelf",
+      danger: true,
+    });
+    if (!approved) return;
     setDeleteLoading(id);
     try {
-      const res = await fetch(`/api/shelves?id=${id}`, { method: "DELETE" });
-      if (res.ok) {
-        if (activeShelf?._id === id) {
-          setActiveShelf(null);
-          setShelfMedia([]);
-        }
-        fetchShelves();
+      await apiRequest(`/api/shelves?id=${id}`, { method: "DELETE" });
+      if (activeShelf?._id === id) {
+        setActiveShelf(null);
+        setShelfMedia([]);
       }
-    } catch {}
+      toast("Shelf deleted", "success");
+      fetchShelves();
+    } catch (err) {
+      toast(getErrorMessage(err, "Could not delete shelf"), "error");
+    }
     finally { setDeleteLoading(null); }
   };
 
@@ -110,6 +135,16 @@ export default function ShelvesPage() {
 
   if (loading) {
     return <PageLoader label="Opening shelves" detail="Collecting your collections" compact />;
+  }
+
+  if (loadError && shelves.length === 0) {
+    return (
+      <div className="state-panel state-error">
+        <h2>Shelves unavailable.</h2>
+        <p>{loadError}</p>
+        <button className="btn-primary" onClick={fetchShelves}>Try again</button>
+      </div>
+    );
   }
 
   // ACTIVE SHELF VIEW (Drill-down)
@@ -134,6 +169,7 @@ export default function ShelvesPage() {
             <h1><Layers size={28} color="var(--accent)" /> {activeShelf.name}</h1>
             {activeShelf.description && <p>{activeShelf.description}</p>}
           </div>
+          <MediaViewToggle value={viewMode} onChange={updateViewMode} label="Shelf media view" />
         </div>
 
         {shelfLoading ? (
@@ -145,9 +181,9 @@ export default function ShelvesPage() {
             <p>This shelf has no items. Edit entries in your library to add them here.</p>
           </div>
         ) : (
-          <div className="grid">
+          <div className={viewMode === "grid" ? "grid media-grid" : "library-media-list"}>
             {shelfMedia.map((m) => (
-              <MediaCard key={m._id} m={m} onEdit={openModal} />
+              <MediaCard key={m._id} m={m} mode={viewMode} onEdit={openModal} />
             ))}
           </div>
         )}

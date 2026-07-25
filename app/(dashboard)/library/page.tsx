@@ -2,10 +2,14 @@
 
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
-import { StatsRow } from "@/components/StatsRow";
-import { Search, Plus, Book } from "lucide-react";
-import { useEffect, useCallback, useState, useRef } from "react";
+import { Search, Plus, Book, Grid2X2, List, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
+import { apiRequest, getErrorMessage } from "@/lib/client/api";
+import { useFeedback } from "@/components/FeedbackProvider";
+import { useMediaList } from "@/hooks/useMediaList";
+
+const LIBRARY_VIEW_KEY = "chronicle:library-view:v1";
 
 export default function LibraryPage() {
   const media = useMediaStore((state) => state.media);
@@ -14,13 +18,10 @@ export default function LibraryPage() {
   const hasMore = useMediaStore((state) => state.hasMore);
   const page = useMediaStore((state) => state.page);
   const mediaRev = useMediaStore((state) => state.mediaRev);
-  const globalStats = useMediaStore((state) => state.globalStats);
   const setMedia = useMediaStore((state) => state.setMedia);
-  const setLoading = useMediaStore((state) => state.setLoading);
-  const setGlobalStats = useMediaStore((state) => state.setGlobalStats);
   const setActiveRoute = useMediaStore((state) => state.setActiveRoute);
-  const updateFilters = useMediaStore((state) => state.updateFilters);
   const openModal = useMediaStore((state) => state.openModal);
+  const { toast, confirm } = useFeedback();
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -28,82 +29,40 @@ export default function LibraryPage() {
   const [filterStatus, setFilterStatus] = useState("");
   const [sortBy, setSortBy] = useState("last_updated");
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
-  const abortRef = useRef<AbortController | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const query = useMemo(() => {
+    const params = new URLSearchParams({ sort_by: sortBy });
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (filterType) params.set("media_type", filterType);
+    if (filterStatus) params.set("status", filterStatus);
+    return params.toString();
+  }, [debouncedSearch, filterStatus, filterType, sortBy]);
+  const { fetchMedia, loadError } = useMediaList(query, "Library could not load");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
 
-  const fetchMedia = useCallback(async (pg = 1, replace = true) => {
-    // Cancel any in-flight request
-    if (abortRef.current) abortRef.current.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+  useEffect(() => {
+    const saved = window.localStorage.getItem(LIBRARY_VIEW_KEY);
+    if (saved === "grid" || saved === "list") setViewMode(saved);
+  }, []);
 
-    if (replace) resetCoverQueue();
-    setLoading(true, pg > 1);
-    try {
-      const params = new URLSearchParams({ page: String(pg), limit: "24", sort_by: sortBy });
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      if (filterType) params.set("media_type", filterType);
-      if (filterStatus) params.set("status", filterStatus);
-      const res = await fetch(`/api/media?${params}`, { cache: "no-store", signal: controller.signal });
-      if (!res.ok) throw new Error("Failed to fetch");
-      const json = await res.json();
-      // Only update state if this request wasn't aborted
-      if (!controller.signal.aborted) {
-        setMedia(json.data.items, json.data.total, json.data.has_more, replace);
-        updateFilters({ page: pg });
-      }
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-    }
-    finally {
-      if (!controller.signal.aborted) setLoading(false);
-    }
-  }, [debouncedSearch, filterType, filterStatus, sortBy, setMedia, setLoading, updateFilters]);
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await fetch("/api/media?limit=1", { cache: "no-store" });
-      if (!res.ok) return;
-      const json = await res.json();
-      const total = json.data.total || 0;
-
-      const [activeRes, completedRes, droppedRes] = await Promise.all([
-        fetch("/api/media?status=Active&limit=1", { cache: "no-store" }),
-        fetch("/api/media?status=Completed&limit=1", { cache: "no-store" }),
-        fetch("/api/media?status=Dropped&limit=1", { cache: "no-store" }),
-      ]);
-      const activeJson = activeRes.ok ? await activeRes.json() : { data: { total: 0 } };
-      const completedJson = completedRes.ok ? await completedRes.json() : { data: { total: 0 } };
-      const droppedJson = droppedRes.ok ? await droppedRes.json() : { data: { total: 0 } };
-
-      setGlobalStats({
-        total,
-        watching: activeJson.data.total || 0,
-        completed: completedJson.data.total || 0,
-        planned: 0, onHold: 0,
-        dropped: droppedJson.data.total || 0,
-        avgRating: 0, byType: {},
-      });
-    } catch {}
-  }, [setGlobalStats]);
+  const updateViewMode = (mode: "grid" | "list") => {
+    setViewMode(mode);
+    window.localStorage.setItem(LIBRARY_VIEW_KEY, mode);
+  };
 
   useEffect(() => {
     setActiveRoute("library");
     resetCoverQueue();
     setMedia([], 0, false, true);
     loadCoverCache();
-    fetchStats();
-  }, [setActiveRoute, setMedia, fetchStats]);
+  }, [setActiveRoute, setMedia]);
 
   useEffect(() => {
     fetchMedia(1, true);
-    return () => {
-      if (abortRef.current) abortRef.current.abort();
-    };
   }, [fetchMedia, mediaRev]);
 
   const handleIncrement = async (id: string) => {
@@ -111,13 +70,23 @@ export default function LibraryPage() {
     if (!item || pendingIds.has(id)) return;
     setPendingIds(prev => new Set(prev).add(id));
     try {
-      await fetch(`/api/media?id=${id}`, {
+      const nextProgress = item.progress_total > 0
+        ? Math.min(item.progress_total, item.progress_current + 1)
+        : item.progress_current + 1;
+      if (nextProgress === item.progress_current) {
+        toast(`${item.title} is already complete`, "info");
+        return;
+      }
+      await apiRequest(`/api/media?id=${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progress_current: item.progress_current + 1 }),
+        body: JSON.stringify({ progress_current: nextProgress }),
       });
+      toast(`${item.title} progress updated`, "success");
       fetchMedia(1, true);
-    } catch {}
+    } catch (err) {
+      toast(getErrorMessage(err, "Progress update failed"), "error");
+    }
     finally {
       setPendingIds(prev => {
         const next = new Set(prev);
@@ -128,13 +97,24 @@ export default function LibraryPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this entry?")) return;
+    const item = media.find((candidate) => candidate._id === id);
+    const approved = await confirm({
+      title: "Delete entry?",
+      message: item
+        ? `${item.title} and its seven-day activity will be removed.`
+        : "This entry and its seven-day activity will be removed.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!approved) return;
     setPendingIds(prev => new Set(prev).add(id));
     try {
-      await fetch(`/api/media?id=${id}`, { method: "DELETE" });
+      await apiRequest(`/api/media?id=${id}`, { method: "DELETE" });
+      toast("Entry deleted", "success");
       fetchMedia(1, true);
-      fetchStats();
-    } catch {}
+    } catch (err) {
+      toast(getErrorMessage(err, "Delete failed"), "error");
+    }
     finally {
       setPendingIds(prev => {
         const next = new Set(prev);
@@ -185,11 +165,25 @@ export default function LibraryPage() {
               <option value="rating">Top Rated</option>
               <option value="progress">Highest Progress</option>
             </select>
+            <div className="view-toggle" aria-label="Library view">
+              <button
+                className={viewMode === "grid" ? "is-active" : ""}
+                onClick={() => updateViewMode("grid")}
+                aria-label="Grid view"
+              >
+                <Grid2X2 size={16} />
+              </button>
+              <button
+                className={viewMode === "list" ? "is-active" : ""}
+                onClick={() => updateViewMode("list")}
+                aria-label="List view"
+              >
+                <List size={17} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
-
-      <StatsRow stats={globalStats} />
 
       {isRefining && (
         <div className="results-loading-strip">
@@ -197,7 +191,14 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {loading && media.length === 0 ? (
+      {loadError && media.length === 0 ? (
+        <div className="state-panel state-error">
+          <RefreshCw size={22} />
+          <h2>Library unavailable.</h2>
+          <p>{loadError}</p>
+          <button className="btn-primary" onClick={() => fetchMedia(1, true)}>Try again</button>
+        </div>
+      ) : loading && media.length === 0 ? (
         <div className="grid">
           {[1,2,3,4].map(i => (
             <div key={i} className="card skeleton-card">
@@ -224,9 +225,9 @@ export default function LibraryPage() {
           <button className="btn-primary" onClick={() => openModal(null)}>+ Add Your First Entry</button>
         </div>
       ) : (
-        <div className="grid">
+        <div className={viewMode === "grid" ? "grid media-grid" : "library-media-list"}>
           {media.map((m) => (
-            <MediaCard key={m._id} m={m} onEdit={openModal} onIncrement={handleIncrement} onDelete={handleDelete} />
+            <MediaCard key={m._id} m={m} mode={viewMode} onEdit={openModal} onIncrement={handleIncrement} onDelete={handleDelete} />
           ))}
         </div>
       )}
