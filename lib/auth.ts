@@ -18,7 +18,7 @@ export const signAuthToken = (userId: string, authVersion = 0): string => {
   });
 };
 
-const verifyToken = (token?: string): AuthTokenClaims | null => {
+export const verifyAuthToken = (token?: string): AuthTokenClaims | null => {
   if (!token) return null;
 
   const jwtSecret = process.env.JWT_SECRET;
@@ -47,10 +47,10 @@ const verifyToken = (token?: string): AuthTokenClaims | null => {
 
 const getUser = (req: NextRequest): string | null => {
   const token = req.cookies.get("auth_token")?.value;
-  return verifyToken(token)?.userId || null;
+  return verifyAuthToken(token)?.userId || null;
 };
 
 export const getAuthTokenClaims = (req: NextRequest): AuthTokenClaims | null => {
   const token = req.cookies.get("auth_token")?.value;
-  return verifyToken(token);
+  return verifyAuthToken(token);
 };

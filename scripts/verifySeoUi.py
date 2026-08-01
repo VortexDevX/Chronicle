@@ -79,6 +79,8 @@ def main() -> None:
 
         desktop.goto(BASE_URL, wait_until="networkidle")
         desktop.screenshot(path=output_dir / "homepage-desktop.png", full_page=True)
+        assert desktop.get_by_role("link", name="Sign in").first.is_visible()
+        assert desktop.get_by_role("link", name="Create library").is_visible()
         assert desktop.locator(".simple-actions .marketing-button").is_visible()
         assert desktop.locator("#features").is_visible()
 

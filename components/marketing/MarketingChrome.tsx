@@ -2,7 +2,62 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-export function MarketingHeader() {
+export function MarketingHeaderActions({ isAuthenticated }: { isAuthenticated: boolean }) {
+  if (isAuthenticated) {
+    return (
+      <div className="marketing-header-actions">
+        <Link className="marketing-login" href="/home">
+          Home
+        </Link>
+        <Link className="marketing-button compact" href="/library">
+          Open library <ArrowRight size={15} aria-hidden="true" />
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="marketing-header-actions">
+      <Link className="marketing-login" href="/login">
+        Sign in
+      </Link>
+      <Link className="marketing-button compact" href="/login?mode=register">
+        Create library <ArrowRight size={15} aria-hidden="true" />
+      </Link>
+    </div>
+  );
+}
+
+export function LandingHeroActions({ isAuthenticated }: { isAuthenticated: boolean }) {
+  return (
+    <div className="simple-actions">
+      <Link
+        className="marketing-button"
+        href={isAuthenticated ? "/library" : "/login?mode=register"}
+      >
+        {isAuthenticated ? "Open library" : "Create your list"}{" "}
+        <ArrowRight size={16} aria-hidden="true" />
+      </Link>
+      <Link className="simple-text-link" href={isAuthenticated ? "/home" : "/login"}>
+        {isAuthenticated ? "Home" : "Sign in"}
+      </Link>
+    </div>
+  );
+}
+
+export function LandingFinalAction({ isAuthenticated }: { isAuthenticated: boolean }) {
+  return (
+    <Link
+      className="marketing-button"
+      href={isAuthenticated ? "/library" : "/login?mode=register"}
+    >
+      {isAuthenticated ? "Open your library" : "Start tracking"}{" "}
+      <ArrowRight size={16} aria-hidden="true" />
+    </Link>
+  );
+}
+
+export function MarketingHeader({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
     <header className="marketing-header">
       <div className="marketing-container marketing-header-inner">
@@ -24,14 +79,7 @@ export function MarketingHeader() {
           <Link href="/#trackers">Formats</Link>
         </nav>
 
-        <div className="marketing-header-actions">
-          <Link className="marketing-login" href="/login">
-            Sign in
-          </Link>
-          <Link className="marketing-button compact" href="/login?mode=register">
-            Create library <ArrowRight size={15} aria-hidden="true" />
-          </Link>
-        </div>
+        <MarketingHeaderActions isAuthenticated={isAuthenticated} />
       </div>
     </header>
   );
