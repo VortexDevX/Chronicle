@@ -20,6 +20,16 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 | **Design System**       | Responsive, mobile-first "Soft Red" UI with sharp cards, modal scroll locking, accessible badging, skeleton cards, and animated page loaders |
 | **CORS / Deployment**   | Comma-separated `APP_ORIGIN` support · Next.js `proxy.ts` CORS handling for API routes                                                       |
 
+## 🔎 Public SEO Page
+
+Chronicle keeps account data private while exposing one concise, server-rendered product page to search engines and prospective users:
+
+| Route | Search intent                                      |
+| ----- | -------------------------------------------------- |
+| `/`   | Combined anime, manhwa, donghua, and novel tracker |
+
+The page summarizes all four formats without separate tracker landing pages. Technical discovery files are generated at `/robots.txt`, `/sitemap.xml`, `/manifest.webmanifest`, and `/llms.txt`. Private dashboard, login, and password-reset routes emit `noindex` metadata. See [SEO_AUDIT.md](./SEO_AUDIT.md) for verification evidence, deployment checklist, and ranking limits.
+
 ## 🛠️ Tech Stack
 
 | Layer    | Technology                                                          |
@@ -65,7 +75,7 @@ MONGODB_URI=mongodb://localhost:27017/chronicle
 JWT_SECRET=your-32-char-secret-here
 
 # App origins (comma-separated). First origin is used in password reset emails.
-APP_ORIGIN=http://localhost:3000,https://chroniclex.vercel.app,https://chroniclex.vercel.app
+APP_ORIGIN=http://localhost:3000,https://chroniclex.vercel.app
 
 # Optional public URL fallback for metadata when no request host is available.
 NEXT_PUBLIC_APP_URL=https://chroniclex.vercel.app
@@ -112,6 +122,13 @@ npm run typecheck    # TypeScript type checking
 npm run lint         # ESLint checks
 npm run test         # Run Vitest suite
 npm run build        # Production Next.js build
+```
+
+After a production build is running on port `3100`, the optional browser SEO smoke test checks public titles, canonicals, JSON-LD, private-route `noindex`, sitemap coverage, crawler rules, mobile overflow, and browser errors:
+
+```bash
+npm run start -- -p 3100
+python scripts/verifySeoUi.py
 ```
 
 CI runs these same checks on pushes to `main` and pull requests.
@@ -172,7 +189,9 @@ Chronicle/
 │   ├── login/              # Login, registration, and forgot-password entry
 │   ├── reset-password/     # Password reset page
 │   ├── globals.css         # Global CSS variables, resets, and utility classes
-│   └── layout.tsx          # Root Next.js layout
+│   ├── robots.ts           # Search and AI crawler policy
+│   ├── sitemap.ts          # Public canonical URL inventory
+│   └── layout.tsx          # Root metadata and Next.js layout
 ├── components/             # Reusable UI components (Sidebar, TopBar, MediaCard, Modals)
 ├── hooks/                  # Custom React hooks (e.g., useAuth)
 ├── lib/                    # Shared utilities (DB, Auth, HTTP, Rate Limiting, Models)
