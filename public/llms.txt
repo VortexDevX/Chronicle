@@ -1,0 +1,32 @@
+# Chronicle X
+
+> Chronicle X is a personal web tracker for anime, manhwa, donghua, and light novels. It stores watchlists and reading lists with episode or chapter progress, statuses, ratings, notes, custom shelves, covers, updates, analytics, and JSON backups.
+
+Canonical site: https://chroniclex.vercel.app
+Last product-content update: 2026-08-01
+
+## Public product page
+
+- [Chronicle X](https://chroniclex.vercel.app): concise overview of the combined anime, manhwa, donghua, and light novel tracker.
+
+## Supported formats
+
+- Anime: episode progress, seasons, ratings, notes, and watch statuses.
+- Manhwa: chapter progress, reading links, covers, and optional update checks.
+- Donghua: Chinese animation stored as a dedicated type with episode progress.
+- Light novels: chapter progress, reading notes, shelves, and related adaptations.
+
+## Product facts
+
+- Supported media types: Anime, Manhwa, Donghua, and Light Novel.
+- Supported statuses: Planned, Active, On Hold, Dropped, and Completed.
+- Progress supports whole and decimal values.
+- Cover sources include AniList, Jikan, MangaDex, and custom public URLs, depending on media type.
+- Chronicle can import and export compatible library data as JSON.
+- Personal library routes require an authenticated account.
+- Chronicle is a tracker. It does not stream anime or host comic, donghua, or novel content.
+
+## Source
+
+- [Open-source repository](https://github.com/VortexDevX/Chronicle)
+- Creator: [VortexDevX](https://github.com/VortexDevX)

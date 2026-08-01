@@ -7,7 +7,17 @@ const size = {
   height: 630,
 };
 
-export function GET() {
+const focusLabels: Record<string, string> = {
+  Anime: "Anime watchlists",
+  Manhwa: "Manhwa reading lists",
+  Donghua: "Donghua watchlists",
+  "Light novels": "Light novel reading lists",
+};
+
+export function GET(request: Request) {
+  const focus = new URL(request.url).searchParams.get("focus") || "";
+  const focusLabel = focusLabels[focus] || "Every story";
+
   return new ImageResponse(
     (
       <div
@@ -114,7 +124,7 @@ export function GET() {
               maxWidth: 620,
             }}
           >
-            Track every comeback.
+            Track {focusLabel.toLowerCase()}.
           </div>
           <div
             style={{

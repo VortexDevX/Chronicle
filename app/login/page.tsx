@@ -18,7 +18,11 @@ export default function LoginPage() {
   const setAuth = useMediaStore((state) => state.setAuth);
 
   useEffect(() => {
-    const status = new URLSearchParams(window.location.search).get("email");
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("email");
+    if (params.get("mode") === "register") {
+      setIsRegister(true);
+    }
     if (status === "verified") {
       setSuccess("Email verified. You can sign in.");
     } else if (status === "invalid") {
