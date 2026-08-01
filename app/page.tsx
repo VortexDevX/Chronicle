@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { cookies } from "next/headers";
+import { Check } from "lucide-react";
 import { JsonLd } from "@/components/marketing/JsonLd";
 import {
+  LandingFinalAction,
+  LandingHeroActions,
   MarketingFooter,
   MarketingHeader,
 } from "@/components/marketing/MarketingChrome";
+import { verifyAuthToken } from "@/lib/auth";
 import { siteConfig } from "@/lib/site";
 
 const title = "Anime, Manhwa, Donghua & Light Novel Tracker | Chronicle X";
@@ -98,11 +101,16 @@ const structuredData = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const cookieStore = await cookies();
+  const isAuthenticated = Boolean(
+    verifyAuthToken(cookieStore.get("auth_token")?.value),
+  );
+
   return (
     <div className="marketing-site simple-home">
       <JsonLd data={structuredData} />
-      <MarketingHeader />
+      <MarketingHeader isAuthenticated={isAuthenticated} />
 
       <main>
         <section className="simple-hero">
@@ -115,14 +123,7 @@ export default function LandingPage() {
                 private list—with progress, shelves, notes, and updates when you
                 want them.
               </p>
-              <div className="simple-actions">
-                <Link className="marketing-button" href="/login?mode=register">
-                  Create your list <ArrowRight size={16} aria-hidden="true" />
-                </Link>
-                <Link className="simple-text-link" href="/login">
-                  Sign in
-                </Link>
-              </div>
+              <LandingHeroActions isAuthenticated={isAuthenticated} />
               <small>No streaming. No chapter hosting. Just your list.</small>
             </div>
 
@@ -208,9 +209,7 @@ export default function LandingPage() {
               <h2 id="simple-cta-title">Ready when your next story starts.</h2>
               <p>Build your list now. Keep it useful later.</p>
             </div>
-            <Link className="marketing-button" href="/login?mode=register">
-              Start tracking <ArrowRight size={16} aria-hidden="true" />
-            </Link>
+            <LandingFinalAction isAuthenticated={isAuthenticated} />
           </div>
         </section>
       </main>
