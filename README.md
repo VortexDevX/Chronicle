@@ -91,6 +91,12 @@ CRON_SECRET=your-cron-secret
 # Optional cron tuning (default 4, max 8)
 CRON_CHECK_CONCURRENCY=4
 
+# Keep response below cron-job.org's 30-second request limit (default 24000, max 25000)
+CRON_TIME_BUDGET_MS=24000
+
+# Preserve full tracker retry behavior (default 2, max 2)
+CRON_SCRAPE_RETRIES=2
+
 # Telegram notifications
 TELEGRAM_BOT_TOKEN=your-telegram-bot-token
 TELEGRAM_CHAT_ID=your-telegram-chat-id
@@ -137,6 +143,9 @@ CI runs these same checks on pushes to `main` and pull requests.
 
 - Set `CRON_SECRET` in production so `/api/cron/checkChapters` rejects unauthenticated requests.
 - Tune `CRON_CHECK_CONCURRENCY` if tracker notifications arrive late. Default is `4`; values above `8` are capped to avoid hammering tracker sites.
+- Cron runs stop taking new tracker work before their HTTP deadline. A `200` response with `partial: true` and `deferred > 0` is healthy: deferred entries rotate by `last_attempted_at` and are retried on the next run.
+- Keep `CRON_TIME_BUDGET_MS` below the scheduler timeout. Chronicle clamps it to `10000`–`25000` ms and reserves the final six seconds for Telegram delivery.
+- `CRON_SCRAPE_RETRIES=2` preserves full retry behavior. If the HTTP budget ends first, unfinished attempts rotate safely and continue on a later run.
 - Configure `APP_ORIGIN` to the exact deployed origins that may call the API.
 - Upstash Redis rate limiting is optional for local/single-instance installs, but recommended for serverless or horizontally scaled production. Without it, rate limits use process-local memory.
 - `package.json` pins `postcss` through `overrides` so transitive tooling uses the patched 8.5.x line consistently.
@@ -166,8 +175,9 @@ If `https://chroniclex.vercel.app` is the active deployment, use
 `<CRON_SECRET>` with the same production secret configured in the deployment;
 never commit the real value. Run one manual test from the cron-job.org dashboard
 and confirm an HTTP `200` JSON response before enabling the four-hour schedule.
-cron-job.org supports custom request headers and stops requests after 30 seconds,
-so keep `CRON_CHECK_CONCURRENCY` tuned for the tracker count and response times.
+cron-job.org stops requests after 30 seconds. Chronicle therefore uses a bounded
+24-second run, aborts in-flight scrapes when its scan budget ends, returns partial
+progress instead of timing out, and retries deferred trackers on the next run.
 
 ### Maintenance
 

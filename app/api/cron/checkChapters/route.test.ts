@@ -41,6 +41,8 @@ import { GET } from "./route";
 
 const originalCronSecret = process.env.CRON_SECRET;
 const originalNodeEnv = process.env.NODE_ENV;
+const originalCronTimeBudget = process.env.CRON_TIME_BUDGET_MS;
+const originalCronConcurrency = process.env.CRON_CHECK_CONCURRENCY;
 
 type Entry = {
   _id: string;
@@ -74,11 +76,13 @@ function mockFindResults(entries: Entry[], users: User[]) {
   mediaQuery.select = vi.fn(() => mediaQuery);
   mediaQuery.sort = vi.fn(() => mediaQuery);
   mediaQuery.limit = vi.fn(() => mediaQuery);
+  mediaQuery.maxTimeMS = vi.fn(() => mediaQuery);
   mediaQuery.lean = vi.fn().mockResolvedValue(entries);
   mocks.mediaFind.mockReturnValue(mediaQuery);
 
   const userQuery: Record<string, ReturnType<typeof vi.fn>> = {};
   userQuery.select = vi.fn(() => userQuery);
+  userQuery.maxTimeMS = vi.fn(() => userQuery);
   userQuery.lean = vi.fn().mockResolvedValue(users);
   mocks.userFind.mockReturnValue(userQuery);
 }
@@ -126,7 +130,10 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env.CRON_SECRET = originalCronSecret;
+  process.env.CRON_TIME_BUDGET_MS = originalCronTimeBudget;
+  process.env.CRON_CHECK_CONCURRENCY = originalCronConcurrency;
   setNodeEnv(originalNodeEnv || "test");
+  vi.useRealTimers();
 });
 
 describe("cron chapter check auth", () => {
@@ -327,5 +334,43 @@ describe("cron chapter notification state", () => {
     expect(mocks.sendTelegramToChat).not.toHaveBeenCalled();
     expect(mocks.sendTelegram).toHaveBeenCalledOnce();
     expect(mocks.mediaBulkWrite).toHaveBeenCalledOnce();
+  });
+});
+
+describe("cron time budget", () => {
+  it("returns a partial success and defers a hung tracker", async () => {
+    vi.useFakeTimers();
+    process.env.CRON_TIME_BUDGET_MS = "10000";
+    process.env.CRON_CHECK_CONCURRENCY = "1";
+    mockFindResults([makeEntry()], [makeUser()]);
+    mocks.scrapeTrackerUrl.mockImplementation(
+      (_url: string, _mediaType: string, options?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            "abort",
+            () => reject(new Error("Scrape cancelled by caller")),
+            { once: true },
+          );
+        }),
+    );
+
+    const responsePromise = GET(authorizedRequest());
+    await vi.advanceTimersByTimeAsync(4_000);
+    const response = await responsePromise;
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toMatchObject({
+      selected: 1,
+      started: 1,
+      scanned: 0,
+      deferred: 1,
+      deadline_deferred: 1,
+      partial: true,
+    });
+    expect(mocks.mediaUpdateOne).toHaveBeenCalledWith(
+      { _id: "media-1" },
+      { $set: { last_attempted_at: expect.any(Date) } },
+    );
   });
 });

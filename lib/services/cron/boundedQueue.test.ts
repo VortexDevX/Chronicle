@@ -28,4 +28,21 @@ describe("bounded queue", () => {
 
     expect(seen).toEqual([1, 2]);
   });
+
+  it("stops taking new work after its abort signal fires", async () => {
+    const seen: number[] = [];
+    const controller = new AbortController();
+
+    await runBoundedQueue(
+      [1, 2, 3],
+      1,
+      async (item) => {
+        seen.push(item);
+        controller.abort();
+      },
+      { signal: controller.signal },
+    );
+
+    expect(seen).toEqual([1]);
+  });
 });

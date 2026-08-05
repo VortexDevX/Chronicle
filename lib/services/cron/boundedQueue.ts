@@ -2,6 +2,7 @@ export async function runBoundedQueue<T>(
   items: T[],
   concurrency: number,
   worker: (item: T, index: number) => Promise<void>,
+  options: { signal?: AbortSignal } = {},
 ): Promise<void> {
   const workerCount = Math.min(
     items.length,
@@ -12,6 +13,7 @@ export async function runBoundedQueue<T>(
   await Promise.all(
     Array.from({ length: workerCount }, async () => {
       while (true) {
+        if (options.signal?.aborted) return;
         const index = nextIndex;
         nextIndex += 1;
         if (index >= items.length) return;
