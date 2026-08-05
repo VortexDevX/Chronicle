@@ -5,6 +5,9 @@
  */
 
 import { logInfo, logInternalError } from "@/lib/log";
+import { fetchWithTimeout } from "@/lib/externalFetch";
+
+const TELEGRAM_REQUEST_TIMEOUT_MS = 5_000;
 
 /** Escape HTML entities for Telegram HTML parse mode. */
 export function escapeHtml(text: string): string {
@@ -21,6 +24,7 @@ export function escapeHtml(text: string): string {
 export async function sendTelegramToChat(
   chatId: string,
   message: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
@@ -37,17 +41,22 @@ export async function sendTelegramToChat(
       : message;
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: truncated,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
-    });
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: truncated,
+          parse_mode: "HTML",
+          disable_web_page_preview: true,
+        }),
+        signal,
+      },
+      TELEGRAM_REQUEST_TIMEOUT_MS,
+    );
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -58,6 +67,10 @@ export async function sendTelegramToChat(
     }
     return true;
   } catch (err) {
+    if (signal?.aborted) {
+      logInfo("telegram_notification_deferred", { reason: "cron_deadline" });
+      return false;
+    }
     logInternalError("telegram_request_failed", err);
     return false;
   }
@@ -67,11 +80,14 @@ export async function sendTelegramToChat(
  * Send a Telegram message using the global TELEGRAM_CHAT_ID env var.
  * Fallback for when no per-user chat ID is available.
  */
-export async function sendTelegram(message: string): Promise<boolean> {
+export async function sendTelegram(
+  message: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!chatId) {
     logInfo("telegram_notification_skipped", { reason: "missing_chat_id" });
     return false;
   }
-  return sendTelegramToChat(chatId, message);
+  return sendTelegramToChat(chatId, message, signal);
 }

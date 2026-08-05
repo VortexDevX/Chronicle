@@ -22,4 +22,23 @@ describe("fetchWithTimeout", () => {
     await vi.advanceTimersByTimeAsync(25);
     await rejection;
   });
+
+  it("propagates a caller signal that was already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetchMock = vi.fn((_input, init?: RequestInit) => {
+      expect(init?.signal?.aborted).toBe(true);
+      return Promise.reject(new DOMException("Aborted", "AbortError"));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchWithTimeout(
+        "https://example.com/image",
+        { signal: controller.signal },
+        100,
+      ),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
 });

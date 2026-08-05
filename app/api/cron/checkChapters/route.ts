@@ -16,10 +16,19 @@ import {
   scrapeTrackerUrl,
 } from "@/lib/trackerScraper";
 
+export const maxDuration = 60;
+
 const MAX_USERS = 50;
 const MAX_ENTRIES_PER_RUN = 200;
 const DEFAULT_CRON_CONCURRENCY = 4;
 const MAX_CRON_CONCURRENCY = 8;
+const DEFAULT_CRON_TIME_BUDGET_MS = 24_000;
+const MIN_CRON_TIME_BUDGET_MS = 10_000;
+const MAX_CRON_TIME_BUDGET_MS = 25_000;
+const NOTIFICATION_RESERVE_MS = 6_000;
+const DEFAULT_CRON_SCRAPE_RETRIES = 2;
+const MAX_CRON_SCRAPE_RETRIES = 2;
+const CRON_DB_QUERY_TIMEOUT_MS = 5_000;
 const TELEGRAM_MESSAGE_LIMIT = 4000;
 
 const HOST_COOLDOWN_MS = 10 * 60 * 1000;
@@ -56,6 +65,21 @@ function getCronConcurrency(): number {
   return Math.min(MAX_CRON_CONCURRENCY, Math.floor(raw));
 }
 
+function getCronTimeBudgetMs(): number {
+  const raw = Number(process.env.CRON_TIME_BUDGET_MS || "");
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_CRON_TIME_BUDGET_MS;
+  return Math.min(
+    MAX_CRON_TIME_BUDGET_MS,
+    Math.max(MIN_CRON_TIME_BUDGET_MS, Math.floor(raw)),
+  );
+}
+
+function getCronScrapeRetries(): number {
+  const raw = Number(process.env.CRON_SCRAPE_RETRIES || "");
+  if (!Number.isFinite(raw) || raw < 0) return DEFAULT_CRON_SCRAPE_RETRIES;
+  return Math.min(MAX_CRON_SCRAPE_RETRIES, Math.floor(raw));
+}
+
 // ══════════════════════════════════════════════════════════════════
 //  CRON HANDLER (Next.js App Router)
 // ══════════════════════════════════════════════════════════════════
@@ -74,11 +98,24 @@ export async function GET(req: NextRequest) {
     return jsonError("UNAUTHORIZED", "Unauthorized", 401);
   }
 
+  const runStartedAt = Date.now();
+  const timeBudgetMs = getCronTimeBudgetMs();
+  const scanBudgetMs = Math.max(1_000, timeBudgetMs - NOTIFICATION_RESERVE_MS);
+  const requestDeadline = new AbortController();
+  const scanDeadline = new AbortController();
+  const requestTimer = setTimeout(() => {
+    requestDeadline.abort();
+    scanDeadline.abort();
+  }, timeBudgetMs);
+  const scanTimer = setTimeout(() => scanDeadline.abort(), scanBudgetMs);
+
   try {
     logInfo("cron_check_chapters_start", {
       at: new Date().toISOString(),
       user_agent: req.headers.get("user-agent") || "",
       request_id: req.headers.get("x-vercel-id") || "",
+      time_budget_ms: timeBudgetMs,
+      scan_budget_ms: scanBudgetMs,
     });
 
     await connectDB();
@@ -89,18 +126,28 @@ export async function GET(req: NextRequest) {
       tracker_url: { $exists: true, $nin: [null, ""] },
     })
       .select(
-        "title progress_current tracker_url user_id media_type last_checked_at latest_remote_progress last_notified_progress",
+        "title progress_current tracker_url user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress",
       )
-      .sort({ last_checked_at: 1, _id: 1 })
+      .sort({ last_attempted_at: 1, last_checked_at: 1, _id: 1 })
       .limit(MAX_ENTRIES_PER_RUN)
+      .maxTimeMS(CRON_DB_QUERY_TIMEOUT_MS)
       .lean();
 
     if (entries.length === 0) {
       return jsonOk({
         checked: 0,
+        selected: 0,
+        started: 0,
+        scanned: 0,
+        deferred: 0,
+        deadline_deferred: 0,
+        partial: false,
         users_scanned: 0,
         users_notified: 0,
+        notifications_deferred: 0,
         failures: 0,
+        time_budget_ms: timeBudgetMs,
+        duration_ms: Date.now() - runStartedAt,
         message: "No entries to check",
       });
     }
@@ -116,6 +163,7 @@ export async function GET(req: NextRequest) {
 
     const users = await User.find({ _id: { $in: userIds } })
       .select("_id username notifications_enabled telegram_chat_id")
+      .maxTimeMS(CRON_DB_QUERY_TIMEOUT_MS)
       .lean();
 
     const userMap = new Map(users.map((u) => [String(u._id), u]));
@@ -127,6 +175,9 @@ export async function GET(req: NextRequest) {
       { title: string; message: string }[]
     >();
     let totalChecked = 0;
+    let totalStarted = 0;
+    let totalFinished = 0;
+    let deadlineDeferred = 0;
     const selectedEntries = entries.filter((entry) =>
       userIds.includes(String(entry.user_id)),
     );
@@ -135,6 +186,7 @@ export async function GET(req: NextRequest) {
       selectedEntries,
       getCronConcurrency(),
       async (entry) => {
+        totalStarted += 1;
         const uid = String(entry.user_id);
         const mediaType = entry.media_type as MediaTypeSupported;
         const trackerUrl = String(entry.tracker_url || "");
@@ -165,13 +217,17 @@ export async function GET(req: NextRequest) {
             );
           }
 
-          const latest = await scrapeTrackerUrl(trackerUrl, mediaType);
+          const latest = await scrapeTrackerUrl(trackerUrl, mediaType, {
+            signal: scanDeadline.signal,
+            retryAttempts: getCronScrapeRetries(),
+          });
           totalChecked += 1;
 
           await MediaItem.updateOne(
             { _id: entry._id },
             {
               $set: {
+                last_attempted_at: new Date(),
                 last_checked_at: new Date(),
                 last_scrape_status: "ok",
                 last_scrape_error: null,
@@ -182,6 +238,7 @@ export async function GET(req: NextRequest) {
               },
             },
           );
+          totalFinished += 1;
 
           if (latest !== null && latest > current) {
             const update: ChapterUpdate = {
@@ -201,6 +258,15 @@ export async function GET(req: NextRequest) {
             }
           }
         } catch (err) {
+          if (scanDeadline.signal.aborted) {
+            deadlineDeferred += 1;
+            await MediaItem.updateOne(
+              { _id: entry._id },
+              { $set: { last_attempted_at: new Date() } },
+            );
+            return;
+          }
+
           const message = getErrorMessage(err);
           const transient = isTransientScrapeError(err);
           if (host && !transient) {
@@ -210,12 +276,14 @@ export async function GET(req: NextRequest) {
             { _id: entry._id },
             {
               $set: {
+                last_attempted_at: new Date(),
                 last_checked_at: new Date(),
                 last_scrape_status: "error",
                 last_scrape_error: message.slice(0, 500),
               },
             },
           );
+          totalFinished += 1;
           if (!transient) {
             const errors = errorsByUser.get(uid) || [];
             errors.push({
@@ -226,10 +294,17 @@ export async function GET(req: NextRequest) {
           }
         }
       },
+      { signal: scanDeadline.signal },
+    );
+
+    const deferredEntries = Math.max(
+      0,
+      selectedEntries.length - totalFinished,
     );
 
     let usersNotified = 0;
     let failures = 0;
+    let notificationsDeferred = 0;
     const globalFallbackUpdates: {
       username: string;
       updates: ChapterUpdate[];
@@ -248,6 +323,11 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
+      if (requestDeadline.signal.aborted) {
+        notificationsDeferred += 1;
+        continue;
+      }
+
       if (hasPersonalChat) {
         const sentUpdates = takeUserUpdatesThatFit(unreadUpdates);
         const messageWithErrors = buildNotificationMessage(sentUpdates, errors);
@@ -258,10 +338,13 @@ export async function GET(req: NextRequest) {
         const ok = await sendTelegramToChat(
           user.telegram_chat_id as string,
           sentMessage,
+          requestDeadline.signal,
         );
         if (ok) {
           await markUpdatesNotified(sentUpdates);
           usersNotified++;
+        } else if (requestDeadline.signal.aborted) {
+          notificationsDeferred += 1;
         } else {
           failures++;
         }
@@ -274,7 +357,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (globalFallbackUpdates.length > 0) {
+    if (
+      globalFallbackUpdates.length > 0 &&
+      !requestDeadline.signal.aborted
+    ) {
       const sentGroups = takeGlobalUpdatesThatFit(globalFallbackUpdates);
       const messageWithErrors = buildGlobalNotificationMessage(sentGroups);
       const globalMessage =
@@ -284,21 +370,33 @@ export async function GET(req: NextRequest) {
               sentGroups.map((group) => ({ ...group, errors: [] })),
             );
 
-      const ok = await sendTelegram(globalMessage);
+      const ok = await sendTelegram(globalMessage, requestDeadline.signal);
       if (ok) {
         await markUpdatesNotified(sentGroups.flatMap(({ updates }) => updates));
         usersNotified += sentGroups.length;
+      } else if (requestDeadline.signal.aborted) {
+        notificationsDeferred += sentGroups.length;
       } else {
         failures += sentGroups.length;
       }
+    } else if (globalFallbackUpdates.length > 0) {
+      notificationsDeferred += globalFallbackUpdates.length;
     }
 
     const payload = {
       checked: totalChecked,
-      scanned: selectedEntries.length,
+      selected: selectedEntries.length,
+      started: totalStarted,
+      scanned: totalFinished,
+      deferred: deferredEntries,
+      deadline_deferred: deadlineDeferred,
+      partial: deferredEntries > 0 || notificationsDeferred > 0,
       users_scanned: userIds.length,
       users_notified: usersNotified,
+      notifications_deferred: notificationsDeferred,
       failures,
+      time_budget_ms: timeBudgetMs,
+      duration_ms: Date.now() - runStartedAt,
       updates_by_user: Object.fromEntries(
         Array.from(updatesByUser.entries()).map(([uid, updates]) => {
           const user = userMap.get(uid);
@@ -310,10 +408,16 @@ export async function GET(req: NextRequest) {
     logInfo("cron_check_chapters_complete", {
       at: new Date().toISOString(),
       checked: payload.checked,
+      selected: payload.selected,
+      started: payload.started,
       scanned: payload.scanned,
+      deferred: payload.deferred,
+      partial: payload.partial,
       users_scanned: payload.users_scanned,
       users_notified: payload.users_notified,
+      notifications_deferred: payload.notifications_deferred,
       failures: payload.failures,
+      duration_ms: payload.duration_ms,
     });
 
     return jsonOk(payload);
@@ -322,6 +426,9 @@ export async function GET(req: NextRequest) {
       route: "cron/checkChapters",
     });
     return jsonError("CRON_ERROR", "Internal server error", 500);
+  } finally {
+    clearTimeout(scanTimer);
+    clearTimeout(requestTimer);
   }
 }
 

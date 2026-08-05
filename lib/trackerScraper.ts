@@ -27,17 +27,44 @@ const BROWSER_HEADERS: Record<string, string> = {
 
 export type MediaTypeSupported = "Manhwa" | "Donghua";
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+export type ScrapeTrackerOptions = {
+  signal?: AbortSignal;
+  retryAttempts?: number;
+};
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new Error("Scrape cancelled by caller");
+  }
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error("Scrape cancelled by caller"));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 async function fetchWithTimeout(
   url: string,
   init: RequestInit = {},
   timeoutMs = FETCH_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const abortFromCaller = () => controller.abort();
+  signal?.addEventListener("abort", abortFromCaller, { once: true });
+  if (signal?.aborted) controller.abort();
 
   try {
     return await fetch(url, {
@@ -47,11 +74,13 @@ async function fetchWithTimeout(
     });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
+      if (signal?.aborted) throw new Error("Scrape cancelled by caller");
       throw new Error(`Fetch timeout after ${timeoutMs}ms for ${url}`);
     }
     throw err;
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
 }
 
@@ -76,40 +105,54 @@ async function fetchWithRetry(
   url: string,
   init: RequestInit = {},
   timeoutMs = FETCH_TIMEOUT_MS,
+  options: ScrapeTrackerOptions = {},
 ): Promise<Response> {
   let lastError: Error | null = null;
+  const retryAttempts = Math.min(
+    FETCH_RETRY_ATTEMPTS,
+    Math.max(0, Math.floor(options.retryAttempts ?? FETCH_RETRY_ATTEMPTS)),
+  );
 
-  for (let attempt = 0; attempt <= FETCH_RETRY_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt <= retryAttempts; attempt++) {
+    throwIfAborted(options.signal);
     try {
-      const res = await fetchWithTimeout(url, init, timeoutMs);
+      const res = await fetchWithTimeout(url, init, timeoutMs, options.signal);
       if (
         res.ok ||
         !shouldRetryStatus(res.status) ||
-        attempt === FETCH_RETRY_ATTEMPTS
+        attempt === retryAttempts
       ) {
         return res;
       }
       lastError = new Error(`HTTP ${res.status}: ${res.statusText}`);
     } catch (err) {
       lastError = err instanceof Error ? err : new Error("fetch_error");
-      if (attempt === FETCH_RETRY_ATTEMPTS) break;
+      if (attempt === retryAttempts) break;
     }
 
     const jitterMs = Math.floor(Math.random() * 250);
     const delayMs = FETCH_RETRY_BASE_DELAY_MS * Math.pow(2, attempt) + jitterMs;
-    await sleep(delayMs);
+    await sleep(delayMs, options.signal);
   }
 
   throw lastError || new Error("fetch_retry_failed");
 }
 
-async function fetchManhuafastChapters(trackerUrl: string): Promise<string> {
+async function fetchManhuafastChapters(
+  trackerUrl: string,
+  options: ScrapeTrackerOptions,
+): Promise<string> {
   const ajaxUrl = new URL("ajax/chapters/", trackerUrl).toString();
-  const res = await fetchWithRetry(ajaxUrl, {
-    method: "POST",
-    headers: BROWSER_HEADERS,
-    redirect: "follow",
-  });
+  const res = await fetchWithRetry(
+    ajaxUrl,
+    {
+      method: "POST",
+      headers: BROWSER_HEADERS,
+      redirect: "follow",
+    },
+    FETCH_TIMEOUT_MS,
+    options,
+  );
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
@@ -118,6 +161,7 @@ async function fetchManhuafastChapters(trackerUrl: string): Promise<string> {
 
 async function scrapeManhwaTrackerUrl(
   trackerUrl: string,
+  options: ScrapeTrackerOptions,
 ): Promise<number | null> {
   const initialRes = await fetchWithRetry(
     trackerUrl,
@@ -126,6 +170,7 @@ async function scrapeManhwaTrackerUrl(
       redirect: "follow",
     },
     getFetchTimeoutMs(trackerUrl),
+    options,
   );
   if (!initialRes.ok) {
     throw new Error(`HTTP ${initialRes.status}: ${initialRes.statusText}`);
@@ -135,7 +180,7 @@ async function scrapeManhwaTrackerUrl(
   const host = new URL(resolvedUrl).host;
   const html =
     host === "manhuafast.com" || host === "www.manhuafast.com"
-      ? await fetchManhuafastChapters(resolvedUrl)
+      ? await fetchManhuafastChapters(resolvedUrl, options)
       : await initialRes.text();
 
   const $ = cheerio.load(html);
@@ -166,14 +211,20 @@ async function scrapeManhwaTrackerUrl(
 
 async function scrapeAnimexinTrackerUrl(
   trackerUrl: string,
+  options: ScrapeTrackerOptions,
 ): Promise<number | null> {
-  const res = await fetchWithRetry(trackerUrl, {
-    headers: {
-      ...BROWSER_HEADERS,
-      Referer: "https://animexin.dev/",
+  const res = await fetchWithRetry(
+    trackerUrl,
+    {
+      headers: {
+        ...BROWSER_HEADERS,
+        Referer: "https://animexin.dev/",
+      },
+      redirect: "follow",
     },
-    redirect: "follow",
-  });
+    FETCH_TIMEOUT_MS,
+    options,
+  );
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -231,12 +282,13 @@ async function scrapeAnimexinTrackerUrl(
 export async function scrapeTrackerUrl(
   trackerUrl: string,
   mediaType: MediaTypeSupported,
+  options: ScrapeTrackerOptions = {},
 ): Promise<number | null> {
   try {
     if (mediaType === "Donghua") {
-      return await scrapeAnimexinTrackerUrl(trackerUrl);
+      return await scrapeAnimexinTrackerUrl(trackerUrl, options);
     }
-    return await scrapeManhwaTrackerUrl(trackerUrl);
+    return await scrapeManhwaTrackerUrl(trackerUrl, options);
   } catch (error) {
     throw new Error(`Scraper failed [${mediaType}]: ${getErrorMessage(error)}`);
   }
@@ -250,6 +302,7 @@ export function isTransientScrapeError(error: unknown): boolean {
   const message = getErrorMessage(error).toLowerCase();
   return (
     message.includes("fetch timeout") ||
+    message.includes("scrape cancelled by caller") ||
     message.includes("fetch_retry_failed") ||
     message.includes("http 429") ||
     /http 5\d\d/.test(message)

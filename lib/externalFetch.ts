@@ -9,6 +9,7 @@ export async function fetchWithTimeout(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const abortFromCaller = () => controller.abort();
   init.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  if (init.signal?.aborted) controller.abort();
 
   try {
     return await fetch(input, { ...init, signal: controller.signal });
