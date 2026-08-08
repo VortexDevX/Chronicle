@@ -77,7 +77,7 @@ export function MediaCard({
 
   if (mode === "list") {
     return (
-      <article className="media-list-row" data-id={m._id}>
+      <article className="media-list-row" data-id={m._id} data-status={normalizedStatus}>
         <MediaArtwork media={m} className="media-list-art" />
         <div className="media-list-main">
           <div>
@@ -134,7 +134,7 @@ export function MediaCard({
   }
 
   return (
-    <article className={`media-card ${priority ? "is-priority" : ""}`} data-id={m._id}>
+    <article className={`media-card ${priority ? "is-priority" : ""}`} data-id={m._id} data-status={normalizedStatus}>
       <div className="media-card-poster">
         <MediaArtwork media={m} priority={priority} />
         <div className="media-card-hover-actions">
@@ -171,7 +171,7 @@ export function MediaCard({
             <span><Star size={11} fill="currentColor" /> {m.rating}</span>
           ) : null}
         </div>
-        <p>{m.media_type} · {normalizedStatus}</p>
+        <p>{m.media_type} · <span className="media-card-status">{normalizedStatus}</span></p>
         <div className="media-card-progress-row">
           <span>{formatProgress(m.progress_current)} / {total}</span>
           <span>{unit}</span>
