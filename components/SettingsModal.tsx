@@ -8,9 +8,11 @@ import {
   LogOut,
   MailCheck,
   Send,
+  Smartphone,
   Upload,
   X,
 } from "lucide-react";
+import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
 import {
   downloadMediaBackup,
@@ -61,6 +63,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const setAuth = useMediaStore((state) => state.setAuth);
   const { toast } = useFeedback();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { canInstall, isInstalled, install: installPwa } = usePwaInstall();
   const [formData, setFormData] = useState({
     email: "",
     email_verified_at: null as string | null,
@@ -308,6 +311,26 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
               <div className="modal-section-label">Data and session</div>
               <div className="settings-data-grid">
+                {canInstall && (
+                  <button
+                    type="button"
+                    className="pwa-install-card"
+                    onClick={async () => {
+                      const ok = await installPwa();
+                      if (ok) toast("Chronicle installed!", "success");
+                    }}
+                  >
+                    <span><Smartphone size={18} /></span>
+                    <strong>Install Chronicle</strong>
+                    <small>Add to your home screen for instant access.</small>
+                  </button>
+                )}
+                {isInstalled && (
+                  <div className="pwa-installed-badge">
+                    <Smartphone size={15} />
+                    <span>Chronicle is installed</span>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={handleExport}
