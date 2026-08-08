@@ -129,20 +129,21 @@ export default function QueuePage() {
           <button className="btn-primary" onClick={() => fetchMedia(1, true)}>Try again</button>
         </div>
       ) : loading && media.length === 0 ? (
-        <div className="grid">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="card skeleton-card">
-              <div className="card-poster">
-                <div className="card-thumb skeleton"></div>
-                <div className="card-poster-info">
-                  <div className="skeleton skeleton-line skeleton-line-sm"></div>
-                  <div className="skeleton skeleton-line skeleton-line-lg"></div>
-                  <div className="skeleton skeleton-line skeleton-line-xs"></div>
+        <div className="grid media-grid">
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} className="skeleton-card">
+              <div className="skel-poster skeleton" />
+              <div className="skel-body">
+                <div className="skel-title-row">
+                  <div className="skel-line skel-title skeleton" />
+                  <div className="skel-rating skeleton" />
                 </div>
-              </div>
-              <div className="card-body">
-                <div className="skeleton skeleton-line skeleton-line-md"></div>
-                <div className="skeleton skeleton-progress"></div>
+                <div className="skel-line skel-meta skeleton" />
+                <div className="skel-progress-row">
+                  <div className="skel-line skel-progress-num skeleton" />
+                  <div className="skel-line skel-progress-unit skeleton" />
+                </div>
+                <div className="skel-line skel-progress-bar skeleton" />
               </div>
             </div>
           ))}
@@ -168,7 +169,7 @@ export default function QueuePage() {
           </button>
         </div>
       )}
-      
+
       <button className="btn-fab" aria-label="Add Entry" onClick={() => openModal(null)}>
         <Plus size={28} strokeWidth={3} />
       </button>
