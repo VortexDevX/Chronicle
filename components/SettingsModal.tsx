@@ -8,6 +8,7 @@ import {
   LogOut,
   MailCheck,
   Send,
+  Share,
   Smartphone,
   Upload,
   X,
@@ -63,7 +64,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const setAuth = useMediaStore((state) => state.setAuth);
   const { toast } = useFeedback();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { canInstall, isInstalled, install: installPwa } = usePwaInstall();
+  const { showInstall, hasNativePrompt, isInstalled, platform, install: installPwa } = usePwaInstall();
+  const [showIosGuide, setShowIosGuide] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     email_verified_at: null as string | null,
@@ -311,19 +313,36 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
               <div className="modal-section-label">Data and session</div>
               <div className="settings-data-grid">
-                {canInstall && (
+                {showInstall && (
                   <button
                     type="button"
                     className="pwa-install-card"
                     onClick={async () => {
-                      const ok = await installPwa();
-                      if (ok) toast("Chronicle installed!", "success");
+                      if (hasNativePrompt) {
+                        const ok = await installPwa();
+                        if (ok) toast("Chronicle installed!", "success");
+                      } else if (platform === "ios") {
+                        setShowIosGuide((v) => !v);
+                      } else {
+                        toast("Use your browser's menu → Install app", "info");
+                      }
                     }}
                   >
-                    <span><Smartphone size={18} /></span>
+                    <span>{platform === "ios" ? <Share size={18} /> : <Smartphone size={18} />}</span>
                     <strong>Install Chronicle</strong>
-                    <small>Add to your home screen for instant access.</small>
+                    <small>
+                      {platform === "ios"
+                        ? "Add to Home Screen for a native app feel."
+                        : "Add to your home screen for instant access."}
+                    </small>
                   </button>
+                )}
+                {showInstall && showIosGuide && platform === "ios" && (
+                  <div className="pwa-ios-guide">
+                    <span>1. Tap <Share size={14} /> <strong>Share</strong> in Safari&apos;s toolbar</span>
+                    <span>2. Scroll down and tap <strong>Add to Home Screen</strong></span>
+                    <span>3. Tap <strong>Add</strong> — done!</span>
+                  </div>
                 )}
                 {isInstalled && (
                   <div className="pwa-installed-badge">

@@ -4807,6 +4807,30 @@ textarea:focus-visible {
   font-weight: 600;
 }
 
+.pwa-ios-guide {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(244, 63, 94, 0.15);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: rgba(244, 63, 94, 0.04);
+  animation: cardEnter 200ms ease-out;
+}
+
+.pwa-ios-guide > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #a0a7b4;
+  font-size: 0.64rem;
+}
+
+.pwa-ios-guide strong {
+  color: #f4f3ef;
+}
+
 /* Auth */
 
 .auth-bg {
