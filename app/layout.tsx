@@ -83,6 +83,14 @@ export const metadata: Metadata = {
               : undefined,
           }
         : undefined,
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: siteConfig.shortName,
+    },
+    other: {
+      "mobile-web-app-capable": "yes",
+    },
 };
 
 export default function RootLayout({
@@ -96,7 +104,14 @@ export default function RootLayout({
       className={`${outfit.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
-      <body>{children}</body>
+      <body>
+        {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js")})}`,
+          }}
+        />
+      </body>
     </html>
   );
 }
