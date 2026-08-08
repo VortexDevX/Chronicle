@@ -4784,6 +4784,29 @@ textarea:focus-visible {
   font-size: 0.61rem;
 }
 
+.settings-data-grid > .pwa-install-card {
+  border-color: rgba(244, 63, 94, 0.3);
+  background: linear-gradient(145deg, rgba(244, 63, 94, 0.08), #12151a 70%);
+}
+
+.settings-data-grid > .pwa-install-card:hover {
+  border-color: rgba(244, 63, 94, 0.45);
+  background: linear-gradient(145deg, rgba(244, 63, 94, 0.13), #12151a 70%);
+}
+
+.pwa-installed-badge {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 10px 13px;
+  background: rgba(114, 217, 179, 0.07);
+  color: #72d9b3;
+  font-size: 0.64rem;
+  font-weight: 600;
+}
+
 /* Auth */
 
 .auth-bg {
