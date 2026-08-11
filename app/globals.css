@@ -3421,10 +3421,19 @@ textarea:focus-visible {
   pointer-events: none;
 }
 
-.media-card:hover .media-card-hover-actions {
+.media-card:hover .media-card-hover-actions,
+.media-card:focus-within .media-card-hover-actions {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+}
+
+.media-card-hover-actions button,
+.poster-tracker {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(10, 12, 16, 0.82);
+  color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .media-card-hover-actions button {
@@ -3434,20 +3443,31 @@ textarea:focus-visible {
   height: 30px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.22);
   padding: 0;
   border-radius: 8px;
-  background: rgba(10, 12, 16, 0.82);
-  color: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(12px);
   cursor: pointer;
 }
 
-.poster-play {
+.media-card-poster-actions {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 4;
   display: flex;
   align-items: center;
+  gap: 6px;
+}
+
+.media-card-poster-actions > a,
+.media-card-poster-actions > button {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  align-items: center;
   justify-content: center;
+  border-radius: 50%;
   padding: 0;
 }
 
@@ -3459,7 +3479,8 @@ textarea:focus-visible {
   opacity: 1;
 }
 
-.media-card-hover-actions button:hover {
+.media-card-hover-actions button:hover,
+.poster-tracker:hover {
   border-color: rgba(255, 255, 255, 0.4);
   background: rgba(30, 35, 44, 0.95);
   color: #fff;
@@ -3470,16 +3491,23 @@ textarea:focus-visible {
   background: rgba(186, 63, 56, 0.9);
 }
 
+.poster-tracker {
+  opacity: 0.92;
+  transition:
+    border-color 180ms ease-out,
+    background 180ms ease-out,
+    color 180ms ease-out,
+    opacity 180ms ease-out,
+    transform 180ms ease-out;
+}
+
+.poster-tracker:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
 .poster-play {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  z-index: 4;
-  width: 34px;
-  height: 34px;
-  min-height: 0;
   border: 0;
-  border-radius: 50%;
   background: #f4f3ef;
   color: #111216;
   opacity: 0.88;
@@ -3489,7 +3517,8 @@ textarea:focus-visible {
     transform 180ms ease-out;
 }
 
-.media-card:hover .poster-play {
+.media-card:hover .poster-play,
+.media-card:focus-within .poster-play {
   opacity: 1;
   transform: scale(1);
 }
@@ -3518,8 +3547,8 @@ textarea:focus-visible {
   gap: 6px;
 }
 
-.media-card:has(.poster-play) .poster-badges {
-  right: 50px;
+.media-card:has(.media-card-poster-actions) .poster-badges {
+  right: 94px;
 }
 
 .new-badge,
@@ -5511,45 +5540,73 @@ textarea:focus-visible {
   }
 
   .media-card-hover-actions {
-    opacity: 1;
-    transform: none;
-    pointer-events: auto;
-    gap: 3px;
+    gap: 4px;
     top: 6px;
     right: 6px;
   }
 
+  .media-card:not(:focus-within) .media-card-hover-actions,
+  .media-card:not(:focus-within) .media-card-poster-actions {
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+  }
+
+  .media-card:focus-within .media-card-hover-actions,
+  .media-card:focus-within .media-card-poster-actions {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
   .media-card-hover-actions button {
-    width: 26px;
-    height: 26px;
+    width: 40px;
+    height: 40px;
     min-height: 0;
-    border-radius: 7px;
+    border-radius: 9px;
     border-color: rgba(255, 255, 255, 0.15);
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.66);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   }
 
   .media-card-hover-actions button > svg {
-    width: 11px;
-    height: 11px;
-  }
-
-  .poster-play {
-    width: 30px;
-    height: 30px;
-    right: 8px;
-    bottom: 8px;
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  .poster-play svg {
     width: 14px;
     height: 14px;
   }
 
-  .media-card:has(.poster-play) .poster-badges {
-    right: 44px;
+  .media-card-poster-actions {
+    right: 8px;
+    bottom: 8px;
+    gap: 5px;
+    transition:
+      opacity 180ms ease-out,
+      transform 180ms ease-out;
+  }
+
+  .media-card-poster-actions > a,
+  .media-card-poster-actions > button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .poster-play {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .media-card:has(.media-card-poster-actions) .poster-badges {
+    right: 8px;
+    left: 8px;
+    flex-wrap: wrap;
+    transition: bottom 180ms ease-out;
+  }
+
+  .media-card:has(.media-card-poster-actions):not(:focus-within) .poster-badges {
+    bottom: 8px;
+  }
+
+  .media-card:has(.media-card-poster-actions):focus-within .poster-badges {
+    bottom: 56px;
   }
 
   .media-list-row {

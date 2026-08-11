@@ -40,6 +40,7 @@ export function MediaCard({
   const [pendingAction, setPendingAction] = useState<"increment" | "delete" | null>(null);
   const normalizedStatus = m.status === "Watching/Reading" ? "Active" : m.status;
   const isActive = normalizedStatus === "Active";
+  const canIncrement = isActive && Boolean(onIncrement);
   const isStale = isActive && daysSince(m.last_updated) >= 14;
   const safeTrackerUrl = m.tracker_url
     ? normalizePublicHttpUrl(m.tracker_url)
@@ -104,7 +105,7 @@ export function MediaCard({
         </div>
         {unread > 0 && <span className="release-badge">+{formatProgress(unread)} new</span>}
         <div className="media-list-actions">
-          {isActive && onIncrement && (
+          {canIncrement && (
             <button onClick={increment} disabled={Boolean(pendingAction)} aria-label={`Log next for ${m.title}`}>
               {pendingAction === "increment" ? <span className="spinner" /> : <Plus size={16} />}
             </button>
@@ -134,7 +135,17 @@ export function MediaCard({
   }
 
   return (
-    <article className={`media-card ${priority ? "is-priority" : ""}`} data-id={m._id} data-status={normalizedStatus}>
+    <article
+      className={`media-card ${priority ? "is-priority" : ""}`}
+      data-id={m._id}
+      data-status={normalizedStatus}
+      tabIndex={-1}
+      onClick={(event) => {
+        if (!window.matchMedia("(max-width: 640px)").matches) return;
+        if (event.target instanceof Element && event.target.closest("a, button")) return;
+        event.currentTarget.focus({ preventScroll: true });
+      }}
+    >
       <div className="media-card-poster">
         <MediaArtwork media={m} priority={priority} />
         <div className="media-card-hover-actions">
@@ -153,15 +164,30 @@ export function MediaCard({
           {unread > 0 && <span className="new-badge">+{formatProgress(unread)} new</span>}
           {isStale && <span className="stale-badge"><Clock3 size={11} /> Stale</span>}
         </div>
-        {isActive && onIncrement && (
-          <button
-            className="poster-play"
-            onClick={increment}
-            disabled={Boolean(pendingAction)}
-            aria-label={`Log next for ${m.title}`}
-          >
-            {pendingAction === "increment" ? <span className="spinner" /> : <Play size={15} fill="currentColor" />}
-          </button>
+        {(safeTrackerUrl || canIncrement) && (
+          <div className="media-card-poster-actions">
+            {safeTrackerUrl && (
+              <a
+                className="poster-tracker"
+                href={safeTrackerUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Open tracker for ${m.title}`}
+              >
+                <ExternalLink size={15} />
+              </a>
+            )}
+            {canIncrement && (
+              <button
+                className="poster-play"
+                onClick={increment}
+                disabled={Boolean(pendingAction)}
+                aria-label={`Log next for ${m.title}`}
+              >
+                {pendingAction === "increment" ? <span className="spinner" /> : <Play size={15} fill="currentColor" />}
+              </button>
+            )}
+          </div>
         )}
       </div>
       <div className="media-card-content">
