@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     if (!userId && errorResponse) return errorResponse;
 
     const user = await User.findById(userId).select(
-      "username email email_verified_at notifications_enabled telegram_chat_id created_at",
+      "username email email_verified_at notifications_enabled push_notifications_enabled telegram_chat_id created_at",
     );
 
     if (!user) {
@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       email: user.email || null,
       email_verified_at: user.email_verified_at || null,
       notifications_enabled: user.notifications_enabled || false,
+      push_notifications_enabled: user.push_notifications_enabled || false,
       telegram_chat_id: user.telegram_chat_id || null,
       created_at: user.created_at,
     });
@@ -44,6 +45,12 @@ export async function PUT(req: NextRequest) {
 
     if (body.notifications_enabled !== undefined) {
       updates.notifications_enabled = Boolean(body.notifications_enabled);
+    }
+
+    if (body.push_notifications_enabled !== undefined) {
+      updates.push_notifications_enabled = Boolean(
+        body.push_notifications_enabled,
+      );
     }
 
     if (body.telegram_chat_id !== undefined) {
@@ -97,7 +104,7 @@ export async function PUT(req: NextRequest) {
       new: true,
       runValidators: true,
     }).select(
-      "username email email_verified_at notifications_enabled telegram_chat_id created_at",
+      "username email email_verified_at notifications_enabled push_notifications_enabled telegram_chat_id created_at",
     );
 
     if (!updated) {
@@ -109,6 +116,7 @@ export async function PUT(req: NextRequest) {
       email: updated.email || null,
       email_verified_at: updated.email_verified_at || null,
       notifications_enabled: updated.notifications_enabled || false,
+      push_notifications_enabled: updated.push_notifications_enabled || false,
       telegram_chat_id: updated.telegram_chat_id || null,
       created_at: updated.created_at,
     });

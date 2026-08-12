@@ -9,6 +9,7 @@ import {
   BookOpen,
   CornerDownLeft,
   Home,
+  History,
   Layers3,
   ListTodo,
   Plus,
@@ -28,6 +29,7 @@ const ACTIONS = [
   { id: "droppedyard", label: "Open Droppedyard", hint: "Page", icon: ArchiveX, path: "/droppedyard" },
   { id: "shelves", label: "Open Shelves", hint: "Page", icon: Layers3, path: "/shelves" },
   { id: "analytics", label: "Open Analytics", hint: "Page", icon: BarChart3, path: "/analytics" },
+  { id: "cron-history", label: "Open Cron history", hint: "Page", icon: History, path: "/cron-history" },
   { id: "add", label: "Add new entry", hint: "Action", icon: Plus, action: "add" },
   { id: "settings", label: "Open Settings", hint: "Action", icon: Settings, action: "settings" },
 ] as const;

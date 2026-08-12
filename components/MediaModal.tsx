@@ -5,6 +5,7 @@ import { MediaItem, Shelf } from "@/types/media";
 import { X, Link as LinkIcon, Tv, Book, Video, BookOpen } from "lucide-react";
 import { useFeedback } from "@/components/FeedbackProvider";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
+import { normalizeMangaDexId } from "@/lib/mangadex";
 
 interface MediaModalProps {
   media: MediaItem | null;
@@ -177,6 +178,13 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         [name]: value,
       }));
     }
+  };
+
+  const normalizeMangaDexField = () => {
+    const current = String(formData.mangadex_id || "").trim();
+    if (!current) return;
+    const id = normalizeMangaDexId(current);
+    if (id) setFormData((previous) => ({ ...previous, mangadex_id: id }));
   };
 
   const handleLink = async (targetId: string, title: string) => {
@@ -356,8 +364,19 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                 <input type="number" min="0" max="10" step="0.5" className="form-input" name="rating" value={numberInputValue(formData.rating)} onChange={handleChange} placeholder="0" />
               </div>
               <div className="form-group">
-                <label>MangaDex ID</label>
-                <input className="form-input" name="mangadex_id" value={formData.mangadex_id || ""} onChange={handleChange} placeholder="Optional" />
+                <label>MangaDex URL or ID</label>
+                <input
+                  className="form-input"
+                  name="mangadex_id"
+                  value={formData.mangadex_id || ""}
+                  onChange={handleChange}
+                  onBlur={normalizeMangaDexField}
+                  placeholder="Paste MangaDex title link"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                />
+                <small>Full title links are trimmed to their MangaDex ID.</small>
               </div>
             </div>
 

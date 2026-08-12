@@ -1,7 +1,7 @@
 // Chronicle X – Service Worker
-// Network-first for pages, cache-first for static assets
+// Network-first for pages and code, cache-first for images and fonts
 
-const CACHE_NAME = "chronicle-v1";
+const CACHE_NAME = "chronicle-v2";
 
 // App shell assets to pre-cache on install
 const APP_SHELL = [
@@ -49,10 +49,26 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets (images, fonts, JS, CSS): cache-first
+  // App code: network-first so a new page never runs with an old stylesheet.
+  if (url.pathname.match(/\.(css|js)$/)) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Static images and fonts: cache-first
   if (
     url.pathname.startsWith("/_next/static/") ||
-    url.pathname.match(/\.(png|jpg|jpeg|webp|svg|ico|woff2?|ttf|otf|css|js)$/)
+    url.pathname.match(/\.(png|jpg|jpeg|webp|svg|ico|woff2?|ttf|otf)$/)
   ) {
     event.respondWith(
       caches.match(request).then(

@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
-import { User } from "@/lib/models";
+import { PushDevice, User } from "@/lib/models";
 import bcrypt from "bcryptjs";
 import { getClientIp } from "@/lib/rateLimit";
 import { enforceRateLimit, requireAuthUserId } from "@/lib/guards";
 import { logInternalError } from "@/lib/log";
 import { jsonOk, jsonError } from "@/lib/http";
 import { getRequiredEnv } from "@/lib/config";
-import { signAuthToken } from "@/lib/auth";
+import { getAuthTokenClaims, signAuthToken } from "@/lib/auth";
 
 const MAX_USERNAME = 30;
 const MIN_USERNAME = 3;
@@ -183,6 +183,23 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "logout") {
+      const claims = getAuthTokenClaims(req);
+      const installationId = req.cookies
+        .get("chronicle_android_installation")
+        ?.value?.trim();
+      if (claims && installationId) {
+        try {
+          await PushDevice.deleteOne({
+            user_id: claims.userId,
+            installation_id: installationId,
+          });
+        } catch (err) {
+          logInternalError("push_device_logout_cleanup_error", err, {
+            route: "auth",
+          });
+        }
+      }
+
       const res = jsonOk({ success: true });
       res.cookies.set("auth_token", "", {
         httpOnly: true,

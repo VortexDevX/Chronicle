@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema(
     password_hash: { type: String, required: true },
     auth_version: { type: Number, default: 0 },
     notifications_enabled: { type: Boolean, default: false },
+    push_notifications_enabled: { type: Boolean, default: false },
     telegram_chat_id: { type: String, default: null },
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },

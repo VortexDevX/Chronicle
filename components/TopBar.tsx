@@ -12,6 +12,7 @@ const ROUTE_META: Record<string, { eyebrow: string; title: string }> = {
   "/droppedyard": { eyebrow: "Paused stories", title: "Droppedyard" },
   "/shelves": { eyebrow: "Curated collections", title: "Shelves" },
   "/analytics": { eyebrow: "Your watching and reading", title: "Analytics" },
+  "/cron-history": { eyebrow: "Tracker automation health", title: "Cron history" },
 };
 
 export function TopBar({
