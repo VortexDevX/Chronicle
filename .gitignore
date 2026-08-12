@@ -12,6 +12,9 @@
 /playwright-report
 /blob-report
 
+# Local Android app
+/android-app/
+
 # Environment
 .env
 .env*.local
