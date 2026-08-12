@@ -3,6 +3,7 @@ import {
   isAllowedMediaStatus,
   isAllowedMediaType,
 } from "@/lib/mediaValidation";
+import { normalizeMangaDexId } from "@/lib/mangadex";
 
 export type MediaPayload = {
   title?: string;
@@ -157,9 +158,12 @@ export function validateMediaPayload(
     if (payload.mangadex_id === null || payload.mangadex_id === "") {
       normalized.mangadex_id = null;
     } else {
-      const id = String(payload.mangadex_id).trim();
-      if (id.length > 100) {
-        return { ok: false, message: "mangadex_id is too long" };
+      const id = normalizeMangaDexId(payload.mangadex_id);
+      if (!id) {
+        return {
+          ok: false,
+          message: "Paste a valid MangaDex title URL or MangaDex ID",
+        };
       }
       normalized.mangadex_id = id;
     }

@@ -9,6 +9,7 @@ import {
   BellRing,
   BookOpen,
   Home,
+  History,
   Layers3,
   ListTodo,
   LogOut,
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { path: "/droppedyard", label: "Droppedyard", icon: ArchiveX },
   { path: "/shelves", label: "Shelves", icon: Layers3 },
   { path: "/analytics", label: "Analytics", icon: BarChart3 },
+  { path: "/cron-history", label: "Cron history", icon: History },
 ] as const;
 
 export function Sidebar({

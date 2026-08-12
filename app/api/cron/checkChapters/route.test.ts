@@ -7,9 +7,14 @@ const mocks = vi.hoisted(() => ({
   mediaUpdateOne: vi.fn(),
   mediaBulkWrite: vi.fn(),
   userFind: vi.fn(),
+  pushDeviceFind: vi.fn(),
+  pushDeviceDeleteMany: vi.fn(),
+  cronHistoryBulkWrite: vi.fn(),
   scrapeTrackerUrl: vi.fn(),
   sendTelegram: vi.fn(),
   sendTelegramToChat: vi.fn(),
+  isAndroidPushConfigured: vi.fn(),
+  sendAndroidPush: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ connectDB: mocks.connectDB }));
@@ -20,11 +25,21 @@ vi.mock("@/lib/models", () => ({
     bulkWrite: mocks.mediaBulkWrite,
   },
   User: { find: mocks.userFind },
+  PushDevice: {
+    find: mocks.pushDeviceFind,
+    deleteMany: mocks.pushDeviceDeleteMany,
+  },
+  CronHistory: { bulkWrite: mocks.cronHistoryBulkWrite },
+  CRON_HISTORY_RETENTION_SECONDS: 30 * 24 * 60 * 60,
 }));
 vi.mock("@/lib/notify", () => ({
   escapeHtml: (text: string) => text,
   sendTelegram: mocks.sendTelegram,
   sendTelegramToChat: mocks.sendTelegramToChat,
+}));
+vi.mock("@/lib/push", () => ({
+  isAndroidPushConfigured: mocks.isAndroidPushConfigured,
+  sendAndroidPush: mocks.sendAndroidPush,
 }));
 vi.mock("@/lib/trackerScraper", () => ({
   getErrorMessage: (err: unknown) =>
@@ -53,12 +68,14 @@ type Entry = {
   tracker_url: string;
   latest_remote_progress?: number | null;
   last_notified_progress?: number | null;
+  last_push_notified_progress?: number | null;
 };
 
 type User = {
   _id: string;
   username: string;
   notifications_enabled: boolean;
+  push_notifications_enabled: boolean;
   telegram_chat_id: string | null;
 };
 
@@ -71,7 +88,11 @@ function setNodeEnv(value: string) {
   });
 }
 
-function mockFindResults(entries: Entry[], users: User[]) {
+function mockFindResults(
+  entries: Entry[],
+  users: User[],
+  devices: { user_id: string; token: string }[] = [],
+) {
   const mediaQuery: Record<string, ReturnType<typeof vi.fn>> = {};
   mediaQuery.select = vi.fn(() => mediaQuery);
   mediaQuery.sort = vi.fn(() => mediaQuery);
@@ -85,6 +106,13 @@ function mockFindResults(entries: Entry[], users: User[]) {
   userQuery.maxTimeMS = vi.fn(() => userQuery);
   userQuery.lean = vi.fn().mockResolvedValue(users);
   mocks.userFind.mockReturnValue(userQuery);
+
+  const pushQuery: Record<string, ReturnType<typeof vi.fn>> = {};
+  pushQuery.select = vi.fn(() => pushQuery);
+  pushQuery.limit = vi.fn(() => pushQuery);
+  pushQuery.maxTimeMS = vi.fn(() => pushQuery);
+  pushQuery.lean = vi.fn().mockResolvedValue(devices);
+  mocks.pushDeviceFind.mockReturnValue(pushQuery);
 }
 
 function makeEntry(overrides: Partial<Entry> = {}): Entry {
@@ -106,6 +134,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     _id: "user-1",
     username: "Reader",
     notifications_enabled: true,
+    push_notifications_enabled: false,
     telegram_chat_id: "personal-chat",
     ...overrides,
   };
@@ -126,6 +155,15 @@ beforeEach(() => {
   mocks.mediaBulkWrite.mockResolvedValue({ acknowledged: true });
   mocks.sendTelegram.mockResolvedValue(true);
   mocks.sendTelegramToChat.mockResolvedValue(true);
+  mocks.isAndroidPushConfigured.mockReturnValue(false);
+  mocks.sendAndroidPush.mockResolvedValue({
+    configured: true,
+    sent: 1,
+    failed: 0,
+    invalidTokens: [],
+  });
+  mocks.pushDeviceDeleteMany.mockResolvedValue({ deletedCount: 0 });
+  mocks.cronHistoryBulkWrite.mockResolvedValue({ acknowledged: true });
 });
 
 afterEach(() => {
@@ -191,6 +229,24 @@ describe("cron chapter notification state", () => {
         },
       },
     ]);
+    expect(mocks.cronHistoryBulkWrite).toHaveBeenCalledWith(
+      [
+        {
+          insertOne: {
+            document: expect.objectContaining({
+              user_id: "user-1",
+              status: "success",
+              checked: 1,
+              updates_found: 1,
+              telegram_delivery: "sent",
+              push_delivery: "disabled",
+              expires_at: expect.any(Date),
+            }),
+          },
+        },
+      ],
+      { ordered: false, timeoutMS: 1_500 },
+    );
   });
 
   it("shows fractional unread chapter progress", async () => {
@@ -277,7 +333,7 @@ describe("cron chapter notification state", () => {
     expect(mocks.mediaUpdateOne).toHaveBeenCalledWith(
       { _id: "media-1" },
       expect.objectContaining({
-        $max: { last_notified_progress: 111 },
+        $max: expect.objectContaining({ last_notified_progress: 111 }),
       }),
     );
   });
@@ -294,6 +350,19 @@ describe("cron chapter notification state", () => {
     expect(mocks.mediaBulkWrite).not.toHaveBeenCalled();
   });
 
+  it("keeps cron successful when optional history logging fails", async () => {
+    mockFindResults([makeEntry()], [makeUser()]);
+    mocks.scrapeTrackerUrl.mockResolvedValue(113);
+    mocks.cronHistoryBulkWrite.mockRejectedValue(new Error("history unavailable"));
+
+    const response = await GET(authorizedRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.checked).toBe(1);
+    expect(mocks.sendTelegramToChat).toHaveBeenCalledOnce();
+  });
+
   it("baselines legacy rows without resending stored remote progress", async () => {
     mockFindResults(
       [makeEntry({ latest_remote_progress: 112, last_notified_progress: undefined })],
@@ -307,7 +376,7 @@ describe("cron chapter notification state", () => {
     expect(mocks.mediaUpdateOne).toHaveBeenCalledWith(
       { _id: "media-1" },
       expect.objectContaining({
-        $max: { last_notified_progress: 112 },
+        $max: expect.objectContaining({ last_notified_progress: 112 }),
       }),
     );
   });
@@ -334,6 +403,52 @@ describe("cron chapter notification state", () => {
     expect(mocks.sendTelegramToChat).not.toHaveBeenCalled();
     expect(mocks.sendTelegram).toHaveBeenCalledOnce();
     expect(mocks.mediaBulkWrite).toHaveBeenCalledOnce();
+  });
+
+  it("sends Android push with an independent delivery cursor", async () => {
+    mocks.isAndroidPushConfigured.mockReturnValue(true);
+    mockFindResults(
+      [
+        makeEntry({
+          latest_remote_progress: 112,
+          last_notified_progress: 113,
+          last_push_notified_progress: 112,
+        }),
+      ],
+      [
+        makeUser({
+          notifications_enabled: false,
+          push_notifications_enabled: true,
+          telegram_chat_id: null,
+        }),
+      ],
+      [{ user_id: "user-1", token: "android-fcm-token" }],
+    );
+    mocks.scrapeTrackerUrl.mockResolvedValue(113);
+
+    const response = await GET(authorizedRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mocks.sendTelegram).not.toHaveBeenCalled();
+    expect(mocks.sendAndroidPush).toHaveBeenCalledWith(
+      ["android-fcm-token"],
+      expect.objectContaining({
+        title: "Chronicle Update",
+        body: expect.stringContaining("Test Series"),
+        path: "/updates",
+      }),
+      expect.any(AbortSignal),
+    );
+    expect(mocks.mediaBulkWrite).toHaveBeenCalledWith([
+      {
+        updateOne: {
+          filter: { _id: "media-1" },
+          update: { $max: { last_push_notified_progress: 113 } },
+        },
+      },
+    ]);
+    expect(body.data.push_users_notified).toBe(1);
   });
 });
 

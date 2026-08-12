@@ -97,3 +97,40 @@ export interface HomePayload {
   rhythm: ActivityDay[];
   partial_failures?: string[];
 }
+
+export type CronDeliveryState =
+  | "not_needed"
+  | "disabled"
+  | "unavailable"
+  | "sent"
+  | "partial"
+  | "failed"
+  | "deferred";
+
+export interface CronHistoryItem {
+  _id: string;
+  started_at: string;
+  completed_at: string;
+  status: "success" | "partial";
+  selected: number;
+  checked: number;
+  updates_found: number;
+  tracker_failures: number;
+  deferred: number;
+  duration_ms: number;
+  telegram_delivery: CronDeliveryState;
+  push_delivery: CronDeliveryState;
+  updates: Array<{
+    media_id: string;
+    title: string;
+    media_type: string;
+    current: number;
+    latest: number;
+  }>;
+  tracker_errors: Array<{ title: string; message: string }>;
+}
+
+export interface CronHistoryPayload {
+  items: CronHistoryItem[];
+  retention_days: number;
+}

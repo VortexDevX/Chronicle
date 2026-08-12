@@ -1,7 +1,14 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
-import { MediaItem, User } from "@/lib/models";
+import {
+  CronHistory,
+  CRON_HISTORY_RETENTION_SECONDS,
+  MediaItem,
+  PushDevice,
+  User,
+} from "@/lib/models";
 import { sendTelegram, sendTelegramToChat, escapeHtml } from "@/lib/notify";
+import { isAndroidPushConfigured, sendAndroidPush } from "@/lib/push";
 import { jsonOk, jsonError } from "@/lib/http";
 import { logInfo, logInternalError } from "@/lib/log";
 import { runBoundedQueue } from "@/lib/services/cron/boundedQueue";
@@ -25,7 +32,7 @@ const MAX_CRON_CONCURRENCY = 8;
 const DEFAULT_CRON_TIME_BUDGET_MS = 24_000;
 const MIN_CRON_TIME_BUDGET_MS = 10_000;
 const MAX_CRON_TIME_BUDGET_MS = 25_000;
-const NOTIFICATION_RESERVE_MS = 6_000;
+const NOTIFICATION_RESERVE_MS = 8_000;
 const DEFAULT_CRON_SCRAPE_RETRIES = 2;
 const MAX_CRON_SCRAPE_RETRIES = 2;
 const CRON_DB_QUERY_TIMEOUT_MS = 5_000;
@@ -45,6 +52,31 @@ type ChapterUpdate = {
   current: number;
   tracker_url: string;
   media_type: MediaTypeSupported;
+};
+
+type DeliveryState =
+  | "not_needed"
+  | "disabled"
+  | "unavailable"
+  | "sent"
+  | "partial"
+  | "failed"
+  | "deferred";
+
+type UserScanStats = {
+  selected: number;
+  started: number;
+  checked: number;
+  scanned: number;
+  trackerFailures: number;
+  deadlineDeferred: number;
+};
+
+type TelegramGroup = {
+  uid: string;
+  username: string;
+  updates: ChapterUpdate[];
+  errors: { title: string; message: string }[];
 };
 
 function progressUnit(mediaType: MediaTypeSupported): string {
@@ -126,7 +158,7 @@ export async function GET(req: NextRequest) {
       tracker_url: { $exists: true, $nin: [null, ""] },
     })
       .select(
-        "title progress_current tracker_url user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress",
+        "title progress_current tracker_url user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
       )
       .sort({ last_attempted_at: 1, last_checked_at: 1, _id: 1 })
       .limit(MAX_ENTRIES_PER_RUN)
@@ -144,8 +176,11 @@ export async function GET(req: NextRequest) {
         partial: false,
         users_scanned: 0,
         users_notified: 0,
+        push_users_notified: 0,
         notifications_deferred: 0,
+        push_notifications_deferred: 0,
         failures: 0,
+        push_failures: 0,
         time_budget_ms: timeBudgetMs,
         duration_ms: Date.now() - runStartedAt,
         message: "No entries to check",
@@ -162,15 +197,40 @@ export async function GET(req: NextRequest) {
     const userIds = Array.from(byUser.keys()).slice(0, MAX_USERS);
 
     const users = await User.find({ _id: { $in: userIds } })
-      .select("_id username notifications_enabled telegram_chat_id")
+      .select(
+        "_id username notifications_enabled push_notifications_enabled telegram_chat_id",
+      )
       .maxTimeMS(CRON_DB_QUERY_TIMEOUT_MS)
       .lean();
 
     const userMap = new Map(users.map((u) => [String(u._id), u]));
+    const pushTokensByUser = new Map<string, string[]>();
+    if (isAndroidPushConfigured()) {
+      const devices = await PushDevice.find({
+        user_id: { $in: userIds },
+        platform: "android",
+      })
+        .select("user_id token")
+        .limit(MAX_USERS * 20)
+        .maxTimeMS(CRON_DB_QUERY_TIMEOUT_MS)
+        .lean();
+      for (const device of devices) {
+        const uid = String(device.user_id);
+        const tokens = pushTokensByUser.get(uid) || [];
+        tokens.push(String(device.token));
+        pushTokensByUser.set(uid, tokens);
+      }
+    }
 
     const updatesByUser = new Map<string, ChapterUpdate[]>();
+    const pushUpdatesByUser = new Map<string, ChapterUpdate[]>();
+    const foundUpdatesByUser = new Map<string, ChapterUpdate[]>();
     const unreadByUser = new Map<string, ChapterUpdate[]>();
     const errorsByUser = new Map<
+      string,
+      { title: string; message: string }[]
+    >();
+    const historyErrorsByUser = new Map<
       string,
       { title: string; message: string }[]
     >();
@@ -181,6 +241,24 @@ export async function GET(req: NextRequest) {
     const selectedEntries = entries.filter((entry) =>
       userIds.includes(String(entry.user_id)),
     );
+    const scanStatsByUser = new Map<string, UserScanStats>();
+    const telegramDeliveryByUser = new Map<string, DeliveryState>();
+    const pushDeliveryByUser = new Map<string, DeliveryState>();
+    for (const uid of userIds) {
+      const selected = selectedEntries.filter(
+        (entry) => String(entry.user_id) === uid,
+      ).length;
+      scanStatsByUser.set(uid, {
+        selected,
+        started: 0,
+        checked: 0,
+        scanned: 0,
+        trackerFailures: 0,
+        deadlineDeferred: 0,
+      });
+      telegramDeliveryByUser.set(uid, "not_needed");
+      pushDeliveryByUser.set(uid, "not_needed");
+    }
 
     await runBoundedQueue(
       selectedEntries,
@@ -188,6 +266,8 @@ export async function GET(req: NextRequest) {
       async (entry) => {
         totalStarted += 1;
         const uid = String(entry.user_id);
+        const userStats = scanStatsByUser.get(uid);
+        if (userStats) userStats.started += 1;
         const mediaType = entry.media_type as MediaTypeSupported;
         const trackerUrl = String(entry.tracker_url || "");
         const current = Number(entry.progress_current || 0);
@@ -195,6 +275,13 @@ export async function GET(req: NextRequest) {
           progressCurrent: current,
           latestRemoteProgress: entry.latest_remote_progress as number | null,
           lastNotifiedProgress: entry.last_notified_progress as number | null,
+        });
+        const pushNotificationBaseline = getNotificationBaseline({
+          progressCurrent: current,
+          latestRemoteProgress: entry.latest_remote_progress as number | null,
+          lastNotifiedProgress: entry.last_push_notified_progress as
+            | number
+            | null,
         });
         const storedLatest = Number(entry.latest_remote_progress);
         if (Number.isFinite(storedLatest) && storedLatest > current) {
@@ -222,6 +309,7 @@ export async function GET(req: NextRequest) {
             retryAttempts: getCronScrapeRetries(),
           });
           totalChecked += 1;
+          if (userStats) userStats.checked += 1;
 
           await MediaItem.updateOne(
             { _id: entry._id },
@@ -235,10 +323,12 @@ export async function GET(req: NextRequest) {
               },
               $max: {
                 last_notified_progress: notificationBaseline,
+                last_push_notified_progress: pushNotificationBaseline,
               },
             },
           );
           totalFinished += 1;
+          if (userStats) userStats.scanned += 1;
 
           if (latest !== null && latest > current) {
             const update: ChapterUpdate = {
@@ -250,16 +340,23 @@ export async function GET(req: NextRequest) {
               media_type: mediaType,
             };
             setUnreadUpdate(unreadByUser, uid, update);
+            setUnreadUpdate(foundUpdatesByUser, uid, update);
 
             if (shouldNotifyProgress(latest, notificationBaseline)) {
               const updates = updatesByUser.get(uid) || [];
               updates.push(update);
               updatesByUser.set(uid, updates);
             }
+            if (shouldNotifyProgress(latest, pushNotificationBaseline)) {
+              const pushUpdates = pushUpdatesByUser.get(uid) || [];
+              pushUpdates.push(update);
+              pushUpdatesByUser.set(uid, pushUpdates);
+            }
           }
         } catch (err) {
           if (scanDeadline.signal.aborted) {
             deadlineDeferred += 1;
+            if (userStats) userStats.deadlineDeferred += 1;
             await MediaItem.updateOne(
               { _id: entry._id },
               { $set: { last_attempted_at: new Date() } },
@@ -269,6 +366,9 @@ export async function GET(req: NextRequest) {
 
           const message = getErrorMessage(err);
           const transient = isTransientScrapeError(err);
+          const historyErrors = historyErrorsByUser.get(uid) || [];
+          historyErrors.push({ title: entry.title as string, message });
+          historyErrorsByUser.set(uid, historyErrors);
           if (host && !transient) {
             hostCooldownUntil.set(host, Date.now() + HOST_COOLDOWN_MS);
           }
@@ -284,6 +384,10 @@ export async function GET(req: NextRequest) {
             },
           );
           totalFinished += 1;
+          if (userStats) {
+            userStats.scanned += 1;
+            userStats.trackerFailures += 1;
+          }
           if (!transient) {
             const errors = errorsByUser.get(uid) || [];
             errors.push({
@@ -302,14 +406,60 @@ export async function GET(req: NextRequest) {
       selectedEntries.length - totalFinished,
     );
 
+    let pushUsersNotified = 0;
+    let pushFailures = 0;
+    let pushNotificationsDeferred = 0;
+    let pushDevicesInvalidated = 0;
+
+    for (const [uid, updates] of pushUpdatesByUser) {
+      const user = userMap.get(uid);
+      if (!user?.push_notifications_enabled) {
+        pushDeliveryByUser.set(uid, "disabled");
+        continue;
+      }
+
+      const tokens = pushTokensByUser.get(uid) || [];
+      if (tokens.length === 0) {
+        pushDeliveryByUser.set(uid, "unavailable");
+        continue;
+      }
+
+      if (requestDeadline.signal.aborted) {
+        pushDeliveryByUser.set(uid, "deferred");
+        pushNotificationsDeferred += 1;
+        continue;
+      }
+
+      const result = await sendAndroidPush(
+        tokens,
+        buildAndroidPushPayload(updates),
+        requestDeadline.signal,
+      );
+      pushFailures += result.failed;
+
+      if (result.invalidTokens.length > 0) {
+        const deletion = await PushDevice.deleteMany({
+          token: { $in: result.invalidTokens },
+        });
+        pushDevicesInvalidated += deletion.deletedCount || 0;
+      }
+
+      if (result.sent > 0) {
+        await markPushUpdatesNotified(updates);
+        pushUsersNotified += 1;
+        pushDeliveryByUser.set(uid, result.failed > 0 ? "partial" : "sent");
+      } else if (requestDeadline.signal.aborted) {
+        pushDeliveryByUser.set(uid, "deferred");
+        pushNotificationsDeferred += 1;
+      } else {
+        pushDeliveryByUser.set(uid, "failed");
+      }
+    }
+
     let usersNotified = 0;
     let failures = 0;
     let notificationsDeferred = 0;
-    const globalFallbackUpdates: {
-      username: string;
-      updates: ChapterUpdate[];
-      errors: { title: string; message: string }[];
-    }[] = [];
+    const globalFallbackUpdates: TelegramGroup[] = [];
 
     for (const uid of updatesByUser.keys()) {
       const unreadUpdates = unreadByUser.get(uid) || [];
@@ -320,10 +470,12 @@ export async function GET(req: NextRequest) {
       const hasPersonalChat = !!user?.telegram_chat_id;
 
       if (!notificationsEnabled) {
+        telegramDeliveryByUser.set(uid, "disabled");
         continue;
       }
 
       if (requestDeadline.signal.aborted) {
+        telegramDeliveryByUser.set(uid, "deferred");
         notificationsDeferred += 1;
         continue;
       }
@@ -342,14 +494,19 @@ export async function GET(req: NextRequest) {
         );
         if (ok) {
           await markUpdatesNotified(sentUpdates);
+          telegramDeliveryByUser.set(uid, "sent");
           usersNotified++;
         } else if (requestDeadline.signal.aborted) {
+          telegramDeliveryByUser.set(uid, "deferred");
           notificationsDeferred += 1;
         } else {
+          telegramDeliveryByUser.set(uid, "failed");
           failures++;
         }
       } else {
+        telegramDeliveryByUser.set(uid, "deferred");
         globalFallbackUpdates.push({
+          uid,
           username,
           updates: unreadUpdates,
           errors,
@@ -373,13 +530,25 @@ export async function GET(req: NextRequest) {
       const ok = await sendTelegram(globalMessage, requestDeadline.signal);
       if (ok) {
         await markUpdatesNotified(sentGroups.flatMap(({ updates }) => updates));
+        for (const group of sentGroups) {
+          telegramDeliveryByUser.set(group.uid, "sent");
+        }
         usersNotified += sentGroups.length;
       } else if (requestDeadline.signal.aborted) {
+        for (const group of sentGroups) {
+          telegramDeliveryByUser.set(group.uid, "deferred");
+        }
         notificationsDeferred += sentGroups.length;
       } else {
+        for (const group of sentGroups) {
+          telegramDeliveryByUser.set(group.uid, "failed");
+        }
         failures += sentGroups.length;
       }
     } else if (globalFallbackUpdates.length > 0) {
+      for (const group of globalFallbackUpdates) {
+        telegramDeliveryByUser.set(group.uid, "deferred");
+      }
       notificationsDeferred += globalFallbackUpdates.length;
     }
 
@@ -390,11 +559,18 @@ export async function GET(req: NextRequest) {
       scanned: totalFinished,
       deferred: deferredEntries,
       deadline_deferred: deadlineDeferred,
-      partial: deferredEntries > 0 || notificationsDeferred > 0,
+      partial:
+        deferredEntries > 0 ||
+        notificationsDeferred > 0 ||
+        pushNotificationsDeferred > 0,
       users_scanned: userIds.length,
       users_notified: usersNotified,
+      push_users_notified: pushUsersNotified,
       notifications_deferred: notificationsDeferred,
+      push_notifications_deferred: pushNotificationsDeferred,
       failures,
+      push_failures: pushFailures,
+      push_devices_invalidated: pushDevicesInvalidated,
       time_budget_ms: timeBudgetMs,
       duration_ms: Date.now() - runStartedAt,
       updates_by_user: Object.fromEntries(
@@ -404,6 +580,17 @@ export async function GET(req: NextRequest) {
         }),
       ),
     };
+
+    await saveCronHistory({
+      userIds,
+      runStartedAt,
+      durationMs: payload.duration_ms,
+      scanStatsByUser,
+      foundUpdatesByUser,
+      errorsByUser: historyErrorsByUser,
+      telegramDeliveryByUser,
+      pushDeliveryByUser,
+    });
 
     logInfo("cron_check_chapters_complete", {
       at: new Date().toISOString(),
@@ -415,8 +602,11 @@ export async function GET(req: NextRequest) {
       partial: payload.partial,
       users_scanned: payload.users_scanned,
       users_notified: payload.users_notified,
+      push_users_notified: payload.push_users_notified,
       notifications_deferred: payload.notifications_deferred,
+      push_notifications_deferred: payload.push_notifications_deferred,
       failures: payload.failures,
+      push_failures: payload.push_failures,
       duration_ms: payload.duration_ms,
     });
 
@@ -440,6 +630,21 @@ async function markUpdatesNotified(updates: ChapterUpdate[]): Promise<void> {
       updateOne: {
         filter: { _id: update.media_id },
         update: { $max: { last_notified_progress: update.latest } },
+      },
+    })),
+  );
+}
+
+async function markPushUpdatesNotified(
+  updates: ChapterUpdate[],
+): Promise<void> {
+  if (updates.length === 0) return;
+
+  await MediaItem.bulkWrite(
+    updates.map((update) => ({
+      updateOne: {
+        filter: { _id: update.media_id },
+        update: { $max: { last_push_notified_progress: update.latest } },
       },
     })),
   );
@@ -474,6 +679,33 @@ function formatUpdateItem(update: ChapterUpdate): string {
   const unit = progressUnit(update.media_type);
 
   return `• <a href="${escapeHtml(update.tracker_url)}">${escapeHtml(update.title)}</a> — ${unit} ${update.current}${unreadStr}`;
+}
+
+function buildAndroidPushPayload(updates: ChapterUpdate[]) {
+  const first = updates[0];
+  if (updates.length === 1 && first) {
+    const unit = progressUnit(first.media_type);
+    const unread = Math.max(
+      0,
+      Math.round((first.latest - first.current) * 1000) / 1000,
+    );
+    return {
+      title: "Chronicle Update",
+      body: `${first.title} — ${unit} ${first.latest} is available${unread > 0 ? ` (+${unread})` : ""}`,
+      path: "/updates",
+    };
+  }
+
+  const titles = updates
+    .slice(0, 2)
+    .map((update) => update.title)
+    .join(", ");
+  const extra = Math.max(0, updates.length - 2);
+  return {
+    title: `${updates.length} Chronicle updates`,
+    body: `${titles}${extra > 0 ? ` and ${extra} more` : ""}`,
+    path: "/updates",
+  };
 }
 
 function formatMediaSection(
@@ -572,11 +804,7 @@ function buildGlobalNotificationMessage(
 }
 
 function takeGlobalUpdatesThatFit(
-  groups: {
-    username: string;
-    updates: ChapterUpdate[];
-    errors: { title: string; message: string }[];
-  }[],
+  groups: TelegramGroup[],
 ) {
   let included: typeof groups = [];
 
@@ -608,4 +836,90 @@ function takeGlobalUpdatesThatFit(
   }
 
   return included;
+}
+
+async function saveCronHistory({
+  userIds,
+  runStartedAt,
+  durationMs,
+  scanStatsByUser,
+  foundUpdatesByUser,
+  errorsByUser,
+  telegramDeliveryByUser,
+  pushDeliveryByUser,
+}: {
+  userIds: string[];
+  runStartedAt: number;
+  durationMs: number;
+  scanStatsByUser: Map<string, UserScanStats>;
+  foundUpdatesByUser: Map<string, ChapterUpdate[]>;
+  errorsByUser: Map<string, { title: string; message: string }[]>;
+  telegramDeliveryByUser: Map<string, DeliveryState>;
+  pushDeliveryByUser: Map<string, DeliveryState>;
+}): Promise<void> {
+  const completedAt = new Date();
+  const issueStates = new Set<DeliveryState>([
+    "unavailable",
+    "partial",
+    "failed",
+    "deferred",
+  ]);
+  const documents = userIds.flatMap((uid) => {
+    const stats = scanStatsByUser.get(uid);
+    if (!stats || stats.selected === 0) return [];
+
+    const updates = foundUpdatesByUser.get(uid) || [];
+    const errors = errorsByUser.get(uid) || [];
+    const telegramDelivery = telegramDeliveryByUser.get(uid) || "not_needed";
+    const pushDelivery = pushDeliveryByUser.get(uid) || "not_needed";
+    const deferred = Math.max(0, stats.selected - stats.scanned);
+    const partial =
+      deferred > 0 ||
+      stats.trackerFailures > 0 ||
+      issueStates.has(telegramDelivery) ||
+      issueStates.has(pushDelivery);
+
+    return [{
+      user_id: uid,
+      started_at: new Date(runStartedAt),
+      completed_at: completedAt,
+      expires_at: new Date(
+        completedAt.getTime() + CRON_HISTORY_RETENTION_SECONDS * 1000,
+      ),
+      status: partial ? "partial" : "success",
+      selected: stats.selected,
+      checked: stats.checked,
+      updates_found: updates.length,
+      tracker_failures: stats.trackerFailures,
+      deferred,
+      duration_ms: durationMs,
+      telegram_delivery: telegramDelivery,
+      push_delivery: pushDelivery,
+      updates: updates.slice(0, 20).map((update) => ({
+        media_id: update.media_id,
+        title: update.title.slice(0, 200),
+        media_type: update.media_type,
+        current: update.current,
+        latest: update.latest,
+      })),
+      tracker_errors: errors.slice(0, 10).map((error) => ({
+        title: error.title.slice(0, 200),
+        message: error.message.slice(0, 300),
+      })),
+    }];
+  });
+
+  if (documents.length === 0) return;
+
+  try {
+    await CronHistory.bulkWrite(
+      documents.map((document) => ({ insertOne: { document } })),
+      { ordered: false, timeoutMS: 1_500 },
+    );
+  } catch (err) {
+    logInternalError("cron_history_write_error", err, {
+      route: "cron/checkChapters",
+      users: documents.length,
+    });
+  }
 }

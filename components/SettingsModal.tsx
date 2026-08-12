@@ -26,6 +26,16 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+type ChronicleNativeBridge = {
+  requestNotificationPermission?: () => void;
+};
+
+function getChronicleNativeBridge(): ChronicleNativeBridge | undefined {
+  if (typeof window === "undefined") return undefined;
+  return (window as typeof window & { ChronicleNative?: ChronicleNativeBridge })
+    .ChronicleNative;
+}
+
 function SettingsToggle({
   name,
   checked,
@@ -33,7 +43,7 @@ function SettingsToggle({
   description,
   onChange,
 }: {
-  name: "notifications_enabled";
+  name: "notifications_enabled" | "push_notifications_enabled";
   checked: boolean;
   title: string;
   description: string;
@@ -70,6 +80,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     email: "",
     email_verified_at: null as string | null,
     notifications_enabled: false,
+    push_notifications_enabled: false,
     telegram_chat_id: "",
   });
   const [loading, setLoading] = useState(true);
@@ -88,6 +99,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             email: json.data.email || "",
             email_verified_at: json.data.email_verified_at || null,
             notifications_enabled: json.data.notifications_enabled || false,
+            push_notifications_enabled:
+              json.data.push_notifications_enabled || false,
             telegram_chat_id: json.data.telegram_chat_id || "",
           });
         }
@@ -102,6 +115,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
+    if (name === "push_notifications_enabled" && checked) {
+      getChronicleNativeBridge()?.requestNotificationPermission?.();
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -137,6 +153,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           email: data.data.email || "",
           email_verified_at: data.data.email_verified_at || null,
           notifications_enabled: data.data.notifications_enabled || false,
+          push_notifications_enabled:
+            data.data.push_notifications_enabled || false,
           telegram_chat_id: data.data.telegram_chat_id || "",
         }));
       }
@@ -292,6 +310,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
               <div className="modal-section-label">Notifications</div>
               <div className="form-grid full">
+                <SettingsToggle
+                  name="push_notifications_enabled"
+                  checked={formData.push_notifications_enabled}
+                  title="Android push notifications"
+                  description="Receive new release alerts. Turning this on asks Android for permission."
+                  onChange={handleChange}
+                />
                 <SettingsToggle
                   name="notifications_enabled"
                   checked={formData.notifications_enabled}
