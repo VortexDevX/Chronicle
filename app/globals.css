@@ -28,9 +28,9 @@
   --text-invert: #0f0f11;
 
   /* Typography */
-  --font-display: var(--font-display, "Outfit", system-ui, sans-serif);
-  --font-body: var(--font-body, "DM Sans", system-ui, sans-serif);
-  --font-mono: var(--font-mono, "JetBrains Mono", monospace);
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
 
   /* Border Radius - Sharp Aesthetic */
   --radius-sm: 0px;
