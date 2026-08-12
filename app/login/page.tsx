@@ -5,6 +5,17 @@ import { useRouter } from "next/navigation";
 import { BookHeart } from "lucide-react";
 import { useMediaStore } from "@/store/mediaStore";
 
+type ChronicleNativeBridge = {
+  persistSessionCookies?: () => void;
+};
+
+function persistNativeSessionCookies() {
+  if (typeof window === "undefined") return;
+  (
+    window as typeof window & { ChronicleNative?: ChronicleNativeBridge }
+  ).ChronicleNative?.persistSessionCookies?.();
+}
+
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -74,6 +85,7 @@ export default function LoginPage() {
       }
 
       setAuth("authenticated", data.data?.username || username);
+      persistNativeSessionCookies();
       router.push("/home");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
