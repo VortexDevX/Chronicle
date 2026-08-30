@@ -4,7 +4,6 @@ import {
   isAllowedMediaType,
 } from "@/lib/mediaValidation";
 import { normalizeMangaDexId } from "@/lib/mangadex";
-import { isAnimeCountdownUrl } from "@/lib/sources/animeCountdown";
 
 export type MediaPayload = {
   title?: string;
@@ -16,7 +15,6 @@ export type MediaPayload = {
   notes?: string;
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   tracker_url?: string | null;
-  schedule_source_url?: string | null;
   mangadex_id?: string | null;
   custom_cover_url?: string | null;
   drop_reason?: string | null;
@@ -153,17 +151,6 @@ export function validateMediaPayload(
         };
       }
       normalized.tracker_url = url;
-    }
-  }
-
-  if (payload.schedule_source_url !== undefined) {
-    if (payload.schedule_source_url === null || payload.schedule_source_url === "") {
-      normalized.schedule_source_url = null;
-    } else {
-      const url = normalizePublicHttpUrl(String(payload.schedule_source_url).trim());
-      if (!url) return { ok: false, message: "schedule_source_url must be a valid public http/https URL under 500 characters" };
-      if (!isAnimeCountdownUrl(url)) return { ok: false, message: "schedule_source_url must be an https://animecountdown.com page" };
-      normalized.schedule_source_url = url;
     }
   }
 

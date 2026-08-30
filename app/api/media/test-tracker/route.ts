@@ -10,11 +10,10 @@ import {
   getErrorMessage,
   scrapeTrackerUrl,
 } from "@/lib/trackerScraper";
-import { fetchAnimeCountdownSchedule, isAnimeCountdownUrl } from "@/lib/sources/animeCountdown";
 import mongoose from "mongoose";
 
 function isSupportedMediaType(value: string): value is MediaTypeSupported {
-  return value === "Manhwa" || value === "Donghua";
+  return value === "Manhwa";
 }
 
 export async function POST(req: NextRequest) {
@@ -38,40 +37,19 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const trackerUrl = normalizePublicHttpUrl(String(body.tracker_url || "").trim());
-  const scheduleUrl = normalizePublicHttpUrl(String(body.schedule_source_url || "").trim());
   const mediaType = String(body.media_type || "");
   const itemId =
     typeof body.id === "string" && mongoose.Types.ObjectId.isValid(body.id)
       ? body.id
       : null;
 
-  if (!trackerUrl && !scheduleUrl) {
+  if (!trackerUrl) {
     return jsonError("INVALID_TRACKER_URL", "Enter a valid public tracker URL", 400);
   }
 
-  if (!isSupportedMediaType(mediaType) && mediaType !== "Anime") {
-    return jsonError("UNSUPPORTED_MEDIA_TYPE", "Tracker test supports Anime, Manhwa, and Donghua", 400);
-  }
+  if (!isSupportedMediaType(mediaType)) return jsonError("UNSUPPORTED_MEDIA_TYPE", "Tracker test supports Manhwa", 400);
 
   try {
-    if (scheduleUrl) {
-      if ((mediaType !== "Anime" && mediaType !== "Donghua") || !isAnimeCountdownUrl(scheduleUrl)) {
-        return jsonError("INVALID_SCHEDULE_URL", "Anime and Donghua schedules require an Anime Countdown URL", 400);
-      }
-      const schedule = await fetchAnimeCountdownSchedule(scheduleUrl);
-      const latest = schedule.episode !== null && schedule.releaseAt && schedule.releaseAt <= new Date()
-        ? schedule.episode
-        : schedule.previousEpisode;
-      if (itemId) await MediaItem.updateOne({ _id: itemId, user_id: userId }, { $set: {
-        last_checked_at: new Date(), last_scrape_status: "ok", last_scrape_error: null,
-        ...(latest !== null ? { latest_remote_progress: latest } : {}),
-        next_episode: schedule.episode, next_episode_release_at: schedule.releaseAt,
-        previous_episode: schedule.previousEpisode, previous_episode_release_at: schedule.previousReleaseAt,
-        release_platform: schedule.platform,
-      }});
-      return jsonOk({ latest, schedule });
-    }
-
     if (!trackerUrl || !isSupportedMediaType(mediaType)) {
       return jsonError("INVALID_TRACKER_URL", "Enter a supported tracker URL", 400);
     }

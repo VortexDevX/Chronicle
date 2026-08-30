@@ -7,6 +7,7 @@ Chronicle Android is a small native shell for the existing responsive web app. I
 - Hardened same-origin WebView with external links opened in the browser
 - Existing Chronicle UI, account, library, updates, shelves, analytics, and settings
 - Native offline/retry screen, edge-to-edge system bars, download handoff, and WebView back navigation
+- Restored WebView history/current page after Android recreates the activity; last trusted Chronicle route is the fallback after process eviction
 - Android 13+ notification prompt on first trusted app screen, with a Settings retry path
 - Firebase Installation ID registration after an authenticated user grants notification permission
 - Push taps open Chronicle's `/updates` page
@@ -15,7 +16,7 @@ Chronicle Android is a small native shell for the existing responsive web app. I
 
 ## Build debug APK
 
-Prerequisites: Android SDK 36 and JDK 17 or newer.
+Prerequisites: Android SDK 36 and Android Studio's JDK 17 runtime. Do not use system Java 25.
 
 ```powershell
 cd android-app

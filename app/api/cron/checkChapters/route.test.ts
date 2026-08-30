@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   pushDeviceDeleteMany: vi.fn(),
   cronHistoryBulkWrite: vi.fn(),
   scrapeTrackerUrl: vi.fn(),
-  fetchAnimeCountdownSchedule: vi.fn(),
   sendTelegram: vi.fn(),
   sendTelegramToChat: vi.fn(),
   isAndroidPushConfigured: vi.fn(),
@@ -48,7 +47,6 @@ vi.mock("@/lib/trackerScraper", () => ({
   isTransientScrapeError: () => false,
   scrapeTrackerUrl: mocks.scrapeTrackerUrl,
 }));
-vi.mock("@/lib/sources/animeCountdown", () => ({ fetchAnimeCountdownSchedule: mocks.fetchAnimeCountdownSchedule }));
 vi.mock("@/lib/log", () => ({
   logInfo: vi.fn(),
   logInternalError: vi.fn(),
@@ -68,8 +66,6 @@ type Entry = {
   media_type: "Anime" | "Manhwa" | "Donghua";
   progress_current: number;
   tracker_url: string;
-  schedule_source_url?: string | null;
-  next_episode_release_at?: Date | null;
   latest_remote_progress?: number | null;
   last_notified_progress?: number | null;
   last_push_notified_progress?: number | null;
@@ -208,26 +204,6 @@ describe("cron chapter check auth", () => {
 });
 
 describe("cron chapter notification state", () => {
-  it("syncs Anime Countdown schedules without treating future episodes as released", async () => {
-    mockFindResults([makeEntry({ media_type: "Anime", tracker_url: "", schedule_source_url: "https://animecountdown.com/123/example", progress_current: 98, latest_remote_progress: 98 })], [makeUser()]);
-    mocks.fetchAnimeCountdownSchedule.mockResolvedValue({
-      episode: 99, releaseAt: new Date(Date.now() + 60 * 60 * 1000),
-      previousEpisode: 98, previousReleaseAt: new Date(), platform: "Bilibili",
-    });
-
-    const res = await GET(authorizedRequest());
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(body.data.checked).toBe(1);
-    expect(mocks.fetchAnimeCountdownSchedule).toHaveBeenCalledWith("https://animecountdown.com/123/example", expect.any(Object));
-    expect(mocks.sendTelegramToChat).not.toHaveBeenCalled();
-    expect(mocks.mediaUpdateOne).toHaveBeenCalledWith(
-      { _id: "media-1" },
-      expect.objectContaining({ $set: expect.objectContaining({ next_episode: 99, release_platform: "Bilibili" }) }),
-    );
-  });
-
   it("announces genuine new progress and preserves unread +N", async () => {
     mockFindResults([makeEntry()], [makeUser()]);
     mocks.scrapeTrackerUrl.mockResolvedValue(113);

@@ -32,6 +32,8 @@ const mediaSchema = new mongoose.Schema(
       default: null,
     },
     tracker_url: { type: String, default: null },
+    anilist_id: { type: Number, default: null },
+    simkl_id: { type: Number, default: null },
     schedule_source_url: { type: String, default: null },
     next_episode: { type: Number, default: null },
     next_episode_release_at: { type: Date, default: null },
@@ -81,5 +83,12 @@ mediaSchema.pre("findOneAndUpdate", function (next) {
   next();
 });
 
+// Next.js keeps Mongoose models alive across dev hot reloads. Add newly introduced
+// fields to an already-cached model so updates are not silently stripped locally.
+const existingMediaItem = mongoose.models.MediaItem;
+if (existingMediaItem && !existingMediaItem.schema.path("simkl_id")) {
+  existingMediaItem.schema.add({ simkl_id: { type: Number, default: null } });
+}
+
 export const MediaItem =
-  mongoose.models.MediaItem || mongoose.model("MediaItem", mediaSchema);
+  existingMediaItem || mongoose.model("MediaItem", mediaSchema);

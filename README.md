@@ -14,7 +14,7 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 | **Import / Export**     | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                                   |
 | **Metadata Lookup**     | AniList primary + Jikan fallback lookup for Anime/Donghua · MangaDex links or IDs normalized for Manhwa covers                               |
 | **High-Quality Covers** | Cached cover pipeline with batched client fetching, proxy image caching, MangaDex/AniList/Jikan support, and custom cover URL overrides      |
-| **Release Tracking**    | Manhwa chapter scraping · Anime Countdown schedules for Anime/Donghua · Release Radar · private 30-day cron history · Telegram and Android push notifications |
+| **Release Tracking**    | Manhwa chapter scraping · automatic Anime/Donghua Release Radar · private 30-day cron history · Telegram and Android push notifications |
 | **Droppedyard**         | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again                      |
 | **Auth**                | JWT cookie auth · bcrypt password hashing · email recovery/verification with Brevo links · session invalidation after password reset         |
 | **Design System**       | Responsive, mobile-first "Soft Red" UI with sharp cards, modal scroll locking, accessible badging, skeleton cards, and animated page loaders |
@@ -39,7 +39,7 @@ The page summarizes all four formats without separate tracker landing pages. Tec
 | Database | MongoDB (Atlas or local) via Mongoose                               |
 | Auth     | JWT httpOnly cookies · bcryptjs · hashed one-time reset tokens      |
 | Email    | Brevo Transactional API                                             |
-| Scraping | Cheerio · Anime Countdown adapter · fetch retry/timeout helpers · host-specific rules |
+| Scraping | Cheerio · SIMKL calendar data · fetch retry/timeout helpers · host-specific rules |
 | APIs     | AniList GraphQL · Jikan v4 · MangaDex · Telegram Bot API            |
 | Testing  | Vitest · TypeScript · ESLint                                        |
 
@@ -54,14 +54,13 @@ See [ANDROID_APP.md](./ANDROID_APP.md) for APK builds, Firebase setup, and relea
 
 ## Episode schedules and Release Radar
 
-Anime and Donghua use [Anime Countdown](https://animecountdown.com/) as an optional release-schedule source. Chronicle stores the source's actual UTC release timestamp, never its live countdown text. Release Radar converts that timestamp into the viewer's local time and countdown.
+Release Radar uses the shared [SIMKL calendar](https://api.simkl.org/api-reference/calendar) for Anime and Donghua. It finds each title through its stable AniList ID, not by guessing from a translated title. Calendar data is refreshed automatically; no source links, test buttons, or setup fields needed.
 
-1. Add or edit an active Anime or Donghua entry.
-2. Put any streaming/site link in **Watch URL**. It opens from entry actions and is never scraped.
-3. Paste its canonical `https://animecountdown.com/<id>/<slug>` page into **Anime Countdown URL**, then use **Test schedule**.
-4. Cron syncs available episode progress and next schedule without changing `progress_current`.
+1. Keep an Anime or Donghua entry **Active**.
+2. Add any streaming/site link in **Watch URL**. Chronicle opens it but never scrapes it.
+3. Open Release Radar. It shows announced episodes across the current and next three calendar months in your local time.
 
-Existing Donghua `tracker_url` values remain intact. Add an Anime Countdown URL when ready; Chronicle does not overwrite old links automatically.
+Release Radar never changes `progress_current`. Manhwa tracker checks remain separate.
 
 ## 🚀 Getting Started
 
@@ -251,7 +250,8 @@ Chronicle/
 | DELETE | `/api/media?id=`            | Yes                  | Delete entry                                   |
 | POST   | `/api/media?bulk_delete=1`  | Yes                  | Bulk delete                                    |
 | POST   | `/api/media/link`           | Yes                  | Link or unlink related entries                 |
-| POST   | `/api/media/test-tracker`   | Yes                  | Test a Manhwa tracker or Anime Countdown schedule |
+| POST   | `/api/media/test-tracker`   | Yes                  | Test a Manhwa tracker |
+| GET    | `/api/release-radar`        | Yes                  | Upcoming Anime and Donghua episodes from SIMKL |
 | GET    | `/api/cron/checkChapters`   | Bearer `CRON_SECRET` | Sync tracker progress/release schedules and send updates |
 | GET    | `/api/manga-cover`          | No                   | Fetch MangaDex cover URL                       |
 | GET    | `/api/anime-cover`          | No                   | Fetch AniList/Jikan cover URL                  |

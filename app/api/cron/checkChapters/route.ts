@@ -22,7 +22,6 @@ import {
   MediaTypeSupported,
   scrapeTrackerUrl,
 } from "@/lib/trackerScraper";
-import { fetchAnimeCountdownSchedule } from "@/lib/sources/animeCountdown";
 
 export const maxDuration = 60;
 
@@ -37,7 +36,6 @@ const NOTIFICATION_RESERVE_MS = 8_000;
 const DEFAULT_CRON_SCRAPE_RETRIES = 2;
 const MAX_CRON_SCRAPE_RETRIES = 2;
 const CRON_DB_QUERY_TIMEOUT_MS = 5_000;
-const SCHEDULE_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const TELEGRAM_MESSAGE_LIMIT = 4000;
 
 const HOST_COOLDOWN_MS = 10 * 60 * 1000;
@@ -85,13 +83,6 @@ type TelegramGroup = {
 
 function progressUnit(mediaType: CronMediaType): string {
   return mediaType === "Manhwa" ? "Chapter" : "Episode";
-}
-
-function isScheduleSyncDue(entry: { schedule_source_url?: string | null; next_episode_release_at?: Date | string | null; last_checked_at?: Date | string | null }): boolean {
-  if (!entry.schedule_source_url) return true;
-  const releaseAt = entry.next_episode_release_at ? new Date(entry.next_episode_release_at).getTime() : NaN;
-  const lastCheckedAt = entry.last_checked_at ? new Date(entry.last_checked_at).getTime() : NaN;
-  return !Number.isFinite(releaseAt) || releaseAt <= Date.now() || !Number.isFinite(lastCheckedAt) || Date.now() - lastCheckedAt >= SCHEDULE_REFRESH_INTERVAL_MS;
 }
 
 function getHostFromUrl(url: string): string | null {
@@ -165,25 +156,16 @@ export async function GET(req: NextRequest) {
 
     let entries = await MediaItem.find({
       status: "Active",
-      $or: [
-        { media_type: "Manhwa", tracker_url: { $exists: true, $nin: [null, ""] } },
-        { media_type: "Donghua", tracker_url: { $exists: true, $nin: [null, ""] } },
-        { media_type: { $in: ["Anime", "Donghua"] }, schedule_source_url: { $exists: true, $nin: [null, ""] } },
-      ],
+      media_type: "Manhwa",
+      tracker_url: { $exists: true, $nin: [null, ""] },
     })
       .select(
-        "title progress_current tracker_url schedule_source_url next_episode next_episode_release_at previous_episode previous_episode_release_at release_platform user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
+        "title progress_current tracker_url user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
       )
       .sort({ last_attempted_at: 1, last_checked_at: 1, _id: 1 })
       .limit(MAX_ENTRIES_PER_RUN)
       .maxTimeMS(CRON_DB_QUERY_TIMEOUT_MS)
       .lean();
-
-    entries = entries.filter((entry) => isScheduleSyncDue(entry as {
-      schedule_source_url?: string | null;
-      next_episode_release_at?: Date | string | null;
-      last_checked_at?: Date | string | null;
-    }));
 
     if (entries.length === 0) {
       return jsonOk({
@@ -290,8 +272,7 @@ export async function GET(req: NextRequest) {
         if (userStats) userStats.started += 1;
         const mediaType = entry.media_type as CronMediaType;
         const trackerUrl = String(entry.tracker_url || "");
-        const scheduleSourceUrl = String(entry.schedule_source_url || "");
-        const sourceUrl = scheduleSourceUrl || trackerUrl;
+        const sourceUrl = trackerUrl;
         const current = Number(entry.progress_current || 0);
         const notificationBaseline = getNotificationBaseline({
           progressCurrent: current,
@@ -326,20 +307,10 @@ export async function GET(req: NextRequest) {
             );
           }
 
-          const schedule = scheduleSourceUrl
-            ? await fetchAnimeCountdownSchedule(scheduleSourceUrl, {
-                signal: scanDeadline.signal,
-                retryAttempts: getCronScrapeRetries(),
-              })
-            : null;
-          const latest = schedule
-            ? schedule.episode !== null && schedule.releaseAt !== null && schedule.releaseAt.getTime() <= Date.now()
-              ? schedule.episode
-              : schedule.previousEpisode
-            : await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
-                signal: scanDeadline.signal,
-                retryAttempts: getCronScrapeRetries(),
-              });
+          const latest = await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
+            signal: scanDeadline.signal,
+            retryAttempts: getCronScrapeRetries(),
+          });
           totalChecked += 1;
           if (userStats) userStats.checked += 1;
 
@@ -352,13 +323,6 @@ export async function GET(req: NextRequest) {
                 last_scrape_status: "ok",
                 last_scrape_error: null,
                 ...(latest !== null ? { latest_remote_progress: latest } : {}),
-                ...(schedule ? {
-                  next_episode: schedule.episode,
-                  next_episode_release_at: schedule.releaseAt,
-                  previous_episode: schedule.previousEpisode,
-                  previous_episode_release_at: schedule.previousReleaseAt,
-                  release_platform: schedule.platform,
-                } : {}),
               },
               $max: {
                 last_notified_progress: notificationBaseline,
