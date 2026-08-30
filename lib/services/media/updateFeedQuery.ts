@@ -11,7 +11,12 @@ export async function getUpdateFeed(
   const tracked = {
     user_id: userObjectId,
     status: { $in: activeStatuses },
-    tracker_url: { $exists: true, $nin: [null, ""] },
+    // Manhwa needs a tracker URL. Anime/Donghua progress comes from SIMKL and
+    // must remain visible even when Watch URL is empty.
+    $or: [
+      { media_type: "Manhwa", tracker_url: { $exists: true, $nin: [null, ""] } },
+      { media_type: { $in: ["Anime", "Donghua"] } },
+    ],
   };
 
   const [unreadResult, trackerErrorsResult] = await Promise.allSettled([

@@ -163,11 +163,11 @@ export async function GET(req: NextRequest) {
       status: "Active",
       $or: [
         { media_type: "Manhwa", tracker_url: { $exists: true, $nin: [null, ""] } },
-        { media_type: { $in: ["Anime", "Donghua"] }, simkl_id: { $exists: true, $nin: [null, 0] } },
+        { media_type: { $in: ["Anime", "Donghua"] } },
       ],
     })
       .select(
-        "title progress_current tracker_url simkl_id user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
+        "title progress_current tracker_url simkl_id anilist_id user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
       )
       .sort({ last_attempted_at: 1, last_checked_at: 1, _id: 1 })
       .limit(MAX_ENTRIES_PER_RUN)
@@ -288,7 +288,20 @@ export async function GET(req: NextRequest) {
         if (userStats) userStats.started += 1;
         const mediaType = entry.media_type as CronMediaType;
         const trackerUrl = String(entry.tracker_url || "");
-        const simklId = Number(entry.simkl_id);
+        let simklId = Number(entry.simkl_id);
+        if ((!Number.isInteger(simklId) || simklId <= 0) && simklCalendar) {
+          const anilistId = Number(entry.anilist_id);
+          const matched = Object.entries(simklCalendar.metadata).find(
+            ([, show]) => Number(show.ids?.anilist) === anilistId,
+          );
+          simklId = matched ? Number(matched[0]) : 0;
+          if (simklId > 0) {
+            await MediaItem.updateOne(
+              { _id: entry._id },
+              { $set: { simkl_id: simklId } },
+            );
+          }
+        }
         const current = Number(entry.progress_current || 0);
         const notificationBaseline = getNotificationBaseline({
           progressCurrent: current,
