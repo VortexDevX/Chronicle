@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   sendTelegramToChat: vi.fn(),
   isAndroidPushConfigured: vi.fn(),
   sendAndroidPush: vi.fn(),
+  fetchSimklAnimeCalendar: vi.fn(),
+  findSimklEpisodeSchedule: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ connectDB: mocks.connectDB }));
@@ -51,6 +53,10 @@ vi.mock("@/lib/log", () => ({
   logInfo: vi.fn(),
   logInternalError: vi.fn(),
 }));
+vi.mock("@/lib/sources/simklCalendar", () => ({
+  fetchSimklAnimeCalendar: mocks.fetchSimklAnimeCalendar,
+  findSimklEpisodeSchedule: mocks.findSimklEpisodeSchedule,
+}));
 
 import { GET } from "./route";
 
@@ -66,6 +72,7 @@ type Entry = {
   media_type: "Anime" | "Manhwa" | "Donghua";
   progress_current: number;
   tracker_url: string;
+  simkl_id?: number | null;
   latest_remote_progress?: number | null;
   last_notified_progress?: number | null;
   last_push_notified_progress?: number | null;
@@ -164,6 +171,8 @@ beforeEach(() => {
   });
   mocks.pushDeviceDeleteMany.mockResolvedValue({ deletedCount: 0 });
   mocks.cronHistoryBulkWrite.mockResolvedValue({ acknowledged: true });
+  mocks.fetchSimklAnimeCalendar.mockResolvedValue({ payload: { calendar: [], metadata: {} } });
+  mocks.findSimklEpisodeSchedule.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -247,6 +256,30 @@ describe("cron chapter notification state", () => {
       ],
       { ordered: false, timeoutMS: 1_500 },
     );
+  });
+
+  it("places Anime releases in their own Telegram section", async () => {
+    mockFindResults(
+      [makeEntry({ media_type: "Anime", title: "One Piece", tracker_url: "", simkl_id: 38636, progress_current: 1175, latest_remote_progress: 1175 })],
+      [makeUser()],
+    );
+    mocks.findSimklEpisodeSchedule.mockReturnValue({
+      previousEpisode: 1176,
+      previousReleaseAt: new Date(),
+      nextEpisode: 1177,
+      nextReleaseAt: new Date(Date.now() + 86_400_000),
+      episodeTitle: null,
+      finaleType: null,
+      episodeUrl: "https://simkl.com/anime/one-piece",
+    });
+
+    await GET(authorizedRequest());
+
+    const message = mocks.sendTelegramToChat.mock.calls[0][1];
+    expect(message).toContain("📺 <b>Anime</b> <i>(1)</i>");
+    expect(message).toContain("One Piece");
+    expect(message).toContain("Episode 1175 (+1)");
+    expect(message).not.toContain("🎬 <b>Donghua</b>");
   });
 
   it("shows fractional unread chapter progress", async () => {

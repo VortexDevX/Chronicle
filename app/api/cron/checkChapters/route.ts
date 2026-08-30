@@ -22,6 +22,11 @@ import {
   MediaTypeSupported,
   scrapeTrackerUrl,
 } from "@/lib/trackerScraper";
+import {
+  fetchSimklAnimeCalendar,
+  findSimklEpisodeSchedule,
+  SimklCalendarPayload,
+} from "@/lib/sources/simklCalendar";
 
 export const maxDuration = 60;
 
@@ -156,16 +161,27 @@ export async function GET(req: NextRequest) {
 
     let entries = await MediaItem.find({
       status: "Active",
-      media_type: "Manhwa",
-      tracker_url: { $exists: true, $nin: [null, ""] },
+      $or: [
+        { media_type: "Manhwa", tracker_url: { $exists: true, $nin: [null, ""] } },
+        { media_type: { $in: ["Anime", "Donghua"] }, simkl_id: { $exists: true, $nin: [null, 0] } },
+      ],
     })
       .select(
-        "title progress_current tracker_url user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
+        "title progress_current tracker_url simkl_id user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
       )
       .sort({ last_attempted_at: 1, last_checked_at: 1, _id: 1 })
       .limit(MAX_ENTRIES_PER_RUN)
       .maxTimeMS(CRON_DB_QUERY_TIMEOUT_MS)
       .lean();
+
+    let simklCalendar: SimklCalendarPayload | null = null;
+    if (entries.some((entry) => entry.media_type === "Anime" || entry.media_type === "Donghua")) {
+      try {
+        simklCalendar = (await fetchSimklAnimeCalendar()).payload;
+      } catch (err) {
+        logInternalError("cron_simkl_calendar_error", err, { route: "cron/checkChapters" });
+      }
+    }
 
     if (entries.length === 0) {
       return jsonOk({
@@ -272,7 +288,7 @@ export async function GET(req: NextRequest) {
         if (userStats) userStats.started += 1;
         const mediaType = entry.media_type as CronMediaType;
         const trackerUrl = String(entry.tracker_url || "");
-        const sourceUrl = trackerUrl;
+        const simklId = Number(entry.simkl_id);
         const current = Number(entry.progress_current || 0);
         const notificationBaseline = getNotificationBaseline({
           progressCurrent: current,
@@ -293,11 +309,11 @@ export async function GET(req: NextRequest) {
             title: entry.title as string,
             latest: storedLatest,
             current,
-            tracker_url: sourceUrl,
+            tracker_url: trackerUrl || "https://simkl.com",
             media_type: mediaType,
           });
         }
-        const host = getHostFromUrl(sourceUrl);
+        const host = mediaType === "Manhwa" ? getHostFromUrl(trackerUrl) : null;
         const cooldownUntil = host ? hostCooldownUntil.get(host) || 0 : 0;
 
         try {
@@ -307,10 +323,17 @@ export async function GET(req: NextRequest) {
             );
           }
 
-          const latest = await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
-            signal: scanDeadline.signal,
-            retryAttempts: getCronScrapeRetries(),
-          });
+          const schedule = (mediaType === "Anime" || mediaType === "Donghua") && simklCalendar && Number.isInteger(simklId) && simklId > 0
+            ? findSimklEpisodeSchedule(simklId, simklCalendar)
+            : null;
+          const latest = schedule
+            ? schedule.previousEpisode
+            : mediaType === "Manhwa"
+              ? await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
+                  signal: scanDeadline.signal,
+                  retryAttempts: getCronScrapeRetries(),
+                })
+              : null;
           totalChecked += 1;
           if (userStats) userStats.checked += 1;
 
@@ -323,6 +346,12 @@ export async function GET(req: NextRequest) {
                 last_scrape_status: "ok",
                 last_scrape_error: null,
                 ...(latest !== null ? { latest_remote_progress: latest } : {}),
+                ...(schedule ? {
+                  next_episode: schedule.nextEpisode,
+                  next_episode_release_at: schedule.nextReleaseAt,
+                  previous_episode: schedule.previousEpisode,
+                  previous_episode_release_at: schedule.previousReleaseAt,
+                } : {}),
               },
               $max: {
                 last_notified_progress: notificationBaseline,
@@ -339,7 +368,7 @@ export async function GET(req: NextRequest) {
               title: entry.title as string,
               latest,
               current,
-              tracker_url: sourceUrl,
+              tracker_url: trackerUrl || schedule?.episodeUrl || "https://simkl.com",
               media_type: mediaType,
             };
             setUnreadUpdate(unreadByUser, uid, update);
@@ -742,11 +771,13 @@ function buildNotificationMessage(
   errors: { title: string; message: string }[],
 ): string {
   const manhwa = updates.filter((u) => u.media_type === "Manhwa");
+  const anime = updates.filter((u) => u.media_type === "Anime");
   const donghua = updates.filter((u) => u.media_type === "Donghua");
 
   const parts = [
     `━━━━ 🔔 <b>Chronicle Update</b> ━━━━`,
     formatMediaSection("Manhwa", "📖", manhwa),
+    formatMediaSection("Anime", "📺", anime),
     formatMediaSection("Donghua", "🎬", donghua),
     formatErrorSection(errors),
     `━━ <i>✨ Total: ${updates.length} update${updates.length !== 1 ? "s" : ""}</i> ━━`,
@@ -787,9 +818,11 @@ function buildGlobalNotificationMessage(
     allLines.push(`👤 <b>${escapeHtml(username)}</b>`);
 
     const manhwa = updates.filter((u) => u.media_type === "Manhwa");
+    const anime = updates.filter((u) => u.media_type === "Anime");
     const donghua = updates.filter((u) => u.media_type === "Donghua");
     const sections = [
       formatMediaSection("Manhwa", "📖", manhwa),
+      formatMediaSection("Anime", "📺", anime),
       formatMediaSection("Donghua", "🎬", donghua),
       formatErrorSection(errors),
     ].filter((value): value is string => Boolean(value));
