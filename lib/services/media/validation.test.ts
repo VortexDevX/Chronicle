@@ -55,6 +55,17 @@ describe("media validation", () => {
     });
   });
 
+  it("accepts Anime Countdown schedule URLs and rejects other schedule sources", () => {
+    expect(validateMediaPayload({ schedule_source_url: "https://animecountdown.com/123/example" }, true)).toEqual({
+      ok: true,
+      normalized: { schedule_source_url: "https://animecountdown.com/123/example" },
+    });
+    expect(validateMediaPayload({ schedule_source_url: "https://example.com/123/example" }, true)).toEqual({
+      ok: false,
+      message: "schedule_source_url must be an https://animecountdown.com page",
+    });
+  });
+
   it("stores only the ID from a copied MangaDex URL", () => {
     const id = "32a1d4e2-e7f2-4d7e-8e7a-1234567890ab";
     const result = validateMediaPayload(

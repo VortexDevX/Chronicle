@@ -12,6 +12,12 @@ export interface MediaItem {
   last_updated: string;
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   tracker_url?: string | null;
+  schedule_source_url?: string | null;
+  next_episode?: number | null;
+  next_episode_release_at?: string | null;
+  previous_episode?: number | null;
+  previous_episode_release_at?: string | null;
+  release_platform?: string | null;
   last_checked_at?: string | null;
   last_scrape_status?: "ok" | "error" | null;
   last_scrape_error?: string | null;

@@ -28,6 +28,18 @@ interface SettingsModalProps {
 
 type ChronicleNativeBridge = {
   requestNotificationPermission?: () => void;
+  syncPushRegistration?: () => void;
+};
+
+type PushDeviceStatus = {
+  registered: boolean;
+  deviceCount: number;
+};
+
+type PushTestResult = {
+  sent: number;
+  failed: number;
+  devices: number;
 };
 
 function getChronicleNativeBridge(): ChronicleNativeBridge | undefined {
@@ -86,6 +98,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sendingVerification, setSendingVerification] = useState(false);
+  const [sendingPushTest, setSendingPushTest] = useState(false);
   const [dataAction, setDataAction] = useState<"import" | "export" | "logout" | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -188,6 +201,55 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setSendingVerification(false);
+    }
+  };
+
+  const handlePushTest = async () => {
+    if (!formData.push_notifications_enabled || sendingPushTest) return;
+
+    setSendingPushTest(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await apiRequest("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ push_notifications_enabled: true }),
+      });
+
+      const nativeBridge = getChronicleNativeBridge();
+      nativeBridge?.requestNotificationPermission?.();
+      nativeBridge?.syncPushRegistration?.();
+
+      let status: PushDeviceStatus | null = null;
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        status = await apiRequest<PushDeviceStatus>("/api/push/devices", {
+          cache: "no-store",
+        });
+        if (status.registered) break;
+        if (!nativeBridge) break;
+        await new Promise((resolve) => window.setTimeout(resolve, 750));
+        if (attempt === 3) nativeBridge.syncPushRegistration?.();
+      }
+
+      if (!status?.registered) {
+        throw new Error(
+          "No Android device is registered yet. Allow notifications, then try again.",
+        );
+      }
+
+      const result = await apiRequest<PushTestResult>("/api/push/test", {
+        method: "POST",
+      });
+      const message = `Test notification sent to ${result.sent} device${result.sent === 1 ? "" : "s"}.`;
+      setSuccess(message);
+      toast(message, "success");
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err) {
+      setError(getErrorMessage(err, "Could not send the test notification"));
+    } finally {
+      setSendingPushTest(false);
     }
   };
 
@@ -317,6 +379,28 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   description="Receive new release alerts. Turning this on asks Android for permission."
                   onChange={handleChange}
                 />
+                <div className="settings-push-test">
+                  <span className="settings-push-test-icon" aria-hidden="true">
+                    <Smartphone size={18} />
+                  </span>
+                  <span>
+                    <strong>Check Android delivery</strong>
+                    <small>Sends one real Firebase notification to your registered phone.</small>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-ghost settings-inline-btn"
+                    onClick={handlePushTest}
+                    disabled={
+                      !formData.push_notifications_enabled ||
+                      sendingPushTest ||
+                      saving
+                    }
+                  >
+                    {sendingPushTest ? <span className="spinner" /> : <Send size={14} />}
+                    {sendingPushTest ? "Testing" : "Send test"}
+                  </button>
+                </div>
                 <SettingsToggle
                   name="notifications_enabled"
                   checked={formData.notifications_enabled}

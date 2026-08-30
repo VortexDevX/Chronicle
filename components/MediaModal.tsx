@@ -59,6 +59,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     rating: 0,
     notes: "",
     tracker_url: "",
+    schedule_source_url: "",
     mangadex_id: "",
     custom_cover_url: "",
     drop_reason: "",
@@ -71,6 +72,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
   const [testingTracker, setTestingTracker] = useState(false);
   const [error, setError] = useState("");
   const [trackerResult, setTrackerResult] = useState("");
+  const isScreenMedia = formData.media_type === "Anime" || formData.media_type === "Donghua";
 
   const [linkSearch, setLinkSearch] = useState("");
   const [searchResults, setSearchResults] = useState<LinkSearchResult[]>([]);
@@ -97,6 +99,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         rating: 0,
         notes: "",
         tracker_url: "",
+        schedule_source_url: "",
         mangadex_id: "",
         custom_cover_url: "",
         drop_reason: "",
@@ -282,6 +285,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         body: JSON.stringify({
           id: media?._id,
           tracker_url: formData.tracker_url,
+          schedule_source_url: formData.schedule_source_url,
           media_type: formData.media_type,
         }),
       });
@@ -289,7 +293,8 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       if (!res.ok) {
         throw new Error(data.error?.message || "Tracker test failed");
       }
-      setTrackerResult(`Latest found: ${data.data?.latest ?? "none"}`);
+      const schedule = data.data?.schedule;
+      setTrackerResult(schedule ? `Episode ${schedule.episode ?? "?"}${schedule.releaseAt ? ` · ${new Date(schedule.releaseAt).toLocaleString()}` : ""}` : `Latest found: ${data.data?.latest ?? "none"}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Tracker test failed");
     } finally {
@@ -403,9 +408,9 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                 <input className="form-input" name="custom_cover_url" value={formData.custom_cover_url || ""} onChange={handleChange} placeholder="Optional override" />
               </div>
               <div className="form-group">
-                <label>Tracker URL</label>
-                <input className="form-input" name="tracker_url" value={formData.tracker_url || ""} onChange={handleChange} placeholder="Optional tracker link" />
-                {(formData.media_type === "Manhwa" || formData.media_type === "Donghua") && (
+                <label>{isScreenMedia ? "Watch URL" : "Tracker URL"}</label>
+                <input className="form-input" name="tracker_url" value={formData.tracker_url || ""} onChange={handleChange} placeholder={isScreenMedia ? "Optional watch link" : "Optional tracker link"} />
+                {formData.media_type === "Manhwa" && (
                   <div className="tracker-test-row">
                     <button
                       type="button"
@@ -420,6 +425,19 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                   </div>
                 )}
               </div>
+              {(formData.media_type === "Anime" || formData.media_type === "Donghua") && (
+                <div className="form-group">
+                  <label>Anime Countdown URL</label>
+                  <input className="form-input" name="schedule_source_url" value={formData.schedule_source_url || ""} onChange={handleChange} placeholder="https://animecountdown.com/id/slug" />
+                  <div className="tracker-test-row">
+                    <button type="button" className="btn-ghost" onClick={handleTestTracker} disabled={testingTracker || !formData.schedule_source_url}>
+                      {testingTracker ? <span className="spinner" /> : <LinkIcon size={14} />}
+                      Test schedule
+                    </button>
+                    {trackerResult && <span>{trackerResult}</span>}
+                  </div>
+                </div>
+              )}
               <div className="form-group">
                 <label>Notes</label>
                 <textarea className="form-input" name="notes" value={formData.notes || ""} onChange={handleChange} rows={4} />

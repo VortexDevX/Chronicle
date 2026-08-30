@@ -14,7 +14,7 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 | **Import / Export**     | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                                   |
 | **Metadata Lookup**     | AniList primary + Jikan fallback lookup for Anime/Donghua · MangaDex links or IDs normalized for Manhwa covers                               |
 | **High-Quality Covers** | Cached cover pipeline with batched client fetching, proxy image caching, MangaDex/AniList/Jikan support, and custom cover URL overrides      |
-| **Tracker Scraping**    | Chapter/episode scraper for Manhwa and Donghua · private 30-day cron history · Telegram and Android push notifications                        |
+| **Release Tracking**    | Manhwa chapter scraping · Anime Countdown schedules for Anime/Donghua · Release Radar · private 30-day cron history · Telegram and Android push notifications |
 | **Droppedyard**         | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again                      |
 | **Auth**                | JWT cookie auth · bcrypt password hashing · email recovery/verification with Brevo links · session invalidation after password reset         |
 | **Design System**       | Responsive, mobile-first "Soft Red" UI with sharp cards, modal scroll locking, accessible badging, skeleton cards, and animated page loaders |
@@ -28,7 +28,7 @@ Chronicle keeps account data private while exposing one concise, server-rendered
 | ----- | -------------------------------------------------- |
 | `/`   | Combined anime, manhwa, donghua, and novel tracker |
 
-The page summarizes all four formats without separate tracker landing pages. Technical discovery files are generated at `/robots.txt`, `/sitemap.xml`, `/manifest.webmanifest`, and `/llms.txt`. Private dashboard, login, and password-reset routes emit `noindex` metadata. See [SEO_AUDIT.md](./SEO_AUDIT.md) for verification evidence, deployment checklist, and ranking limits.
+The page summarizes all four formats without separate tracker landing pages. Technical discovery files are generated at `/robots.txt`, `/sitemap.xml`, `/manifest.webmanifest`, and `/llms.txt`. Private dashboard, login, and password-reset routes emit `noindex` metadata. The optional browser smoke command below verifies the public metadata, crawler files, private-route `noindex`, mobile overflow, and browser errors.
 
 ## 🛠️ Tech Stack
 
@@ -39,7 +39,7 @@ The page summarizes all four formats without separate tracker landing pages. Tec
 | Database | MongoDB (Atlas or local) via Mongoose                               |
 | Auth     | JWT httpOnly cookies · bcryptjs · hashed one-time reset tokens      |
 | Email    | Brevo Transactional API                                             |
-| Scraping | Cheerio · fetch retry/timeout helpers · host-specific scraper rules |
+| Scraping | Cheerio · Anime Countdown adapter · fetch retry/timeout helpers · host-specific rules |
 | APIs     | AniList GraphQL · Jikan v4 · MangaDex · Telegram Bot API            |
 | Testing  | Vitest · TypeScript · ESLint                                        |
 
@@ -51,6 +51,17 @@ Because Android uses the responsive Chronicle UI, Cron history and MangaDex URL
 normalization work in both the browser and Android app without a second mobile UI.
 
 See [ANDROID_APP.md](./ANDROID_APP.md) for APK builds, Firebase setup, and release notes.
+
+## Episode schedules and Release Radar
+
+Anime and Donghua use [Anime Countdown](https://animecountdown.com/) as an optional release-schedule source. Chronicle stores the source's actual UTC release timestamp, never its live countdown text. Release Radar converts that timestamp into the viewer's local time and countdown.
+
+1. Add or edit an active Anime or Donghua entry.
+2. Put any streaming/site link in **Watch URL**. It opens from entry actions and is never scraped.
+3. Paste its canonical `https://animecountdown.com/<id>/<slug>` page into **Anime Countdown URL**, then use **Test schedule**.
+4. Cron syncs available episode progress and next schedule without changing `progress_current`.
+
+Existing Donghua `tracker_url` values remain intact. Add an Anime Countdown URL when ready; Chronicle does not overwrite old links automatically.
 
 ## 🚀 Getting Started
 
@@ -146,7 +157,7 @@ npm run start -- -p 3100
 python scripts/verifySeoUi.py
 ```
 
-CI runs these same checks on pushes to `main` and pull requests.
+No CI workflow is tracked in this checkout. Run the checks above before pushing or opening a pull request.
 
 ### Production Notes
 
@@ -166,7 +177,7 @@ Vercel Cron is not configured for this project. Create one job in the
 
 | Setting              | Value                                                                               |
 | -------------------- | ----------------------------------------------------------------------------------- |
-| Title                | `Chronicle 4-hour chapter check`                                                    |
+| Title                | `Chronicle 4-hour release check`                                                    |
 | URL                  | `https://chroniclex.vercel.app/api/cron/checkChapters`                              |
 | Enabled              | Yes                                                                                 |
 | Schedule             | Every 4 hours, at minute `0` (`00:00`, `04:00`, `08:00`, `12:00`, `16:00`, `20:00`) |
@@ -213,7 +224,7 @@ Chronicle/
 │   └── layout.tsx          # Root metadata and Next.js layout
 ├── components/             # Reusable UI components (Sidebar, TopBar, MediaCard, Modals)
 ├── hooks/                  # Custom React hooks (e.g., useAuth)
-├── lib/                    # Shared utilities (DB, Auth, HTTP, Rate Limiting, Models)
+├── lib/                    # Shared utilities (DB, Auth, HTTP, Rate Limiting, Models, source adapters)
 ├── store/                  # Zustand state management and Cover caching
 ├── types/                  # TypeScript interface definitions
 ├── proxy.ts                # API CORS proxy using APP_ORIGIN allowlist
@@ -240,8 +251,8 @@ Chronicle/
 | DELETE | `/api/media?id=`            | Yes                  | Delete entry                                   |
 | POST   | `/api/media?bulk_delete=1`  | Yes                  | Bulk delete                                    |
 | POST   | `/api/media/link`           | Yes                  | Link or unlink related entries                 |
-| POST   | `/api/media/test-tracker`   | Yes                  | Test a Manhwa/Donghua tracker URL              |
-| GET    | `/api/cron/checkChapters`   | Bearer `CRON_SECRET` | Check tracker URLs and send Telegram updates   |
+| POST   | `/api/media/test-tracker`   | Yes                  | Test a Manhwa tracker or Anime Countdown schedule |
+| GET    | `/api/cron/checkChapters`   | Bearer `CRON_SECRET` | Sync tracker progress/release schedules and send updates |
 | GET    | `/api/manga-cover`          | No                   | Fetch MangaDex cover URL                       |
 | GET    | `/api/anime-cover`          | No                   | Fetch AniList/Jikan cover URL                  |
 | GET    | `/api/image-proxy`          | No                   | Cache/proxy external cover images              |

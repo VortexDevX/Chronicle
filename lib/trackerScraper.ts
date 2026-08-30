@@ -138,6 +138,21 @@ async function fetchWithRetry(
   throw lastError || new Error("fetch_retry_failed");
 }
 
+/** Shared HTML transport for source adapters. Keeps timeout, retry, abort behaviour central. */
+export async function fetchTrackerUrlHtml(
+  url: string,
+  options: ScrapeTrackerOptions = {},
+): Promise<{ html: string; resolvedUrl: string }> {
+  const res = await fetchWithRetry(
+    url,
+    { headers: BROWSER_HEADERS, redirect: "follow" },
+    getFetchTimeoutMs(url),
+    options,
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return { html: await res.text(), resolvedUrl: res.url };
+}
+
 async function fetchManhuafastChapters(
   trackerUrl: string,
   options: ScrapeTrackerOptions,

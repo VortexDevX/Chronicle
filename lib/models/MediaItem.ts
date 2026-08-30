@@ -32,6 +32,12 @@ const mediaSchema = new mongoose.Schema(
       default: null,
     },
     tracker_url: { type: String, default: null },
+    schedule_source_url: { type: String, default: null },
+    next_episode: { type: Number, default: null },
+    next_episode_release_at: { type: Date, default: null },
+    previous_episode: { type: Number, default: null },
+    previous_episode_release_at: { type: Date, default: null },
+    release_platform: { type: String, default: null },
     last_attempted_at: { type: Date, default: null },
     last_checked_at: { type: Date, default: null },
     last_scrape_status: {
@@ -61,6 +67,7 @@ mediaSchema.index({
   last_attempted_at: 1,
   last_checked_at: 1,
 });
+mediaSchema.index({ media_type: 1, status: 1, next_episode_release_at: 1 });
 mediaSchema.index(
   { user_id: 1, media_type: 1, dedupe_key: 1 },
   {

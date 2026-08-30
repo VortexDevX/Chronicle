@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   requireAuthUserId: vi.fn(),
   enforceRateLimit: vi.fn(),
   findOne: vi.fn(),
+  find: vi.fn(),
+  findById: vi.fn(),
   findOneAndUpdate: vi.fn(),
   deleteOne: vi.fn(),
   updateOne: vi.fn(),
@@ -17,19 +19,21 @@ vi.mock("@/lib/guards", () => ({
 vi.mock("@/lib/models", () => ({
   PushDevice: {
     findOne: mocks.findOne,
+    find: mocks.find,
     findOneAndUpdate: mocks.findOneAndUpdate,
     deleteOne: mocks.deleteOne,
   },
-  User: { updateOne: mocks.updateOne },
+  User: { findById: mocks.findById, updateOne: mocks.updateOne },
 }));
 vi.mock("@/lib/log", () => ({ logInternalError: vi.fn() }));
+vi.mock("@/lib/push", () => ({ isAndroidPushConfigured: vi.fn(() => true) }));
 
-import { DELETE, POST } from "./route";
+import { DELETE, GET, POST } from "./route";
 
 const installationId = "d9428888-122b-4a5f-9f6c-21eb1d1fe001";
 const userId = "507f1f77bcf86cd799439011";
 
-function request(method: "POST" | "DELETE", body?: object) {
+function request(method: "GET" | "POST" | "DELETE", body?: object) {
   return new NextRequest("https://chronicle.example/api/push/devices", {
     method,
     headers: {
@@ -48,11 +52,45 @@ beforeEach(() => {
     select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
   });
   mocks.findOneAndUpdate.mockResolvedValue({ _id: "device-1" });
+  mocks.find.mockReturnValue({
+    select: vi.fn().mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            {
+              app_version: "1.0.3",
+              last_seen_at: new Date("2026-08-12T12:00:00.000Z"),
+            },
+          ]),
+        }),
+      }),
+    }),
+  });
+  mocks.findById.mockReturnValue({
+    select: vi.fn().mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ push_notifications_enabled: true }),
+    }),
+  });
   mocks.deleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.updateOne.mockResolvedValue({ acknowledged: true });
 });
 
 describe("Android push device API", () => {
+  it("reports registration without exposing the Firebase identifier", async () => {
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        registered: true,
+        deviceCount: 1,
+        pushEnabled: true,
+        configured: true,
+        devices: [{ appVersion: "1.0.3" }],
+      },
+    });
+  });
+
   it("registers the FCM token against the authenticated installation", async () => {
     const response = await POST(
       request("POST", {

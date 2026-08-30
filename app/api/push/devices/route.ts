@@ -3,6 +3,7 @@ import { PushDevice, User } from "@/lib/models";
 import { enforceRateLimit, requireAuthUserId } from "@/lib/guards";
 import { jsonError, jsonOk } from "@/lib/http";
 import { logInternalError } from "@/lib/log";
+import { isAndroidPushConfigured } from "@/lib/push";
 
 const INSTALLATION_COOKIE = "chronicle_android_installation";
 const INSTALLATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -19,6 +20,45 @@ function getToken(body: Record<string, unknown>): string | null {
   const token = body.token.trim();
   if (token.length < 20 || token.length > MAX_TOKEN_LENGTH) return null;
   return token;
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const { userId, errorResponse } = await requireAuthUserId(req);
+    if (!userId && errorResponse) return errorResponse;
+
+    const [devices, userResult] = await Promise.all([
+      PushDevice.find({ user_id: userId, platform: "android" })
+        .select("app_version last_seen_at")
+        .sort({ last_seen_at: -1 })
+        .limit(20)
+        .lean(),
+      User.findById(userId)
+        .select("push_notifications_enabled")
+        .lean(),
+    ]);
+    const user = userResult as { push_notifications_enabled?: boolean } | null;
+
+    return jsonOk({
+      registered: devices.length > 0,
+      deviceCount: devices.length,
+      pushEnabled: Boolean(user?.push_notifications_enabled),
+      configured: isAndroidPushConfigured(),
+      devices: devices.map((device) => ({
+        appVersion: device.app_version || null,
+        lastSeenAt: device.last_seen_at || null,
+      })),
+    });
+  } catch (err) {
+    logInternalError("push_device_status_error", err, {
+      route: "push/devices",
+    });
+    return jsonError(
+      "PUSH_DEVICE_INTERNAL_ERROR",
+      "Could not check Android push status",
+      500,
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {
