@@ -53,11 +53,24 @@ type MediaLookup = {
   source: "AniList" | "MAL";
 };
 
+export interface ShelfPreviewItem {
+  _id: string;
+  title: string;
+  media_type: string;
+  status: string;
+  custom_cover_url?: string | null;
+  mangadex_id?: string | null;
+}
+
 export interface Shelf {
   _id: string;
   name: string;
   description?: string;
   media_ids: string[];
+  item_count?: number;
+  previews?: ShelfPreviewItem[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type TelegramUpdateState =

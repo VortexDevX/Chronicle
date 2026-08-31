@@ -3,14 +3,18 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Bell,
+  ChevronDown,
   Database,
   Download,
   LogOut,
   MailCheck,
   Send,
   Share,
+  Shield,
   Smartphone,
   Upload,
+  User,
   X,
 } from "lucide-react";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
@@ -41,6 +45,7 @@ type PushTestResult = {
   failed: number;
   devices: number;
 };
+
 
 function getChronicleNativeBridge(): ChronicleNativeBridge | undefined {
   if (typeof window === "undefined") return undefined;
@@ -84,10 +89,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const router = useRouter();
   const refreshMedia = useMediaStore((state) => state.refreshMedia);
   const setAuth = useMediaStore((state) => state.setAuth);
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showInstall, hasNativePrompt, isInstalled, platform, install: installPwa } = usePwaInstall();
   const [showIosGuide, setShowIosGuide] = useState(false);
+  const [showAdvancedPush, setShowAdvancedPush] = useState(false);
+
   const [formData, setFormData] = useState({
     email: "",
     email_verified_at: null as string | null,
@@ -286,6 +293,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   const handleLogout = async () => {
     if (dataAction) return;
+    const ok = await confirm({
+      title: "Sign out?",
+      message: "Are you sure you want to end your session?",
+      confirmLabel: "Sign out",
+      danger: true,
+    });
+    if (!ok) return;
+
     setDataAction("logout");
     try {
       await apiRequest("/api/auth", {
@@ -319,23 +334,42 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className="modal settings-modal">
-        <button className="modal-close" onClick={onClose} aria-label="Close settings">
-          <X size={24} />
+    <div className="modal-overlay" onClick={handleOverlayClick} role="presentation">
+      <div
+        className="modal settings-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-modal-title"
+      >
+        <button
+          className="modal-close"
+          onClick={onClose}
+          aria-label="Close settings"
+          title="Close (esc)"
+        >
+          <X size={20} />
         </button>
-        <div className="modal-header">Settings</div>
-        
+        <div className="modal-header" id="settings-modal-title">
+          Settings
+        </div>
+
         {loading ? (
-          <div className="loading-state" style={{ padding: "40px" }}><span className="spinner" /></div>
+          <div className="loading-state" style={{ padding: "40px" }}>
+            <span className="spinner" />
+          </div>
         ) : (
           <form className="modal-form" onSubmit={handleSubmit}>
             <div className="modal-scroll">
-              <div className="modal-section-label">Account</div>
+              {/* Account Section */}
+              <div className="modal-section-header">
+                <User size={15} />
+                <span>Account</span>
+              </div>
               <div className="form-grid full">
                 <div className="form-group">
-                  <label>Recovery Email</label>
+                  <label htmlFor="settings-email">Recovery Email</label>
                   <input
+                    id="settings-email"
                     className="form-input"
                     type="email"
                     name="email"
@@ -363,54 +397,79 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                         saving
                       }
                     >
-                      {sendingVerification ? <span className="spinner" /> : <Send size={14} />}
+                      {sendingVerification ? <span className="spinner" /> : <Send size={13} />}
                       Send link
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="modal-section-label">Notifications</div>
+              {/* Notifications Section */}
+              <div className="modal-section-header">
+                <Bell size={15} />
+                <span>Notifications</span>
+              </div>
               <div className="form-grid full">
                 <SettingsToggle
                   name="push_notifications_enabled"
                   checked={formData.push_notifications_enabled}
                   title="Android push notifications"
-                  description="Receive new release alerts. Turning this on asks Android for permission."
+                  description="Receive new release alerts on Android."
                   onChange={handleChange}
                 />
-                <div className="settings-push-test">
-                  <span className="settings-push-test-icon" aria-hidden="true">
-                    <Smartphone size={18} />
-                  </span>
-                  <span>
-                    <strong>Check Android delivery</strong>
-                    <small>Sends one real Firebase notification to your registered phone.</small>
-                  </span>
-                  <button
-                    type="button"
-                    className="btn-ghost settings-inline-btn"
-                    onClick={handlePushTest}
-                    disabled={
-                      !formData.push_notifications_enabled ||
-                      sendingPushTest ||
-                      saving
-                    }
-                  >
-                    {sendingPushTest ? <span className="spinner" /> : <Send size={14} />}
-                    {sendingPushTest ? "Testing" : "Send test"}
-                  </button>
-                </div>
+
+                {/* Collapsible Advanced Diagnostics */}
+                {formData.push_notifications_enabled && (
+                  <div className="settings-advanced-box">
+                    <button
+                      type="button"
+                      className="settings-advanced-toggle"
+                      onClick={() => setShowAdvancedPush((v) => !v)}
+                    >
+                      <Shield size={14} />
+                      <span>Android Diagnostics</span>
+                      <ChevronDown
+                        size={14}
+                        style={{
+                          transform: showAdvancedPush ? "rotate(180deg)" : "none",
+                          transition: "transform 0.2s",
+                        }}
+                      />
+                    </button>
+                    {showAdvancedPush && (
+                      <div className="settings-push-test">
+                        <span className="settings-push-test-icon" aria-hidden="true">
+                          <Smartphone size={18} />
+                        </span>
+                        <span>
+                          <strong>Delivery Test</strong>
+                          <small>Sends one real Firebase push to your registered phone.</small>
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-ghost settings-inline-btn"
+                          onClick={handlePushTest}
+                          disabled={sendingPushTest || saving}
+                        >
+                          {sendingPushTest ? <span className="spinner" /> : <Send size={13} />}
+                          {sendingPushTest ? "Testing" : "Send test"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <SettingsToggle
                   name="notifications_enabled"
                   checked={formData.notifications_enabled}
                   title="Telegram notifications"
-                  description="Receive chapter and episode updates in Telegram."
+                  description="Receive chapter and episode alerts in Telegram."
                   onChange={handleChange}
                 />
                 <div className="form-group">
-                  <label>Telegram Chat ID</label>
+                  <label htmlFor="settings-telegram-id">Telegram Chat ID</label>
                   <input
+                    id="settings-telegram-id"
                     className="form-input"
                     name="telegram_chat_id"
                     value={formData.telegram_chat_id}
@@ -420,7 +479,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 </div>
               </div>
 
-              <div className="modal-section-label">Data and session</div>
+
+              {/* Data & Backup Section */}
+              <div className="modal-section-header">
+                <Database size={15} />
+                <span>Data & Backup</span>
+              </div>
               <div className="settings-data-grid">
                 {showInstall && (
                   <button
@@ -441,16 +505,22 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     <strong>Install Chronicle</strong>
                     <small>
                       {platform === "ios"
-                        ? "Add to Home Screen for a native app feel."
-                        : "Add to your home screen for instant access."}
+                        ? "Add to Home Screen for native app feel."
+                        : "Add to home screen for instant access."}
                     </small>
                   </button>
                 )}
                 {showInstall && showIosGuide && platform === "ios" && (
                   <div className="pwa-ios-guide">
-                    <span>1. Tap <Share size={14} /> <strong>Share</strong> in Safari&apos;s toolbar</span>
-                    <span>2. Scroll down and tap <strong>Add to Home Screen</strong></span>
-                    <span>3. Tap <strong>Add</strong> — done!</span>
+                    <span>
+                      1. Tap <Share size={14} /> <strong>Share</strong> in Safari&apos;s toolbar
+                    </span>
+                    <span>
+                      2. Scroll down and tap <strong>Add to Home Screen</strong>
+                    </span>
+                    <span>
+                      3. Tap <strong>Add</strong> — done!
+                    </span>
                   </div>
                 )}
                 {isInstalled && (
@@ -464,9 +534,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   onClick={handleExport}
                   disabled={Boolean(dataAction)}
                 >
-                  <span><Upload size={18} /></span>
+                  <span>
+                    <Upload size={18} />
+                  </span>
                   <strong>Export library</strong>
-                  <small>Download every Chronicle entry as JSON.</small>
+                  <small>Download your Chronicle entries as JSON.</small>
                   {dataAction === "export" && <i className="spinner" />}
                 </button>
                 <button
@@ -474,26 +546,28 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={Boolean(dataAction)}
                 >
-                  <span><Download size={18} /></span>
+                  <span>
+                    <Download size={18} />
+                  </span>
                   <strong>Import library</strong>
-                  <small>Restore compatible Chronicle JSON without duplicates.</small>
+                  <small>Restore compatible Chronicle JSON.</small>
                   {dataAction === "import" && <i className="spinner" />}
                 </button>
                 <button
                   type="button"
                   onClick={handleLogout}
                   disabled={Boolean(dataAction)}
+                  className="settings-logout-btn"
                 >
-                  <span><LogOut size={18} /></span>
+                  <span>
+                    <LogOut size={18} />
+                  </span>
                   <strong>Sign out</strong>
                   <small>End this browser session securely.</small>
                   {dataAction === "logout" && <i className="spinner" />}
                 </button>
               </div>
-              <div className="settings-data-note">
-                <Database size={15} />
-                <span>Media stays in your MongoDB account. Import keeps existing duplicate protection.</span>
-              </div>
+
               <input
                 ref={fileInputRef}
                 type="file"
@@ -507,9 +581,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             </div>
 
             <div className="modal-actions">
-              <button type="button" className="btn-ghost" onClick={onClose} disabled={saving}>Close</button>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={onClose}
+                disabled={saving}
+              >
+                Close
+              </button>
               <button type="submit" className="btn-primary" disabled={saving}>
-                {saving ? <span className="spinner" /> : "Save"}
+                {saving ? <span className="spinner" /> : "Save changes"}
               </button>
             </div>
           </form>

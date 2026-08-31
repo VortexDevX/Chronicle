@@ -4,15 +4,23 @@ import {
   Clock3,
   Edit3,
   ExternalLink,
+  FastForward,
   Link as LinkIcon,
   Play,
   Plus,
+  Sparkles,
   Star,
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
 import type { MediaItem } from "@/types/media";
-import { daysSince, progressLabel, relativeTime } from "@/utils/format";
+import {
+  daysSince,
+  formatReleaseCountdown,
+  formatReleaseSchedule,
+  progressLabel,
+  relativeTime,
+} from "@/utils/format";
 import { normalizePublicHttpUrl } from "@/lib/publicUrl";
 import { MediaArtwork } from "@/components/MediaArtwork";
 
@@ -28,6 +36,7 @@ export function MediaCard({
   priority = false,
   onEdit,
   onIncrement,
+  onCatchUp,
   onDelete,
 }: {
   m: MediaItem;
@@ -35,9 +44,10 @@ export function MediaCard({
   priority?: boolean;
   onEdit?: (media: MediaItem) => void;
   onIncrement?: (id: string) => void | Promise<void>;
+  onCatchUp?: (id: string, targetProgress: number) => void | Promise<void>;
   onDelete?: (id: string) => void | Promise<void>;
 }) {
-  const [pendingAction, setPendingAction] = useState<"increment" | "delete" | null>(null);
+  const [pendingAction, setPendingAction] = useState<"increment" | "catchup" | "delete" | null>(null);
   const normalizedStatus = m.status === "Watching/Reading" ? "Active" : m.status;
   const isActive = normalizedStatus === "Active";
   const canIncrement = isActive && Boolean(onIncrement);
@@ -45,22 +55,51 @@ export function MediaCard({
   const safeTrackerUrl = m.tracker_url
     ? normalizePublicHttpUrl(m.tracker_url)
     : null;
+
   const pct =
     m.progress_total > 0
       ? Math.max(0, Math.min(100, (m.progress_current / m.progress_total) * 100))
       : 0;
   const total = m.progress_total > 0 ? formatProgress(m.progress_total) : "—";
-  const unit = progressLabel(m.media_type) === "ep" ? "episodes" : "chapters";
-  const unread = Math.max(
-    0,
-    Number(m.latest_remote_progress || m.progress_current) - m.progress_current,
-  );
+  const isScreenMedia = m.media_type === "Anime" || m.media_type === "Donghua";
+  const unit = isScreenMedia ? "episodes" : "chapters";
+  const shortUnit = isScreenMedia ? "Ep" : "Ch";
+
+  const latestRemote = m.latest_remote_progress ?? m.progress_current;
+  const unread = Math.max(0, latestRemote - m.progress_current);
+  const hasMultipleUnread = unread > 1;
+
+  // Release schedule for anime/donghua
+  const hasReleaseSchedule =
+    isScreenMedia &&
+    Boolean(m.next_episode_release_at) &&
+    !isNaN(new Date(m.next_episode_release_at || "").getTime());
+  const countdownText = hasReleaseSchedule
+    ? formatReleaseCountdown(m.next_episode_release_at!)
+    : null;
+  const scheduleText = hasReleaseSchedule
+    ? formatReleaseSchedule(m.next_episode_release_at!)
+    : null;
 
   const increment = async () => {
     if (!onIncrement || pendingAction) return;
     setPendingAction("increment");
     try {
       await onIncrement(m._id);
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const catchUp = async () => {
+    if ((!onCatchUp && !onIncrement) || pendingAction) return;
+    setPendingAction("catchup");
+    try {
+      if (onCatchUp) {
+        await onCatchUp(m._id, latestRemote);
+      } else if (onIncrement) {
+        await onIncrement(m._id);
+      }
     } finally {
       setPendingAction(null);
     }
@@ -89,6 +128,11 @@ export function MediaCard({
           </div>
           <p>
             {m.media_type} · Updated {relativeTime(m.last_updated)}
+            {scheduleText && (
+              <span className="schedule-inline" title={`Next release: ${scheduleText}`}>
+                <Clock3 size={11} /> {scheduleText}
+              </span>
+            )}
             {m.linked_entries_data?.length ? (
               <span title={m.linked_entries_data.map((item) => item.title).join(", ")}>
                 <LinkIcon size={11} /> {m.linked_entries_data.length} linked
@@ -105,18 +149,39 @@ export function MediaCard({
         </div>
         {unread > 0 && <span className="release-badge">+{formatProgress(unread)} new</span>}
         <div className="media-list-actions">
-          {canIncrement && (
-            <button onClick={increment} disabled={Boolean(pendingAction)} aria-label={`Log next for ${m.title}`}>
+          {hasMultipleUnread && onCatchUp ? (
+            <button
+              onClick={catchUp}
+              disabled={Boolean(pendingAction)}
+              aria-label={`Catch up to ${latestRemote} for ${m.title}`}
+              title={`Catch up to ${shortUnit} ${formatProgress(latestRemote)}`}
+              className="action-catchup"
+            >
+              {pendingAction === "catchup" ? <span className="spinner" /> : <FastForward size={15} />}
+            </button>
+          ) : canIncrement ? (
+            <button
+              onClick={increment}
+              disabled={Boolean(pendingAction)}
+              aria-label={`Log next for ${m.title}`}
+              title={`Log ${shortUnit} ${formatProgress(m.progress_current + 1)}`}
+            >
               {pendingAction === "increment" ? <span className="spinner" /> : <Plus size={16} />}
             </button>
-          )}
+          ) : null}
           {onEdit && (
-            <button onClick={() => onEdit(m)} aria-label={`Edit ${m.title}`}>
+            <button onClick={() => onEdit(m)} aria-label={`Edit ${m.title}`} title="Edit entry">
               <Edit3 size={16} />
             </button>
           )}
           {safeTrackerUrl ? (
-            <a href={safeTrackerUrl} target="_blank" rel="noreferrer" aria-label={`Open tracker for ${m.title}`}>
+            <a
+              href={safeTrackerUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open tracker for ${m.title}`}
+              title={isScreenMedia ? "Open watch link" : "Open tracker"}
+            >
               <ExternalLink size={16} />
             </a>
           ) : (
@@ -125,7 +190,12 @@ export function MediaCard({
             </button>
           )}
           {onDelete && (
-            <button onClick={remove} disabled={Boolean(pendingAction)} aria-label={`Delete ${m.title}`}>
+            <button
+              onClick={remove}
+              disabled={Boolean(pendingAction)}
+              aria-label={`Delete ${m.title}`}
+              title="Delete entry"
+            >
               {pendingAction === "delete" ? <span className="spinner" /> : <Trash2 size={16} />}
             </button>
           )}
@@ -150,19 +220,38 @@ export function MediaCard({
         <MediaArtwork media={m} priority={priority} />
         <div className="media-card-hover-actions">
           {onEdit && (
-            <button onClick={() => onEdit(m)} aria-label={`Edit ${m.title}`}>
+            <button onClick={() => onEdit(m)} aria-label={`Edit ${m.title}`} title="Edit entry">
               <Edit3 size={17} />
             </button>
           )}
           {onDelete && (
-            <button className="media-card-delete" onClick={remove} disabled={Boolean(pendingAction)} aria-label={`Delete ${m.title}`}>
+            <button
+              className="media-card-delete"
+              onClick={remove}
+              disabled={Boolean(pendingAction)}
+              aria-label={`Delete ${m.title}`}
+              title="Delete entry"
+            >
               {pendingAction === "delete" ? <span className="spinner" /> : <Trash2 size={16} />}
             </button>
           )}
         </div>
         <div className="poster-badges">
-          {unread > 0 && <span className="new-badge">+{formatProgress(unread)} new</span>}
-          {isStale && <span className="stale-badge"><Clock3 size={11} /> Stale</span>}
+          {unread > 0 && (
+            <span className="new-badge">
+              +{formatProgress(unread)} new
+            </span>
+          )}
+          {countdownText && (
+            <span className="schedule-badge" title={`Next episode: ${scheduleText}`}>
+              <Clock3 size={11} /> {countdownText}
+            </span>
+          )}
+          {isStale && (
+            <span className="stale-badge">
+              <Clock3 size={11} /> Stale
+            </span>
+          )}
         </div>
         {(safeTrackerUrl || canIncrement) && (
           <div className="media-card-poster-actions">
@@ -173,6 +262,7 @@ export function MediaCard({
                 target="_blank"
                 rel="noreferrer"
                 aria-label={`Open tracker for ${m.title}`}
+                title={isScreenMedia ? "Open watch link" : "Open tracker"}
               >
                 <ExternalLink size={15} />
               </a>
@@ -183,8 +273,13 @@ export function MediaCard({
                 onClick={increment}
                 disabled={Boolean(pendingAction)}
                 aria-label={`Log next for ${m.title}`}
+                title={`Log ${shortUnit} ${formatProgress(m.progress_current + 1)}`}
               >
-                {pendingAction === "increment" ? <span className="spinner" /> : <Play size={15} fill="currentColor" />}
+                {pendingAction === "increment" ? (
+                  <span className="spinner" />
+                ) : (
+                  <Play size={15} fill="currentColor" />
+                )}
               </button>
             )}
           </div>
@@ -194,17 +289,32 @@ export function MediaCard({
         <div className="media-card-title-row">
           <h3 title={m.title}>{m.title}</h3>
           {m.rating ? (
-            <span><Star size={11} fill="currentColor" /> {m.rating}</span>
+            <span className="rating-pill">
+              <Star size={11} fill="currentColor" /> {m.rating}
+            </span>
           ) : null}
         </div>
-        <p>{m.media_type} · <span className="media-card-status">{normalizedStatus}</span></p>
+        <p>
+          {m.media_type} · <span className="media-card-status">{normalizedStatus}</span>
+        </p>
+
         <div className="media-card-progress-row">
-          <span>{formatProgress(m.progress_current)} / {total}</span>
-          <span>{unit}</span>
+          <span>
+            {formatProgress(m.progress_current)} / {total}
+          </span>
+          <span className="progress-unit-label">{unit}</span>
         </div>
         <div className="progress-track" aria-label={`${Math.round(pct)}% complete`}>
           <i style={{ width: `${pct}%` }} />
         </div>
+
+        {/* Schedule preview line if present */}
+        {scheduleText && (
+          <div className="media-card-schedule" title={`Scheduled release: ${scheduleText}`}>
+            <Sparkles size={12} />
+            <span>Next: {scheduleText}</span>
+          </div>
+        )}
       </div>
     </article>
   );

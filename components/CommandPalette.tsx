@@ -11,10 +11,10 @@ import {
   Home,
   History,
   Layers3,
-  ListTodo,
   Plus,
   Search,
   Settings,
+  Sparkles,
   X,
 } from "lucide-react";
 import { useMediaStore } from "@/store/mediaStore";
@@ -25,9 +25,9 @@ const ACTIONS = [
   { id: "home", label: "Open Home", hint: "Page", icon: Home, path: "/home" },
   { id: "library", label: "Open Library", hint: "Page", icon: BookOpen, path: "/library" },
   { id: "updates", label: "Open Updates", hint: "Page", icon: BellRing, path: "/updates" },
-  { id: "queue", label: "Open Queue", hint: "Page", icon: ListTodo, path: "/queue" },
-  { id: "droppedyard", label: "Open Droppedyard", hint: "Page", icon: ArchiveX, path: "/droppedyard" },
+  { id: "queue", label: "Open Release Radar", hint: "Page", icon: Sparkles, path: "/queue" },
   { id: "shelves", label: "Open Shelves", hint: "Page", icon: Layers3, path: "/shelves" },
+  { id: "droppedyard", label: "Open Droppedyard", hint: "Page", icon: ArchiveX, path: "/droppedyard" },
   { id: "analytics", label: "Open Analytics", hint: "Page", icon: BarChart3, path: "/analytics" },
   { id: "cron-history", label: "Open Cron history", hint: "Page", icon: History, path: "/cron-history" },
   { id: "add", label: "Add new entry", hint: "Action", icon: Plus, action: "add" },

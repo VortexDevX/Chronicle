@@ -47,8 +47,35 @@ export async function GET(req: NextRequest) {
     }
 
     const shelves = await Shelf.find({ user_id: userId }).sort({ created_at: -1 }).lean();
+    const allMediaIds = shelves.flatMap((s: unknown) => {
+      const doc = s as Record<string, unknown>;
+      return Array.isArray(doc.media_ids) ? (doc.media_ids as unknown[]).slice(0, 4) : [];
+    });
 
-    return jsonOk({ items: shelves });
+    const mediaMap = new Map();
+    if (allMediaIds.length > 0) {
+      const mediaItems = await MediaItem.find({
+        _id: { $in: allMediaIds },
+        user_id: userId,
+      })
+        .select("_id title media_type status custom_cover_url mangadex_id")
+        .lean();
+      for (const m of mediaItems) {
+        mediaMap.set(String(m._id), m);
+      }
+    }
+
+    const enrichedShelves = shelves.map((s: unknown) => {
+      const doc = s as Record<string, unknown>;
+      const ids = Array.isArray(doc.media_ids) ? (doc.media_ids as unknown[]) : [];
+      return {
+        ...doc,
+        item_count: ids.length,
+        previews: ids.slice(0, 4).map((id) => mediaMap.get(String(id))).filter(Boolean),
+      };
+    });
+
+    return jsonOk({ items: enrichedShelves });
   } catch (err) {
     logInternalError("shelves_get_error", err, { route: "shelves" });
     return jsonError("SHELVES_INTERNAL_ERROR", "Internal Server Error", 500);

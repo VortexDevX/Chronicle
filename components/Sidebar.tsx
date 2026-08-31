@@ -11,39 +11,59 @@ import {
   Home,
   History,
   Layers3,
-  ListTodo,
   LogOut,
-  Plus,
   Settings,
+  Sparkles,
   X,
 } from "lucide-react";
 import { useMediaStore } from "@/store/mediaStore";
 import { apiRequest } from "@/lib/client/api";
 import { useFeedback } from "@/components/FeedbackProvider";
 
-const NAV_ITEMS = [
-  { path: "/home", label: "Home", icon: Home },
-  { path: "/library", label: "Library", icon: BookOpen },
-  { path: "/updates", label: "Updates", icon: BellRing },
-  { path: "/queue", label: "Queue", icon: ListTodo },
-  { path: "/droppedyard", label: "Droppedyard", icon: ArchiveX },
-  { path: "/shelves", label: "Shelves", icon: Layers3 },
-  { path: "/analytics", label: "Analytics", icon: BarChart3 },
-  { path: "/cron-history", label: "Cron history", icon: History },
+export const NAV_GROUPS = [
+  {
+    title: "MAIN",
+    items: [
+      { path: "/home", label: "Home", icon: Home },
+      { path: "/library", label: "Library", icon: BookOpen },
+      { path: "/updates", label: "Updates", icon: BellRing },
+      { path: "/queue", label: "Release Radar", icon: Sparkles },
+    ],
+  },
+  {
+    title: "LIBRARY",
+    items: [
+      { path: "/shelves", label: "Shelves", icon: Layers3 },
+      { path: "/droppedyard", label: "Droppedyard", icon: ArchiveX },
+    ],
+  },
+  {
+    title: "INSIGHTS",
+    items: [
+      { path: "/analytics", label: "Analytics", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "SYSTEM",
+    items: [
+      { path: "/cron-history", label: "Cron history", icon: History },
+    ],
+  },
 ] as const;
 
 export function Sidebar({
   mobileOpen,
   setMobileOpen,
+  collapsed = false,
 }: {
   mobileOpen: boolean;
   setMobileOpen: (value: boolean) => void;
+  collapsed?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const username = useMediaStore((state) => state.username);
   const setAuth = useMediaStore((state) => state.setAuth);
-  const openModal = useMediaStore((state) => state.openModal);
   const openSettings = useMediaStore((state) => state.openSettings);
   const { toast } = useFeedback();
   const avatarLetter = username?.charAt(0).toUpperCase() || "C";
@@ -63,18 +83,24 @@ export function Sidebar({
   };
 
   return (
-    <aside className={`sidebar app-rail ${mobileOpen ? "mobile-open" : ""}`}>
+    <aside
+      className={`sidebar app-rail ${mobileOpen ? "mobile-open" : ""} ${collapsed ? "is-collapsed" : "is-expanded"}`}
+      aria-label="Sidebar navigation"
+    >
       <div className="rail-brand">
-        <Image
-          src="/favicon.png"
-          alt="Chronicle"
-          width={28}
-          height={28}
-          priority
-        />
-        <span>Chronicle</span>
+        <Link href="/home" className="rail-brand-link" onClick={() => setMobileOpen(false)}>
+          <Image
+            src="/favicon.png"
+            alt="Chronicle"
+            width={28}
+            height={28}
+            priority
+          />
+          <span className="rail-brand-text">Chronicle</span>
+        </Link>
+
         <button
-          className="rail-close"
+          className="rail-close mobile-only"
           onClick={() => setMobileOpen(false)}
           aria-label="Close navigation"
         >
@@ -82,48 +108,59 @@ export function Sidebar({
         </button>
       </div>
 
-      <button
-        className="rail-add"
-        onClick={() => openModal(null)}
-        aria-label="Add entry"
-      >
-        <Plus size={20} />
-        <span>Add entry</span>
-      </button>
-
       <nav className="rail-nav" aria-label="Main navigation">
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              className={active ? "is-active" : ""}
-              aria-current={active ? "page" : undefined}
-              title={item.label}
-              onClick={() => setMobileOpen(false)}
-            >
-              <Icon size={19} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {NAV_GROUPS.map((group) => (
+          <div key={group.title} className="rail-group">
+            <span className="rail-group-title">{group.title}</span>
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const active = pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  className={`rail-link ${active ? "is-active" : ""}`}
+                  aria-current={active ? "page" : undefined}
+                  title={item.label}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <Icon size={19} />
+                  <span className="rail-link-text">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <div className="rail-footer">
-        <button onClick={openSettings} title="Settings">
-          <Settings size={18} />
-          <span>Settings</span>
+        <button
+          className="rail-footer-btn"
+          onClick={() => {
+            setMobileOpen(false);
+            openSettings();
+          }}
+          title="Settings"
+          aria-label="Settings"
+        >
+          <Settings size={19} />
+          <span className="rail-footer-text">Settings</span>
         </button>
-        <button onClick={logout} title="Logout">
-          <LogOut size={18} />
-          <span>Logout</span>
+        <button
+          className="rail-footer-btn"
+          onClick={logout}
+          title="Logout"
+          aria-label="Sign out of Chronicle"
+        >
+          <LogOut size={19} />
+          <span className="rail-footer-text">Logout</span>
         </button>
-        <div className="rail-avatar" title={username || "Chronicle user"}>
-          {avatarLetter}
-          <i />
-          <span>{username}</span>
+        <div className="rail-user-card" title={username || "Chronicle user"}>
+          <div className="rail-user-avatar">
+            {avatarLetter}
+            <span className="rail-user-dot" />
+          </div>
+          <span className="rail-user-name">{username || "Chronicle user"}</span>
         </div>
       </div>
     </aside>

@@ -8,17 +8,18 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 
 | Category                | Highlights                                                                                                                                   |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Media Tracking**      | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · Ratings (0–10) · Notes                                 |
-| **Smart Organization**  | Search/filter/sort with visible loading states · Pagination (`Load more`) · Custom shelves · Linked entries                                  |
+| **Command Center Home** | Dynamic focus hero banner · Real-time "Today" orientation metrics · "Next Up" scheduled release cards · Weekly rhythm progress heatmap       |
+| **Media Tracking**      | Add, edit, delete entries · Track progress (episodes/chapters) · Quick +1 increment · One-click catchup · Ratings (0–10) · Notes             |
+| **3D Curated Shelves**  | 3D fanned poster stack gallery cards with depth animations · Quick library entry manager modal · Media type drilldowns · Custom shelf tags   |
+| **Modern Navigation**   | Context-aware TopBar with dynamic route badges & search shortcut (`⌘K`/`/`) · Collapsible sectioned Sidebar · Clean 5-slot mobile dock      |
+| **Updates Inbox**       | Dedicated unread tracker updates feed · Bulk "Mark all caught up" actions · Tracker error diagnostics panel with inline retry controls       |
+| **Release Radar**       | Automated Anime/Donghua release schedules powered by SIMKL calendar · Live release countdowns · Interactive manual match dialog              |
 | **Statistics**          | Analytics dashboard with type/status breakdowns, ratings, progress totals, and recent activity                                               |
 | **Import / Export**     | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                                   |
-| **Metadata Lookup**     | AniList primary + Jikan fallback lookup for Anime/Donghua · MangaDex links or IDs normalized for Manhwa covers                               |
-| **High-Quality Covers** | Cached cover pipeline with batched client fetching, proxy image caching, MangaDex/AniList/Jikan support, and custom cover URL overrides      |
-| **Release Tracking**    | Manhwa chapter scraping · automatic Anime/Donghua Release Radar · private 30-day cron history · Telegram and Android push notifications |
-| **Droppedyard**         | Dedicated "Graveyard" for dropped entries, with a "Maybe Revisit" queue to filter out shows you might want to try again                      |
-| **Auth**                | JWT cookie auth · bcrypt password hashing · email recovery/verification with Brevo links · session invalidation after password reset         |
-| **Design System**       | Responsive, mobile-first "Soft Red" UI with sharp cards, modal scroll locking, accessible badging, skeleton cards, and animated page loaders |
-| **CORS / Deployment**   | Comma-separated `APP_ORIGIN` support · Next.js `proxy.ts` CORS handling for API routes                                                       |
+| **Metadata & Covers**   | AniList primary + Jikan fallback lookup for Anime/Donghua · MangaDex IDs for Manhwa · Cached proxy cover pipeline with custom URL overrides  |
+| **Droppedyard**         | Dedicated "Graveyard" for dropped entries with a "Maybe Revisit" queue to filter out shows you might want to try again                        |
+| **Auth & Security**     | JWT cookie auth · bcrypt password hashing · Brevo email recovery/verification · Session invalidation after password reset                    |
+| **Design & Experience** | Pure dark geometric aesthetic · Responsive mobile-first layouts · Accessible badging · Skeleton loading states · PWA install support         |
 
 ## 🔎 Public SEO Page
 
@@ -208,12 +209,13 @@ npm run media:dedupe:backfill
 
 The command fills normalized title keys for existing media rows where safe. Existing duplicate groups are reported and left for manual review.
 
+
 ## 📁 Project Structure
 
 ```txt
 Chronicle/
 ├── app/
-│   ├── (dashboard)/        # Main app (Library, Queue, Shelves, Droppedyard, Analytics)
+│   ├── (dashboard)/        # Main app (Home, Library, Updates, Release Radar, Shelves, Droppedyard, Analytics, Cron History)
 │   ├── api/                # Auth, Media, Profile, Covers, Cron, Tracker test routes
 │   ├── login/              # Login, registration, and forgot-password entry
 │   ├── reset-password/     # Password reset page
