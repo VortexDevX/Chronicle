@@ -4,7 +4,7 @@ import { requireAuthUserId } from "@/lib/guards";
 import { jsonError, jsonOk } from "@/lib/http";
 import { logInternalError } from "@/lib/log";
 import { MediaItem } from "@/lib/models";
-import { fetchSimklAnimeCalendar, findSimklEpisodeSchedule } from "@/lib/sources/simklCalendar";
+import { fetchSimklAnimeCalendar, matchSimklEntries } from "@/lib/sources/simklCalendar";
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,28 +24,7 @@ export async function GET(req: NextRequest) {
 
     const { payload, lastModified } = await fetchSimklAnimeCalendar();
     const now = new Date();
-    const resolvedIds = entries.map((entry) => {
-      const directId = Number(entry.simkl_id);
-      if (Number.isInteger(directId) && directId > 0) return directId;
-      const oldAniListId = Number(entry.anilist_id);
-      const matched = Object.entries(payload.metadata).find(([, show]) => Number(show.ids?.anilist) === oldAniListId);
-      return matched ? Number(matched[0]) : null;
-    });
-    const items = entries.flatMap((entry, index) => {
-      const simklId = resolvedIds[index];
-      const schedule = simklId ? findSimklEpisodeSchedule(simklId, payload, now) : null;
-      if (!schedule) return [];
-      return [{
-        ...entry,
-        next_episode: schedule.nextEpisode,
-        next_episode_release_at: schedule.nextReleaseAt.toISOString(),
-        previous_episode: schedule.previousEpisode,
-        previous_episode_release_at: schedule.previousReleaseAt?.toISOString() || null,
-        episode_title: schedule.episodeTitle,
-        finale_type: schedule.finaleType,
-        episode_url: schedule.episodeUrl,
-      }];
-    }).sort((a, b) => Date.parse(a.next_episode_release_at) - Date.parse(b.next_episode_release_at));
+    const { items, resolvedIds } = matchSimklEntries(entries, payload, now);
     const needsMatching = entries
       .filter((entry, index) => !resolvedIds[index] && !Number(entry.anilist_id))
       .map((entry) => ({ _id: String(entry._id), title: String(entry.title), media_type: String(entry.media_type) }));

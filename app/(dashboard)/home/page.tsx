@@ -53,6 +53,14 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    const update = () => setNow(Date.now());
+    update();
+    const timer = window.setInterval(update, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const loadHome = useCallback(async () => {
     setError("");
@@ -146,23 +154,32 @@ export default function HomePage() {
     }
   };
 
-  // Next up rail items: upcoming scheduled releases from continue_items
-  const continueItems = payload?.continue_items;
+  // Next up rail items: upcoming scheduled releases within the next 3 days
   const upcomingReleases = useMemo(() => {
-    if (!continueItems) return [];
-    return continueItems
-      .filter(
-        (item) =>
-          item.next_episode_release_at &&
-          !isNaN(new Date(item.next_episode_release_at).getTime()),
-      )
+    const source = payload?.upcoming_releases ?? payload?.continue_items ?? [];
+    if (!now) {
+      return source.slice(0, 6);
+    }
+    const threeDaysMs = 3 * 86_400_000;
+    const maxReleaseTime = now + threeDaysMs;
+
+    return source
+      .filter((item) => {
+        if (!item.next_episode_release_at) return false;
+        const releaseTime = new Date(item.next_episode_release_at).getTime();
+        return (
+          !isNaN(releaseTime) &&
+          releaseTime >= now - 60 * 60_000 &&
+          releaseTime <= maxReleaseTime
+        );
+      })
       .sort((a, b) => {
         const timeA = new Date(a.next_episode_release_at!).getTime();
         const timeB = new Date(b.next_episode_release_at!).getTime();
         return timeA - timeB;
       })
-      .slice(0, 4);
-  }, [continueItems]);
+      .slice(0, 6);
+  }, [payload, now]);
 
   if (loading && !payload) {
     return <PageLoader label="Building your Home" detail="Finding what moved" compact />;
@@ -330,8 +347,8 @@ export default function HomePage() {
         <div className="today-item">
           <CalendarDays size={16} className="today-icon info" />
           <div>
-            <strong>{upcomingReleases.length} scheduled</strong>
-            <span>upcoming releases</span>
+            <strong>{upcomingReleases.length} upcoming</strong>
+            <span>next 3 days</span>
           </div>
         </div>
         <div className="today-item">
@@ -351,7 +368,7 @@ export default function HomePage() {
           <div className="section-heading compact">
             <div>
               <h2>Next up</h2>
-              <span>Scheduled Anime & Donghua</span>
+              <span>Next 3 days</span>
             </div>
             <Link href="/queue">
               View Radar <ArrowRight size={14} />

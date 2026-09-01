@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   mediaAggregate: vi.fn(),
   getUpdateFeed: vi.fn(),
   getActivitySnapshot: vi.fn(),
+  getUpcomingReleases: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ connectDB: mocks.connectDB }));
@@ -22,6 +23,9 @@ vi.mock("@/lib/services/media/updateFeedQuery", () => ({
 }));
 vi.mock("@/lib/services/activity/query", () => ({
   getActivitySnapshot: mocks.getActivitySnapshot,
+}));
+vi.mock("@/lib/services/media/upcomingReleases", () => ({
+  getUpcomingReleases: mocks.getUpcomingReleases,
 }));
 vi.mock("@/lib/log", () => ({ logInternalError: vi.fn() }));
 
@@ -44,6 +48,7 @@ describe("home API", () => {
     });
     mocks.getUpdateFeed.mockResolvedValue({ items: [], tracker_errors: [] });
     mocks.getActivitySnapshot.mockResolvedValue({ events: [], days: [] });
+    mocks.getUpcomingReleases.mockResolvedValue([]);
   });
 
   it("returns a complete empty contract for a new account", async () => {
@@ -55,6 +60,7 @@ describe("home API", () => {
     expect(body.data).toEqual({
       featured: null,
       continue_items: [],
+      upcoming_releases: [],
       updates: [],
       activity: [],
       rhythm: [],
@@ -116,6 +122,38 @@ describe("home API", () => {
     expect(body.data.activity).toEqual([]);
     expect(body.data.rhythm).toEqual([]);
     expect(body.data.partial_failures).toEqual(["seven-day activity"]);
+  });
+
+  it("returns upcoming_releases resolved chronologically", async () => {
+    mockActiveItems([{
+      _id: "media-1",
+      title: "Solo Leveling",
+      status: "Active",
+      progress_current: 7,
+      progress_total: 12,
+    }]);
+    mocks.getUpcomingReleases.mockResolvedValue([
+      {
+        _id: "media-bumpkin",
+        title: "From Old Country Bumpkin to Master Swordsman",
+        next_episode: 9,
+        next_episode_release_at: "2026-09-02T14:45:00.000Z",
+      },
+      {
+        _id: "media-perfect-world",
+        title: "Perfect World",
+        next_episode: 285,
+        next_episode_release_at: "2026-09-03T09:00:00.000Z",
+      },
+    ]);
+
+    const response = await GET(new NextRequest("https://chronicle.test/api/home"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.upcoming_releases).toHaveLength(2);
+    expect(body.data.upcoming_releases[0].title).toBe("From Old Country Bumpkin to Master Swordsman");
+    expect(body.data.upcoming_releases[1].title).toBe("Perfect World");
   });
 
   it("returns the authentication response without querying media", async () => {

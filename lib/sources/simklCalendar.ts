@@ -82,6 +82,65 @@ export function findSimklEpisodeSchedule(
   };
 }
 
+export type SimklMatchedItem<T> = T & {
+  next_episode: number;
+  next_episode_release_at: string;
+  previous_episode: number | null;
+  previous_episode_release_at: string | null;
+  episode_title: string | null;
+  finale_type: 1 | 2 | 3 | null;
+  episode_url: string | null;
+};
+
+export function matchSimklEntries<T extends object>(
+  entries: T[],
+  payload: SimklCalendarPayload,
+  now = new Date(),
+): { items: SimklMatchedItem<T>[]; resolvedIds: Array<number | null> } {
+  const resolvedIds = entries.map((rawEntry) => {
+    const entry = rawEntry as {
+      anilist_id?: number | string | null;
+      simkl_id?: number | string | null;
+    };
+    const directId = Number(entry.simkl_id);
+    if (Number.isInteger(directId) && directId > 0) return directId;
+    const oldAniListId = Number(entry.anilist_id);
+    const matched = Object.entries(payload.metadata).find(
+      ([, show]) => Number(show.ids?.anilist) === oldAniListId,
+    );
+    return matched ? Number(matched[0]) : null;
+  });
+
+  const items = entries
+    .flatMap((entry, index) => {
+      const simklId = resolvedIds[index];
+      const schedule = simklId
+        ? findSimklEpisodeSchedule(simklId, payload, now)
+        : null;
+      if (!schedule) return [];
+      return [
+        {
+          ...entry,
+          next_episode: schedule.nextEpisode,
+          next_episode_release_at: schedule.nextReleaseAt.toISOString(),
+          previous_episode: schedule.previousEpisode,
+          previous_episode_release_at:
+            schedule.previousReleaseAt?.toISOString() || null,
+          episode_title: schedule.episodeTitle,
+          finale_type: schedule.finaleType,
+          episode_url: schedule.episodeUrl,
+        } as SimklMatchedItem<T>,
+      ];
+    })
+    .sort(
+      (a, b) =>
+        Date.parse(a.next_episode_release_at) -
+        Date.parse(b.next_episode_release_at),
+    );
+
+  return { items, resolvedIds };
+}
+
 /** Resolve only an exact AniList English/Romaji title. Never guess from a partial title. */
 export function searchSimklCalendarTitles(
   query: string,

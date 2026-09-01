@@ -7,6 +7,7 @@ import { logInternalError } from "@/lib/log";
 import { MediaItem } from "@/lib/models";
 import { getUpdateFeed } from "@/lib/services/media/updateFeedQuery";
 import { getActivitySnapshot } from "@/lib/services/activity/query";
+import { getUpcomingReleases } from "@/lib/services/media/upcomingReleases";
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,10 +31,11 @@ export async function GET(request: NextRequest) {
       Promise.allSettled([
         getUpdateFeed(userObjectId, 4),
         getActivitySnapshot(userObjectId, 6),
+        getUpcomingReleases(userObjectId, 6),
       ]),
     ]);
 
-    const [updatesResult, activityResult] = optionalResults;
+    const [updatesResult, activityResult, upcomingResult] = optionalResults;
     const continueItems = activeItems;
     const featured = featuredItems[0] ?? continueItems[0] ?? null;
     const partialFailures: string[] = [];
@@ -46,10 +48,15 @@ export async function GET(request: NextRequest) {
       activityResult.status === "fulfilled"
         ? activityResult.value
         : (partialFailures.push("seven-day activity"), { events: [], days: [] });
+    const upcomingReleases =
+      upcomingResult.status === "fulfilled"
+        ? upcomingResult.value
+        : [];
 
     return jsonOk({
       featured,
       continue_items: continueItems,
+      upcoming_releases: upcomingReleases,
       updates: updates.items,
       activity: activity.events,
       rhythm: activity.days,
