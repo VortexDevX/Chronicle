@@ -515,7 +515,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     title="Download Chronicle Android APK"
                   >
                     <Download size={15} />
-                    <span>Download APK (953 KB)</span>
+                    <span>Download APK (5338 KB)</span>
                   </a>
                 </div>
               </div>
