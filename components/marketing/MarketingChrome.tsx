@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Smartphone } from "lucide-react";
 
 export function MarketingHeaderActions({ isAuthenticated }: { isAuthenticated: boolean }) {
   if (isAuthenticated) {
@@ -38,6 +38,15 @@ export function LandingHeroActions({ isAuthenticated }: { isAuthenticated: boole
         {isAuthenticated ? "Open library" : "Create your list"}{" "}
         <ArrowRight size={16} aria-hidden="true" />
       </Link>
+      <a
+        className="marketing-button secondary"
+        href="/downloads/chronicle.apk"
+        download="chronicle.apk"
+        title="Download Chronicle Android App (v1.0.4 APK)"
+      >
+        <Smartphone size={16} aria-hidden="true" />
+        Download App
+      </a>
       <Link className="simple-text-link" href={isAuthenticated ? "/home" : "/login"}>
         {isAuthenticated ? "Home" : "Sign in"}
       </Link>
@@ -47,13 +56,24 @@ export function LandingHeroActions({ isAuthenticated }: { isAuthenticated: boole
 
 export function LandingFinalAction({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
-    <Link
-      className="marketing-button"
-      href={isAuthenticated ? "/library" : "/login?mode=register"}
-    >
-      {isAuthenticated ? "Open your library" : "Start tracking"}{" "}
-      <ArrowRight size={16} aria-hidden="true" />
-    </Link>
+    <div className="simple-actions">
+      <Link
+        className="marketing-button"
+        href={isAuthenticated ? "/library" : "/login?mode=register"}
+      >
+        {isAuthenticated ? "Open your library" : "Start tracking"}{" "}
+        <ArrowRight size={16} aria-hidden="true" />
+      </Link>
+      <a
+        className="marketing-button secondary"
+        href="/downloads/chronicle.apk"
+        download="chronicle.apk"
+        title="Download Chronicle Android App (APK)"
+      >
+        <Smartphone size={16} aria-hidden="true" />
+        Download APK
+      </a>
+    </div>
   );
 }
 
@@ -77,6 +97,13 @@ export function MarketingHeader({ isAuthenticated }: { isAuthenticated: boolean 
         <nav className="marketing-nav" aria-label="Public navigation">
           <Link href="/#features">Features</Link>
           <Link href="/#trackers">Formats</Link>
+          <a
+            href="/downloads/chronicle.apk"
+            download="chronicle.apk"
+            title="Download Android APK"
+          >
+            Download App
+          </a>
         </nav>
 
         <MarketingHeaderActions isAuthenticated={isAuthenticated} />
@@ -93,8 +120,14 @@ export function MarketingFooter() {
           Chronicle <strong>X</strong>
         </Link>
         <p>Track what you watch and read. Chronicle never hosts the media itself.</p>
-        <a href="https://github.com/VortexDevX/Chronicle">GitHub</a>
+        <div className="simple-footer-links">
+          <a href="/downloads/chronicle.apk" download="chronicle.apk">
+            Download App (APK)
+          </a>
+          <a href="https://github.com/VortexDevX/Chronicle">GitHub</a>
+        </div>
       </div>
     </footer>
   );
 }
+

@@ -10,14 +10,14 @@ import {
   LogOut,
   MailCheck,
   Send,
-  Share,
   Shield,
+  ShieldCheck,
   Smartphone,
   Upload,
   User,
   X,
+  Sliders,
 } from "lucide-react";
-import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
 import {
   downloadMediaBackup,
@@ -45,7 +45,6 @@ type PushTestResult = {
   failed: number;
   devices: number;
 };
-
 
 function getChronicleNativeBridge(): ChronicleNativeBridge | undefined {
   if (typeof window === "undefined") return undefined;
@@ -76,7 +75,7 @@ function SettingsToggle({
         <span className="settings-toggle-header">
           <span className="settings-toggle-copy">{title}</span>
           <span className="settings-toggle-state" data-state={checked ? "on" : "off"}>
-            {checked ? "On" : "Off"}
+            {checked ? "Active" : "Disabled"}
           </span>
         </span>
         <span className="settings-toggle-description">{description}</span>
@@ -91,8 +90,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const setAuth = useMediaStore((state) => state.setAuth);
   const { toast, confirm } = useFeedback();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { showInstall, hasNativePrompt, isInstalled, platform, install: installPwa } = usePwaInstall();
-  const [showIosGuide, setShowIosGuide] = useState(false);
   const [showAdvancedPush, setShowAdvancedPush] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -345,227 +342,233 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           className="modal-close"
           onClick={onClose}
           aria-label="Close settings"
-          title="Close (esc)"
+          title="Close (Esc)"
         >
-          <X size={20} />
+          <X size={18} />
         </button>
-        <div className="modal-header" id="settings-modal-title">
-          Settings
+
+        <div className="modal-header settings-modal-header" id="settings-modal-title">
+          <div className="settings-modal-title-group">
+            <span className="settings-header-icon">
+              <Sliders size={18} />
+            </span>
+            <div>
+              <h2>Settings</h2>
+              <p>Account, notifications, mobile app, and data management.</p>
+            </div>
+          </div>
         </div>
 
         {loading ? (
-          <div className="loading-state" style={{ padding: "40px" }}>
+          <div className="loading-state" style={{ padding: "48px 24px" }}>
             <span className="spinner" />
           </div>
         ) : (
           <form className="modal-form" onSubmit={handleSubmit}>
-            <div className="modal-scroll">
+            <div className="modal-scroll settings-modal-body">
               {/* Account Section */}
-              <div className="modal-section-header">
-                <User size={15} />
-                <span>Account</span>
-              </div>
-              <div className="form-grid full">
-                <div className="form-group">
-                  <label htmlFor="settings-email">Recovery Email</label>
-                  <input
-                    id="settings-email"
-                    className="form-input"
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="Enter recovery email"
-                    maxLength={254}
-                  />
-                  <div className="settings-email-row">
-                    <span
-                      className="settings-email-status"
-                      data-state={formData.email_verified_at ? "verified" : "unverified"}
-                    >
-                      <MailCheck size={14} />
-                      {formData.email_verified_at ? "Verified" : "Unverified"}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn-ghost settings-inline-btn"
-                      onClick={handleSendVerification}
-                      disabled={
-                        !formData.email ||
-                        Boolean(formData.email_verified_at) ||
-                        sendingVerification ||
-                        saving
-                      }
-                    >
-                      {sendingVerification ? <span className="spinner" /> : <Send size={13} />}
-                      Send link
-                    </button>
+              <div className="settings-section">
+                <div className="modal-section-header">
+                  <User size={15} />
+                  <span>Account &amp; Security</span>
+                </div>
+                <div className="form-grid full">
+                  <div className="form-group">
+                    <label htmlFor="settings-email">Recovery Email Address</label>
+                    <input
+                      id="settings-email"
+                      className="form-input"
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="Enter recovery email address"
+                      maxLength={254}
+                    />
+                    <div className="settings-email-row">
+                      <span
+                        className="settings-email-status"
+                        data-state={formData.email_verified_at ? "verified" : "unverified"}
+                      >
+                        <MailCheck size={14} />
+                        {formData.email_verified_at ? "Verified Account" : "Unverified"}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-ghost settings-inline-btn"
+                        onClick={handleSendVerification}
+                        disabled={
+                          !formData.email ||
+                          Boolean(formData.email_verified_at) ||
+                          sendingVerification ||
+                          saving
+                        }
+                      >
+                        {sendingVerification ? <span className="spinner" /> : <Send size={13} />}
+                        Send link
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Notifications Section */}
-              <div className="modal-section-header">
-                <Bell size={15} />
-                <span>Notifications</span>
-              </div>
-              <div className="form-grid full">
-                <SettingsToggle
-                  name="push_notifications_enabled"
-                  checked={formData.push_notifications_enabled}
-                  title="Android push notifications"
-                  description="Receive new release alerts on Android."
-                  onChange={handleChange}
-                />
-
-                {/* Collapsible Advanced Diagnostics */}
-                {formData.push_notifications_enabled && (
-                  <div className="settings-advanced-box">
-                    <button
-                      type="button"
-                      className="settings-advanced-toggle"
-                      onClick={() => setShowAdvancedPush((v) => !v)}
-                    >
-                      <Shield size={14} />
-                      <span>Android Diagnostics</span>
-                      <ChevronDown
-                        size={14}
-                        style={{
-                          transform: showAdvancedPush ? "rotate(180deg)" : "none",
-                          transition: "transform 0.2s",
-                        }}
-                      />
-                    </button>
-                    {showAdvancedPush && (
-                      <div className="settings-push-test">
-                        <span className="settings-push-test-icon" aria-hidden="true">
-                          <Smartphone size={18} />
-                        </span>
-                        <span>
-                          <strong>Delivery Test</strong>
-                          <small>Sends one real Firebase push to your registered phone.</small>
-                        </span>
-                        <button
-                          type="button"
-                          className="btn-ghost settings-inline-btn"
-                          onClick={handlePushTest}
-                          disabled={sendingPushTest || saving}
-                        >
-                          {sendingPushTest ? <span className="spinner" /> : <Send size={13} />}
-                          {sendingPushTest ? "Testing" : "Send test"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <SettingsToggle
-                  name="notifications_enabled"
-                  checked={formData.notifications_enabled}
-                  title="Telegram notifications"
-                  description="Receive chapter and episode alerts in Telegram."
-                  onChange={handleChange}
-                />
-                <div className="form-group">
-                  <label htmlFor="settings-telegram-id">Telegram Chat ID</label>
-                  <input
-                    id="settings-telegram-id"
-                    className="form-input"
-                    name="telegram_chat_id"
-                    value={formData.telegram_chat_id}
+              <div className="settings-section">
+                <div className="modal-section-header">
+                  <Bell size={15} />
+                  <span>Notifications &amp; Alerts</span>
+                </div>
+                <div className="form-grid full">
+                  <SettingsToggle
+                    name="push_notifications_enabled"
+                    checked={formData.push_notifications_enabled}
+                    title="Android Push Notifications"
+                    description="Receive instant release alerts directly on your Android device."
                     onChange={handleChange}
-                    placeholder="Enter Telegram chat ID"
                   />
+
+                  {/* Collapsible Advanced Diagnostics */}
+                  {formData.push_notifications_enabled && (
+                    <div className="settings-advanced-box">
+                      <button
+                        type="button"
+                        className="settings-advanced-toggle"
+                        onClick={() => setShowAdvancedPush((v) => !v)}
+                      >
+                        <Shield size={14} />
+                        <span>Android Push Diagnostics</span>
+                        <ChevronDown
+                          size={14}
+                          style={{
+                            transform: showAdvancedPush ? "rotate(180deg)" : "none",
+                            transition: "transform 0.2s",
+                          }}
+                        />
+                      </button>
+                      {showAdvancedPush && (
+                        <div className="settings-push-test">
+                          <span className="settings-push-test-icon" aria-hidden="true">
+                            <Smartphone size={18} />
+                          </span>
+                          <span>
+                            <strong>Delivery Test</strong>
+                            <small>Sends a live Firebase push notification to registered devices.</small>
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-ghost settings-inline-btn"
+                            onClick={handlePushTest}
+                            disabled={sendingPushTest || saving}
+                          >
+                            {sendingPushTest ? <span className="spinner" /> : <Send size={13} />}
+                            {sendingPushTest ? "Testing…" : "Send Test Push"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <SettingsToggle
+                    name="notifications_enabled"
+                    checked={formData.notifications_enabled}
+                    title="Telegram Notifications"
+                    description="Receive chapter and episode alerts in your Telegram chat."
+                    onChange={handleChange}
+                  />
+                  <div className="form-group">
+                    <label htmlFor="settings-telegram-id">Telegram Chat ID</label>
+                    <input
+                      id="settings-telegram-id"
+                      className="form-input"
+                      name="telegram_chat_id"
+                      value={formData.telegram_chat_id}
+                      onChange={handleChange}
+                      placeholder="e.g. 123456789"
+                    />
+                  </div>
                 </div>
               </div>
 
+              {/* Mobile App Section */}
+              <div className="settings-section">
+                <div className="modal-section-header">
+                  <Smartphone size={15} />
+                  <span>Mobile App</span>
+                </div>
+                <div className="settings-app-banner">
+                  <div className="settings-app-icon-wrap">
+                    <Smartphone size={22} />
+                  </div>
+                  <div className="settings-app-content">
+                    <div className="settings-app-title-row">
+                      <strong>Chronicle for Android</strong>
+                      <span className="settings-app-badge">v1.0.4 Release</span>
+                    </div>
+                    <p>
+                      Official signed APK with native push alerts, offline library caching, and quick home screen access.
+                    </p>
+                  </div>
+                  <a
+                    href="/downloads/chronicle.apk"
+                    download="chronicle.apk"
+                    className="settings-app-download-btn"
+                    title="Download Chronicle Android APK"
+                  >
+                    <Download size={15} />
+                    <span>Download APK (953 KB)</span>
+                  </a>
+                </div>
+              </div>
 
               {/* Data & Backup Section */}
-              <div className="modal-section-header">
-                <Database size={15} />
-                <span>Data & Backup</span>
-              </div>
-              <div className="settings-data-grid">
-                {showInstall && (
+              <div className="settings-section">
+                <div className="modal-section-header">
+                  <Database size={15} />
+                  <span>Data &amp; Backup</span>
+                </div>
+                <div className="settings-data-grid">
                   <button
                     type="button"
-                    className="pwa-install-card"
-                    onClick={async () => {
-                      if (hasNativePrompt) {
-                        const ok = await installPwa();
-                        if (ok) toast("Chronicle installed!", "success");
-                      } else if (platform === "ios") {
-                        setShowIosGuide((v) => !v);
-                      } else {
-                        toast("Use your browser's menu → Install app", "info");
-                      }
-                    }}
+                    className="settings-action-card"
+                    onClick={handleExport}
+                    disabled={Boolean(dataAction)}
                   >
-                    <span>{platform === "ios" ? <Share size={18} /> : <Smartphone size={18} />}</span>
-                    <strong>Install Chronicle</strong>
-                    <small>
-                      {platform === "ios"
-                        ? "Add to Home Screen for native app feel."
-                        : "Add to home screen for instant access."}
-                    </small>
+                    <span className="settings-action-icon">
+                      <Upload size={18} />
+                    </span>
+                    <strong>Export Library</strong>
+                    <small>Save full collection backup as JSON file.</small>
+                    {dataAction === "export" && <i className="spinner" />}
                   </button>
-                )}
-                {showInstall && showIosGuide && platform === "ios" && (
-                  <div className="pwa-ios-guide">
-                    <span>
-                      1. Tap <Share size={14} /> <strong>Share</strong> in Safari&apos;s toolbar
+
+                  <button
+                    type="button"
+                    className="settings-action-card"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={Boolean(dataAction)}
+                  >
+                    <span className="settings-action-icon">
+                      <Download size={18} />
                     </span>
-                    <span>
-                      2. Scroll down and tap <strong>Add to Home Screen</strong>
+                    <strong>Import Library</strong>
+                    <small>Restore or merge entries from JSON backup.</small>
+                    {dataAction === "import" && <i className="spinner" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={Boolean(dataAction)}
+                    className="settings-action-card settings-logout-card"
+                  >
+                    <span className="settings-action-icon danger">
+                      <LogOut size={18} />
                     </span>
-                    <span>
-                      3. Tap <strong>Add</strong> — done!
-                    </span>
-                  </div>
-                )}
-                {isInstalled && (
-                  <div className="pwa-installed-badge">
-                    <Smartphone size={15} />
-                    <span>Chronicle is installed</span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={handleExport}
-                  disabled={Boolean(dataAction)}
-                >
-                  <span>
-                    <Upload size={18} />
-                  </span>
-                  <strong>Export library</strong>
-                  <small>Download your Chronicle entries as JSON.</small>
-                  {dataAction === "export" && <i className="spinner" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={Boolean(dataAction)}
-                >
-                  <span>
-                    <Download size={18} />
-                  </span>
-                  <strong>Import library</strong>
-                  <small>Restore compatible Chronicle JSON.</small>
-                  {dataAction === "import" && <i className="spinner" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={Boolean(dataAction)}
-                  className="settings-logout-btn"
-                >
-                  <span>
-                    <LogOut size={18} />
-                  </span>
-                  <strong>Sign out</strong>
-                  <small>End this browser session securely.</small>
-                  {dataAction === "logout" && <i className="spinner" />}
-                </button>
+                    <strong>Sign Out</strong>
+                    <small>End this browser session securely.</small>
+                    {dataAction === "logout" && <i className="spinner" />}
+                  </button>
+                </div>
               </div>
 
               <input
@@ -580,17 +583,17 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               {success && <div className="auth-success">{success}</div>}
             </div>
 
-            <div className="modal-actions">
+            <div className="modal-actions settings-modal-actions">
               <button
                 type="button"
-                className="btn-ghost"
+                className="btn-ghost settings-cancel-btn"
                 onClick={onClose}
                 disabled={saving}
               >
                 Close
               </button>
-              <button type="submit" className="btn-primary" disabled={saving}>
-                {saving ? <span className="spinner" /> : "Save changes"}
+              <button type="submit" className="btn-primary settings-save-btn" disabled={saving}>
+                {saving ? <span className="spinner" /> : "Save Changes"}
               </button>
             </div>
           </form>
@@ -599,3 +602,4 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     </div>
   );
 }
+

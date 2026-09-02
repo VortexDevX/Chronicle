@@ -13,6 +13,7 @@ import {
   Layers3,
   LogOut,
   Settings,
+  Smartphone,
   Sparkles,
   X,
 } from "lucide-react";
@@ -134,6 +135,17 @@ export function Sidebar({
       </nav>
 
       <div className="rail-footer">
+        <a
+          href="/downloads/chronicle.apk"
+          download="chronicle.apk"
+          className="rail-footer-btn"
+          title="Download Android App (APK)"
+          aria-label="Download Android App"
+          onClick={() => setMobileOpen(false)}
+        >
+          <Smartphone size={19} />
+          <span className="rail-footer-text">Android App</span>
+        </a>
         <button
           className="rail-footer-btn"
           onClick={() => {

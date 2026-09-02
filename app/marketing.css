@@ -109,6 +109,17 @@
   font-size: 0.75rem;
 }
 
+.marketing-button.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--marketing-line);
+  color: #fff !important;
+}
+
+.marketing-button.secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
 .simple-hero {
   padding: 104px 0 96px;
   border-bottom: 1px solid var(--marketing-line);
@@ -129,6 +140,13 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.download-app-header-badge {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 6px;
 }
 
 .simple-hero h1 {
@@ -410,9 +428,20 @@
   font-size: 0.68rem;
 }
 
-.simple-footer-inner > a:last-child {
+.simple-footer-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.simple-footer-links a {
   color: #918688;
   font-size: 0.68rem;
+  transition: color 150ms ease;
+}
+
+.simple-footer-links a:hover {
+  color: #fff;
 }
 
 @media (max-width: 900px) {

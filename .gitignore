@@ -14,6 +14,13 @@
 
 # Local Android app
 /android-app/
+/keystore/
+*.keystore
+*.jks
+
+# Public downloads
+!/public/downloads/*.apk
+
 
 # Environment
 .env
