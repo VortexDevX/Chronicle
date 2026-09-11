@@ -75,4 +75,37 @@ describe("SIMKL calendar matching", () => {
     expect(items[1].title).toBe("Immortal King");
     expect(items[1].next_episode).toBe(11);
   });
+
+  it("handles shows where all episodes in calendar are in the past", () => {
+    // Sep 7 is after Ep 11 aired on Sep 6
+    const schedule = findSimklEpisodeSchedule(1, payload, new Date("2026-09-07T00:00:00Z"));
+    expect(schedule).not.toBeNull();
+    expect(schedule).toMatchObject({
+      nextEpisode: null,
+      nextReleaseAt: null,
+      latestAiredEpisode: 11,
+      episodeTitle: "Finale",
+      finaleType: 2,
+    });
+  });
+
+  it("resolves SIMKL ID and matches entry by exact/normalized title", () => {
+    const entries = [
+      { _id: "show-3", title: "The Daily Life of the Immortal King", simkl_id: null, anilist_id: null },
+    ];
+    const { items, resolvedIds } = matchSimklEntries(entries, payload, new Date("2026-09-01T00:00:00Z"));
+    expect(resolvedIds[0]).toBe(1);
+    expect(items).toHaveLength(1);
+    expect(items[0].next_episode).toBe(11);
+  });
+
+  it("omits show from upcoming entries when it has no upcoming episode scheduled", () => {
+    // Ep 11 aired Sep 6. On Sep 7 there are no future episodes in the calendar.
+    const entries = [
+      { _id: "show-1", title: "Immortal King", simkl_id: 1, anilist_id: null, progress_current: 10 },
+    ];
+    const { items } = matchSimklEntries(entries, payload, new Date("2026-09-07T00:00:00Z"));
+    expect(items).toHaveLength(0);
+  });
 });
+

@@ -14,7 +14,12 @@ export type SimklShow = {
   title_romaji?: string | null;
   url: string;
   alt_titles?: Array<{ name?: string | null }>;
-  ids: { simkl_id?: number | string | null; anilist?: number | string | null };
+  ids: { simkl_id?: number | string | null; anilist?: number | string | null; kitsu?: number | string | null };
+  poster?: string | null;
+  fanart?: string | null;
+  anime_type?: string | null;
+  status?: string | null;
+  total_episodes?: number | null;
 };
 
 export type SimklCalendarPayload = {
@@ -23,13 +28,16 @@ export type SimklCalendarPayload = {
 };
 
 export type SimklEpisodeSchedule = {
-  nextEpisode: number;
-  nextReleaseAt: Date;
+  nextEpisode: number | null;
+  nextReleaseAt: Date | null;
   previousEpisode: number | null;
   previousReleaseAt: Date | null;
+  latestAiredEpisode: number | null;
+  latestAiredReleaseAt: Date | null;
   episodeTitle: string | null;
   finaleType: 1 | 2 | 3 | null;
   episodeUrl: string | null;
+  posterUrl: string | null;
 };
 
 export type SimklSearchResult = {
@@ -40,7 +48,17 @@ export type SimklSearchResult = {
 
 const SIMKL_ANIME_CALENDAR_URL = "https://data.simkl.in/calendar/v2/anime.json";
 
-function normalizedTitle(value: string): string {
+export function getSimklPosterUrl(
+  posterPath: string | null | undefined,
+  size: "m" | "w" = "m",
+): string | null {
+  if (!posterPath) return null;
+  const clean = String(posterPath).trim().replace(/^\/+/, "");
+  if (!clean) return null;
+  return `https://simkl.in/posters/${clean}_${size}.webp`;
+}
+
+export function normalizedTitle(value: string): string {
   return value
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -56,6 +74,30 @@ function parseDate(value: string): Date | null {
   return Number.isFinite(date.getTime()) ? date : null;
 }
 
+export function findSimklIdByTitle(
+  rawTitle: string,
+  payload: SimklCalendarPayload,
+): number | null {
+  const wanted = normalizedTitle(rawTitle);
+  if (wanted.length < 2) return null;
+
+  for (const [id, show] of Object.entries(payload.metadata)) {
+    const titles = [
+      show.title,
+      show.title_romaji || "",
+      ...(show.alt_titles || []).map((item) => item.name || ""),
+    ].filter(Boolean);
+
+    for (const title of titles) {
+      if (normalizedTitle(title) === wanted) {
+        const simklId = Number(show.ids?.simkl_id || id);
+        if (Number.isInteger(simklId) && simklId > 0) return simklId;
+      }
+    }
+  }
+  return null;
+}
+
 export function findSimklEpisodeSchedule(
   simklId: number,
   payload: SimklCalendarPayload,
@@ -64,21 +106,47 @@ export function findSimklEpisodeSchedule(
   const episodes = payload.calendar
     .filter((entry) => entry.simkl_id === simklId && entry.episode)
     .map((entry) => ({ entry, airsAt: parseDate(entry.date) }))
-    .filter((value): value is { entry: SimklCalendarEntry & { episode: NonNullable<SimklCalendarEntry["episode"]> }; airsAt: Date } => Boolean(value.airsAt))
+    .filter(
+      (
+        value,
+      ): value is {
+        entry: SimklCalendarEntry & {
+          episode: NonNullable<SimklCalendarEntry["episode"]>;
+        };
+        airsAt: Date;
+      } => Boolean(value.airsAt),
+    )
     .sort((a, b) => a.airsAt.getTime() - b.airsAt.getTime());
 
-  const next = episodes.find(({ airsAt }) => airsAt.getTime() >= now.getTime());
-  if (!next) return null;
-  const previous = [...episodes].reverse().find(({ airsAt }) => airsAt.getTime() < now.getTime());
+  if (episodes.length === 0) return null;
+
+  const nowMs = now.getTime();
+  const next = episodes.find(({ airsAt }) => airsAt.getTime() >= nowMs);
+  const previous = [...episodes]
+    .reverse()
+    .find(({ airsAt }) => airsAt.getTime() < nowMs);
+  const latestAired = [...episodes]
+    .reverse()
+    .find(({ airsAt }) => airsAt.getTime() <= nowMs);
+
+  const activeEpisode = next ?? latestAired ?? previous;
+  if (!activeEpisode) return null;
+
+  const show =
+    payload.metadata[String(simklId)] || payload.metadata[simklId];
+  const posterUrl = getSimklPosterUrl(show?.poster);
 
   return {
-    nextEpisode: next.entry.episode.episode,
-    nextReleaseAt: next.airsAt,
+    nextEpisode: next?.entry.episode.episode ?? null,
+    nextReleaseAt: next?.airsAt ?? null,
     previousEpisode: previous?.entry.episode.episode ?? null,
     previousReleaseAt: previous?.airsAt ?? null,
-    episodeTitle: next.entry.episode.title,
-    finaleType: next.entry.finale_type,
-    episodeUrl: next.entry.episode.url || null,
+    latestAiredEpisode: latestAired?.entry.episode.episode ?? null,
+    latestAiredReleaseAt: latestAired?.airsAt ?? null,
+    episodeTitle: activeEpisode.entry.episode.title,
+    finaleType: activeEpisode.entry.finale_type,
+    episodeUrl: activeEpisode.entry.episode.url || null,
+    posterUrl,
   };
 }
 
@@ -90,6 +158,7 @@ export type SimklMatchedItem<T> = T & {
   episode_title: string | null;
   finale_type: 1 | 2 | 3 | null;
   episode_url: string | null;
+  poster_url?: string | null;
 };
 
 export function matchSimklEntries<T extends object>(
@@ -99,16 +168,24 @@ export function matchSimklEntries<T extends object>(
 ): { items: SimklMatchedItem<T>[]; resolvedIds: Array<number | null> } {
   const resolvedIds = entries.map((rawEntry) => {
     const entry = rawEntry as {
+      title?: string;
       anilist_id?: number | string | null;
       simkl_id?: number | string | null;
     };
     const directId = Number(entry.simkl_id);
     if (Number.isInteger(directId) && directId > 0) return directId;
     const oldAniListId = Number(entry.anilist_id);
-    const matched = Object.entries(payload.metadata).find(
-      ([, show]) => Number(show.ids?.anilist) === oldAniListId,
-    );
-    return matched ? Number(matched[0]) : null;
+    if (Number.isInteger(oldAniListId) && oldAniListId > 0) {
+      const matched = Object.entries(payload.metadata).find(
+        ([, show]) => Number(show.ids?.anilist) === oldAniListId,
+      );
+      if (matched) return Number(matched[0]);
+    }
+    if (entry.title) {
+      const matchedByTitle = findSimklIdByTitle(entry.title, payload);
+      if (matchedByTitle) return matchedByTitle;
+    }
+    return null;
   });
 
   const items = entries
@@ -118,6 +195,11 @@ export function matchSimklEntries<T extends object>(
         ? findSimklEpisodeSchedule(simklId, payload, now)
         : null;
       if (!schedule) return [];
+
+      if (schedule.nextEpisode === null || schedule.nextReleaseAt === null) {
+        return [];
+      }
+
       return [
         {
           ...entry,
@@ -129,6 +211,7 @@ export function matchSimklEntries<T extends object>(
           episode_title: schedule.episodeTitle,
           finale_type: schedule.finaleType,
           episode_url: schedule.episodeUrl,
+          poster_url: schedule.posterUrl,
         } as SimklMatchedItem<T>,
       ];
     })

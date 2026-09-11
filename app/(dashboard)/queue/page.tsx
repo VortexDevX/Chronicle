@@ -57,6 +57,7 @@ function dayLabel(value: number, now: number): string {
   const days = Math.round((start.getTime() - today.getTime()) / 86_400_000);
   if (days === 0) return "Today";
   if (days === 1) return "Tomorrow";
+  if (days === -1) return "Yesterday";
   return new Intl.DateTimeFormat(undefined, {
     weekday: "long",
     month: "short",
@@ -175,15 +176,27 @@ export default function ReleaseRadarPage() {
     if (now === null) return [];
     const todayEnd = new Date(now);
     todayEnd.setHours(23, 59, 59, 999);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    // Keep releases from past 3 days visible so recent releases stay accessible
+    const recentWindowMs = 3 * 86_400_000;
+
     return items.filter((item) => {
       const releaseAt = releaseTime(item)!;
+      const current = Number(item.progress_current || 0);
+      // If the episode already aired and user is caught up to it, hide it
+      if (releaseAt <= now && current >= item.next_episode) {
+        return false;
+      }
       if (
-        releaseAt < now - 60 * 60_000 ||
+        releaseAt < now - recentWindowMs ||
         (query && !item.title.toLowerCase().includes(query.toLowerCase()))
       ) {
         return false;
       }
-      if (range === "today") return releaseAt <= todayEnd.getTime();
+      if (range === "today") {
+        return releaseAt >= todayStart.getTime() && releaseAt <= todayEnd.getTime();
+      }
       return range !== "threeDays" || releaseAt <= now + 3 * 86_400_000;
     });
   }, [items, now, query, range]);
@@ -326,7 +339,18 @@ export default function ReleaseRadarPage() {
                     <article key={item._id} className="release-radar-item">
                       <MediaArtwork media={item} className="release-radar-art" />
                       <div className="release-radar-copy">
-                        <span className="radar-type-tag">{item.media_type}</span>
+                        <div className="radar-tags-row">
+                          <span className="radar-type-tag">{item.media_type}</span>
+                          {item.finale_type === 1 && (
+                            <span className="radar-type-tag radar-finale-tag">Mid-Season Finale</span>
+                          )}
+                          {item.finale_type === 2 && (
+                            <span className="radar-type-tag radar-finale-tag">Season Finale</span>
+                          )}
+                          {item.finale_type === 3 && (
+                            <span className="radar-type-tag radar-finale-tag">Series Finale</span>
+                          )}
+                        </div>
                         <h2>{item.title}</h2>
                         <p>
                           Episode {item.next_episode}

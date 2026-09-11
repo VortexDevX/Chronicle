@@ -156,20 +156,23 @@ export default function HomePage() {
 
   // Next up rail items: upcoming scheduled releases within the next 3 days
   const upcomingReleases = useMemo(() => {
-    const source = payload?.upcoming_releases ?? payload?.continue_items ?? [];
+    const source = payload?.upcoming_releases ?? [];
     if (!now) {
-      return source.slice(0, 6);
+      return [];
     }
     const threeDaysMs = 3 * 86_400_000;
     const maxReleaseTime = now + threeDaysMs;
 
     return source
       .filter((item) => {
-        if (!item.next_episode_release_at) return false;
+        if (!item.next_episode_release_at || item.next_episode == null) return false;
         const releaseTime = new Date(item.next_episode_release_at).getTime();
+        const isCaughtUp =
+          item.next_episode != null && item.progress_current >= item.next_episode;
         return (
           !isNaN(releaseTime) &&
-          releaseTime >= now - 60 * 60_000 &&
+          releaseTime > now &&
+          !isCaughtUp &&
           releaseTime <= maxReleaseTime
         );
       })
@@ -224,15 +227,24 @@ export default function HomePage() {
       : 0;
 
   const isScreenMedia = featured.media_type === "Anime" || featured.media_type === "Donghua";
+  const heroReleaseTime = featured.next_episode_release_at
+    ? new Date(featured.next_episode_release_at).getTime()
+    : null;
+  const heroIsCaughtUp =
+    featured.next_episode != null && featured.progress_current >= featured.next_episode;
   const heroHasSchedule =
     isScreenMedia &&
-    Boolean(featured.next_episode_release_at) &&
-    !isNaN(new Date(featured.next_episode_release_at || "").getTime());
+    featured.next_episode != null &&
+    heroReleaseTime !== null &&
+    !isNaN(heroReleaseTime) &&
+    now !== null &&
+    heroReleaseTime > now &&
+    !heroIsCaughtUp;
   const heroScheduleText = heroHasSchedule
-    ? formatReleaseSchedule(featured.next_episode_release_at!)
+    ? formatReleaseSchedule(featured.next_episode_release_at!, now)
     : null;
   const heroCountdownText = heroHasSchedule
-    ? formatReleaseCountdown(featured.next_episode_release_at!)
+    ? formatReleaseCountdown(featured.next_episode_release_at!, now)
     : null;
 
   return (

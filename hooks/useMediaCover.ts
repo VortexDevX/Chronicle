@@ -10,7 +10,9 @@ import {
 } from "@/store/coverCache";
 
 function coverIdentity(media: MediaItem) {
-  return media.mangadex_id ? `md-${media.mangadex_id}` : media.title;
+  if (media.mangadex_id) return `md-${media.mangadex_id}`;
+  if (media.simkl_id) return `simkl-${media.simkl_id}`;
+  return media.title;
 }
 
 export function useMediaCover(media: MediaItem) {
@@ -38,7 +40,12 @@ export function useMediaCover(media: MediaItem) {
       const cacheKey = coverIdentity(media);
       if (force) {
         setLoading(true);
-        retryCoverFetch(media.title, media._id, media.mangadex_id || undefined);
+        retryCoverFetch(
+          media.title,
+          media._id,
+          media.mangadex_id || undefined,
+          media.simkl_id || undefined,
+        );
       } else {
         const cached = getCachedCover(cacheKey);
         if (cached !== undefined) {
@@ -47,7 +54,12 @@ export function useMediaCover(media: MediaItem) {
           return () => {};
         }
         setLoading(true);
-        queueCoverFetch(media.title, media._id, media.mangadex_id || undefined);
+        queueCoverFetch(
+          media.title,
+          media._id,
+          media.mangadex_id || undefined,
+          media.simkl_id || undefined,
+        );
       }
 
       return subscribeCover(cacheKey, (url) => {

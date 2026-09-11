@@ -26,12 +26,16 @@ export async function getUpcomingReleases(
     const { payload } = await fetchSimklAnimeCalendar();
     const { items } = matchSimklEntries(entries, payload, now);
 
-    // Filter strictly to releases in the next 3 days
+    // Filter strictly to upcoming releases in the next 3 days
     const within3Days = items.filter((item) => {
+      if (!item.next_episode_release_at || item.next_episode == null) return false;
       const releaseTime = Date.parse(item.next_episode_release_at);
+      const isCaughtUp =
+        Number(item.progress_current || 0) >= item.next_episode;
       return (
         !isNaN(releaseTime) &&
-        releaseTime >= now.getTime() - 60 * 60_000 &&
+        releaseTime > now.getTime() &&
+        !isCaughtUp &&
         releaseTime <= maxReleaseTime
       );
     });
@@ -45,7 +49,9 @@ export async function getUpcomingReleases(
       user_id: userId,
       status: { $in: ["Active", "Watching/Reading"] },
       media_type: { $in: ["Anime", "Donghua"] },
-      next_episode_release_at: { $gte: nowIso, $lte: maxIso },
+      next_episode: { $ne: null },
+      next_episode_release_at: { $gt: nowIso, $lte: maxIso },
+      $expr: { $lt: ["$progress_current", "$next_episode"] },
     })
       .sort({ next_episode_release_at: 1 })
       .limit(limit)

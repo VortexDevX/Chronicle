@@ -38,6 +38,12 @@ function dateStamp(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function isFutureRelease(dateStr?: string | null): boolean {
+  if (!dateStr) return false;
+  const target = new Date(dateStr).getTime();
+  return !isNaN(target) && target > Date.now();
+}
+
 export function formatReleaseCountdown(dateStr: string, now: number = Date.now()): string {
   const target = new Date(dateStr).getTime();
   if (isNaN(target)) return "";

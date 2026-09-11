@@ -1,6 +1,6 @@
 import { CoverCacheEntry } from "@/types/media";
 
-const COVER_CACHE_KEY = "chronicle:cover-cache:v5";
+const COVER_CACHE_KEY = "chronicle:cover-cache:v6";
 const COVER_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const COVER_CACHE_NULL_TTL_MS = 1000 * 60 * 30;
 const COVER_CACHE_MAX = 600;
@@ -8,7 +8,12 @@ const COVER_FETCH_BATCH_DELAY_MS = 120;
 const COVER_FETCH_CONCURRENCY = 4;
 
 const coverCache = new Map<string, CoverCacheEntry>();
-let coverQueue: { title: string; id: string; mangadexId?: string }[] = [];
+let coverQueue: {
+  title: string;
+  id: string;
+  mangadexId?: string;
+  simklId?: number;
+}[] = [];
 let coverProcessing = false;
 
 let coverCacheDirty = false;
@@ -122,8 +127,16 @@ async function fetchMangaCover(
   return url ? `/api/image-proxy?url=${encodeURIComponent(url)}` : null;
 }
 
-async function fetchAnimeCover(title: string, signal?: AbortSignal): Promise<string | null> {
-  const res = await fetch(`/api/anime-cover?title=${encodeURIComponent(title)}`, { signal });
+async function fetchAnimeCover(
+  title: string,
+  simklId?: number,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const params = new URLSearchParams({ title });
+  if (simklId && Number.isInteger(simklId) && simklId > 0) {
+    params.set("simkl_id", String(simklId));
+  }
+  const res = await fetch(`/api/anime-cover?${params.toString()}`, { signal });
   if (!res.ok) return null;
   const json = await res.json();
   const url = json?.data?.imageUrl || json?.imageUrl || null;
@@ -167,18 +180,22 @@ export function subscribeCover(
 }
 
 async function processCoverItem(
-  item: { title: string; id: string; mangadexId?: string },
+  item: { title: string; id: string; mangadexId?: string; simklId?: number },
   signal: AbortSignal,
   run: number,
 ): Promise<void> {
-  const { title, id, mangadexId } = item;
-  const cacheKey = mangadexId ? `md-${mangadexId}` : title;
+  const { title, id, mangadexId, simklId } = item;
+  const cacheKey = mangadexId
+    ? `md-${mangadexId}`
+    : simklId
+      ? `simkl-${simklId}`
+      : title;
   if (getCachedCover(cacheKey) !== undefined) return;
 
   try {
     const imageUrl = mangadexId
       ? await fetchMangaCover(title, mangadexId, signal)
-      : await fetchAnimeCover(title, signal);
+      : await fetchAnimeCover(title, simklId, signal);
     if (run !== coverQueueRun || signal.aborted) return;
     setCachedCover(cacheKey, imageUrl);
     if (imageUrl) applyCoverToThumb(id, imageUrl);
@@ -215,16 +232,25 @@ export function queueCoverFetch(
   title: string,
   id: string,
   mangadexId?: string,
+  simklId?: number,
 ): void {
   if (typeof window === "undefined") return;
-  const cacheKey = mangadexId ? `md-${mangadexId}` : title;
+  const cacheKey = mangadexId
+    ? `md-${mangadexId}`
+    : simklId
+      ? `simkl-${simklId}`
+      : title;
   if (getCachedCover(cacheKey) !== undefined) return;
   if (
     !coverQueue.some((q) =>
-      mangadexId ? q.mangadexId === mangadexId : q.title === title,
+      mangadexId
+        ? q.mangadexId === mangadexId
+        : simklId
+          ? q.simklId === simklId
+          : q.title === title,
     )
   ) {
-    coverQueue.push({ title, id, mangadexId });
+    coverQueue.push({ title, id, mangadexId, simklId });
     processCoverQueue();
   }
 }
@@ -233,10 +259,15 @@ export function retryCoverFetch(
   title: string,
   id: string,
   mangadexId?: string,
+  simklId?: number,
 ): void {
   if (typeof window === "undefined") return;
-  const cacheKey = mangadexId ? `md-${mangadexId}` : title;
+  const cacheKey = mangadexId
+    ? `md-${mangadexId}`
+    : simklId
+      ? `simkl-${simklId}`
+      : title;
   coverCache.delete(cacheKey);
   scheduleCoverPersist();
-  queueCoverFetch(title, id, mangadexId);
+  queueCoverFetch(title, id, mangadexId, simklId);
 }

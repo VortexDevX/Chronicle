@@ -25,6 +25,27 @@ export async function GET(req: NextRequest) {
     const { payload, lastModified } = await fetchSimklAnimeCalendar();
     const now = new Date();
     const { items, resolvedIds } = matchSimklEntries(entries, payload, now);
+
+    // Persist newly resolved SIMKL IDs so cron and cover lookups benefit permanently
+    const updatesToPersist: Promise<unknown>[] = [];
+    entries.forEach((entry, index) => {
+      const resolvedId = resolvedIds[index];
+      if (
+        resolvedId &&
+        (!entry.simkl_id || Number(entry.simkl_id) !== resolvedId)
+      ) {
+        updatesToPersist.push(
+          MediaItem.updateOne(
+            { _id: entry._id },
+            { $set: { simkl_id: resolvedId } },
+          ),
+        );
+      }
+    });
+    if (updatesToPersist.length > 0) {
+      void Promise.allSettled(updatesToPersist);
+    }
+
     const needsMatching = entries
       .filter((entry, index) => !resolvedIds[index] && !Number(entry.anilist_id))
       .map((entry) => ({ _id: String(entry._id), title: String(entry.title), media_type: String(entry.media_type) }));

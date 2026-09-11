@@ -4685,7 +4685,9 @@ textarea:focus-visible {
 .release-radar-item:hover { padding-right: 10px; padding-left: 24px; background: var(--bg-elevated); transform: translateX(2px); }
 .release-radar-art { width: 48px; height: 64px; overflow: hidden; border-radius: 7px; }
 .release-radar-copy { min-width: 0; }
-.release-radar-copy > span { color: var(--accent); font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+.release-radar-copy > span, .release-radar-copy .radar-type-tag { color: var(--accent); font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+.release-radar-copy .radar-tags-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.release-radar-copy .radar-finale-tag { padding: 1px 6px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 18%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); font-size: .62rem; }
 .release-radar-copy h2 { overflow: hidden; margin: 3px 0; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
 .release-radar-copy p { margin: 0; }
 .release-radar-when { display: grid; justify-items: end; gap: 4px; }

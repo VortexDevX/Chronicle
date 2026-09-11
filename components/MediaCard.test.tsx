@@ -73,3 +73,80 @@ describe("MediaCard tracker actions", () => {
     expect(markup).toContain('title="No tracker link"');
   });
 });
+
+describe("MediaCard release schedule and countdown visibility", () => {
+  const futureIso = new Date(Date.now() + 86_400_000 * 2).toISOString();
+  const pastIso = new Date(Date.now() - 86_400_000).toISOString();
+
+  it("shows countdown badge and Next schedule when release is future and user is behind", () => {
+    const markup = renderToStaticMarkup(
+      <MediaCard
+        m={{
+          ...baseMedia,
+          media_type: "Anime",
+          progress_current: 10,
+          next_episode: 11,
+          next_episode_release_at: futureIso,
+        }}
+      />,
+    );
+
+    expect(markup).toContain('class="schedule-badge"');
+    expect(markup).toContain('class="media-card-schedule"');
+    expect(markup).toContain("Next:");
+  });
+
+  it("hides countdown badge and schedule when user is caught up to next episode", () => {
+    const markup = renderToStaticMarkup(
+      <MediaCard
+        m={{
+          ...baseMedia,
+          media_type: "Anime",
+          progress_current: 286,
+          next_episode: 286,
+          next_episode_release_at: futureIso,
+        }}
+      />,
+    );
+
+    expect(markup).not.toContain('class="schedule-badge"');
+    expect(markup).not.toContain('class="media-card-schedule"');
+    expect(markup).not.toContain("Next:");
+    expect(markup).not.toContain("Available now");
+  });
+
+  it("hides countdown badge and schedule when release is in the past", () => {
+    const markup = renderToStaticMarkup(
+      <MediaCard
+        m={{
+          ...baseMedia,
+          media_type: "Anime",
+          progress_current: 285,
+          next_episode: 286,
+          next_episode_release_at: pastIso,
+        }}
+      />,
+    );
+
+    expect(markup).not.toContain('class="schedule-badge"');
+    expect(markup).not.toContain('class="media-card-schedule"');
+    expect(markup).not.toContain("Available now");
+  });
+
+  it("hides countdown badge and schedule when next_episode is null", () => {
+    const markup = renderToStaticMarkup(
+      <MediaCard
+        m={{
+          ...baseMedia,
+          media_type: "Anime",
+          progress_current: 286,
+          next_episode: null,
+          next_episode_release_at: futureIso,
+        }}
+      />,
+    );
+
+    expect(markup).not.toContain('class="schedule-badge"');
+    expect(markup).not.toContain('class="media-card-schedule"');
+  });
+});

@@ -18,6 +18,7 @@ import {
   daysSince,
   formatReleaseCountdown,
   formatReleaseSchedule,
+  isFutureRelease,
   progressLabel,
   relativeTime,
 } from "@/utils/format";
@@ -69,11 +70,17 @@ export function MediaCard({
   const unread = Math.max(0, latestRemote - m.progress_current);
   const hasMultipleUnread = unread > 1;
 
-  // Release schedule for anime/donghua
+  // Release schedule for anime/donghua (future releases only)
+  const nextReleaseTime = m.next_episode_release_at
+    ? new Date(m.next_episode_release_at).getTime()
+    : null;
+  const isCaughtUp =
+    m.next_episode != null && m.progress_current >= m.next_episode;
   const hasReleaseSchedule =
     isScreenMedia &&
-    Boolean(m.next_episode_release_at) &&
-    !isNaN(new Date(m.next_episode_release_at || "").getTime());
+    m.next_episode != null &&
+    isFutureRelease(m.next_episode_release_at) &&
+    !isCaughtUp;
   const countdownText = hasReleaseSchedule
     ? formatReleaseCountdown(m.next_episode_release_at!)
     : null;

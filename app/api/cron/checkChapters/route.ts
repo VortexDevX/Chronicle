@@ -25,6 +25,7 @@ import {
 import {
   fetchSimklAnimeCalendar,
   findSimklEpisodeSchedule,
+  findSimklIdByTitle,
   SimklCalendarPayload,
 } from "@/lib/sources/simklCalendar";
 
@@ -291,10 +292,15 @@ export async function GET(req: NextRequest) {
         let simklId = Number(entry.simkl_id);
         if ((!Number.isInteger(simklId) || simklId <= 0) && simklCalendar) {
           const anilistId = Number(entry.anilist_id);
-          const matched = Object.entries(simklCalendar.metadata).find(
-            ([, show]) => Number(show.ids?.anilist) === anilistId,
-          );
-          simklId = matched ? Number(matched[0]) : 0;
+          if (Number.isInteger(anilistId) && anilistId > 0) {
+            const matched = Object.entries(simklCalendar.metadata).find(
+              ([, show]) => Number(show.ids?.anilist) === anilistId,
+            );
+            simklId = matched ? Number(matched[0]) : 0;
+          }
+          if ((!simklId || simklId <= 0) && entry.title) {
+            simklId = findSimklIdByTitle(String(entry.title), simklCalendar) || 0;
+          }
           if (simklId > 0) {
             await MediaItem.updateOne(
               { _id: entry._id },
@@ -340,7 +346,7 @@ export async function GET(req: NextRequest) {
             ? findSimklEpisodeSchedule(simklId, simklCalendar)
             : null;
           const latest = schedule
-            ? schedule.previousEpisode
+            ? (schedule.latestAiredEpisode ?? schedule.previousEpisode)
             : mediaType === "Manhwa"
               ? await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
                   signal: scanDeadline.signal,
