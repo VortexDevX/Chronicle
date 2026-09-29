@@ -32,6 +32,11 @@ const mediaSchema = new mongoose.Schema(
       default: null,
     },
     tracker_url: { type: String, default: null },
+    tracking_source: {
+      type: String,
+      enum: ["simkl", "scraper"],
+      default: "simkl",
+    },
     anilist_id: { type: Number, default: null },
     simkl_id: { type: Number, default: null },
     schedule_source_url: { type: String, default: null },
@@ -88,6 +93,15 @@ mediaSchema.pre("findOneAndUpdate", function (next) {
 const existingMediaItem = mongoose.models.MediaItem;
 if (existingMediaItem && !existingMediaItem.schema.path("simkl_id")) {
   existingMediaItem.schema.add({ simkl_id: { type: Number, default: null } });
+}
+if (existingMediaItem && !existingMediaItem.schema.path("tracking_source")) {
+  existingMediaItem.schema.add({
+    tracking_source: {
+      type: String,
+      enum: ["simkl", "scraper"],
+      default: "simkl",
+    },
+  });
 }
 
 export const MediaItem =

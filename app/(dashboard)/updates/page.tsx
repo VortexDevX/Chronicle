@@ -247,6 +247,7 @@ export default function UpdatesPage() {
             items.map((item: UpdateFeedItem) => {
               const telegram = TELEGRAM_COPY[item.telegram_state];
               const TelegramIcon = telegram.icon;
+              const isDonghuaScraper = item.media_type === "Donghua" && item.tracking_source === "scraper";
               const isScreenMedia = item.media_type === "Anime" || item.media_type === "Donghua";
               const trackerUrl = item.tracker_url ? normalizePublicHttpUrl(item.tracker_url) : null;
               const latestRemote = item.latest_remote_progress ?? item.progress_current;
@@ -322,9 +323,9 @@ export default function UpdatesPage() {
                           href={trackerUrl}
                           target="_blank"
                           rel="noreferrer"
-                          title={isScreenMedia ? "Open watch link" : "Open tracker"}
+                          title={isScreenMedia && !isDonghuaScraper ? "Open watch link" : "Open tracker"}
                         >
-                          <ExternalLink size={14} /> {isScreenMedia ? "Watch" : "Tracker"}
+                          <ExternalLink size={14} /> {isScreenMedia && !isDonghuaScraper ? "Watch" : "Tracker"}
                         </a>
                       )}
                     </div>

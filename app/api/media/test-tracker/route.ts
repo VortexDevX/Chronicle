@@ -13,7 +13,7 @@ import {
 import mongoose from "mongoose";
 
 function isSupportedMediaType(value: string): value is MediaTypeSupported {
-  return value === "Manhwa";
+  return value === "Manhwa" || value === "Donghua";
 }
 
 export async function POST(req: NextRequest) {
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     return jsonError("INVALID_TRACKER_URL", "Enter a valid public tracker URL", 400);
   }
 
-  if (!isSupportedMediaType(mediaType)) return jsonError("UNSUPPORTED_MEDIA_TYPE", "Tracker test supports Manhwa", 400);
+  if (!isSupportedMediaType(mediaType)) return jsonError("UNSUPPORTED_MEDIA_TYPE", "Tracker test supports Manhwa and Donghua", 400);
 
   try {
     if (!trackerUrl || !isSupportedMediaType(mediaType)) {

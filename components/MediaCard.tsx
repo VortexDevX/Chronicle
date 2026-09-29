@@ -62,6 +62,7 @@ export function MediaCard({
       ? Math.max(0, Math.min(100, (m.progress_current / m.progress_total) * 100))
       : 0;
   const total = m.progress_total > 0 ? formatProgress(m.progress_total) : "—";
+  const isDonghuaScraper = m.media_type === "Donghua" && m.tracking_source === "scraper";
   const isScreenMedia = m.media_type === "Anime" || m.media_type === "Donghua";
   const unit = isScreenMedia ? "episodes" : "chapters";
   const shortUnit = isScreenMedia ? "Ep" : "Ch";
@@ -78,6 +79,7 @@ export function MediaCard({
     m.next_episode != null && m.progress_current >= m.next_episode;
   const hasReleaseSchedule =
     isScreenMedia &&
+    !isDonghuaScraper &&
     m.next_episode != null &&
     isFutureRelease(m.next_episode_release_at) &&
     !isCaughtUp;
@@ -187,7 +189,7 @@ export function MediaCard({
               target="_blank"
               rel="noreferrer"
               aria-label={`Open tracker for ${m.title}`}
-              title={isScreenMedia ? "Open watch link" : "Open tracker"}
+              title={isScreenMedia && !isDonghuaScraper ? "Open watch link" : "Open tracker"}
             >
               <ExternalLink size={16} />
             </a>
@@ -269,7 +271,7 @@ export function MediaCard({
                 target="_blank"
                 rel="noreferrer"
                 aria-label={`Open tracker for ${m.title}`}
-                title={isScreenMedia ? "Open watch link" : "Open tracker"}
+                title={isScreenMedia && !isDonghuaScraper ? "Open watch link" : "Open tracker"}
               >
                 <ExternalLink size={15} />
               </a>

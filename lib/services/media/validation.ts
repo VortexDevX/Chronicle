@@ -15,6 +15,7 @@ export type MediaPayload = {
   notes?: string;
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   tracker_url?: string | null;
+  tracking_source?: "simkl" | "scraper" | "" | null;
   mangadex_id?: string | null;
   custom_cover_url?: string | null;
   drop_reason?: string | null;
@@ -151,6 +152,22 @@ export function validateMediaPayload(
         };
       }
       normalized.tracker_url = url;
+    }
+  }
+
+  if (payload.tracking_source !== undefined) {
+    if (payload.tracking_source === null || payload.tracking_source === "") {
+      normalized.tracking_source = null;
+    } else if (
+      payload.tracking_source === "simkl" ||
+      payload.tracking_source === "scraper"
+    ) {
+      normalized.tracking_source = payload.tracking_source;
+    } else {
+      return {
+        ok: false,
+        message: "tracking_source must be 'simkl' or 'scraper'",
+      };
     }
   }
 

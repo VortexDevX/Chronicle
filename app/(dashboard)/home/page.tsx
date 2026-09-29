@@ -226,6 +226,7 @@ export default function HomePage() {
       ? Math.min(100, (featured.progress_current / featured.progress_total) * 100)
       : 0;
 
+  const isDonghuaScraper = featured.media_type === "Donghua" && featured.tracking_source === "scraper";
   const isScreenMedia = featured.media_type === "Anime" || featured.media_type === "Donghua";
   const heroReleaseTime = featured.next_episode_release_at
     ? new Date(featured.next_episode_release_at).getTime()
@@ -234,6 +235,7 @@ export default function HomePage() {
     featured.next_episode != null && featured.progress_current >= featured.next_episode;
   const heroHasSchedule =
     isScreenMedia &&
+    !isDonghuaScraper &&
     featured.next_episode != null &&
     heroReleaseTime !== null &&
     !isNaN(heroReleaseTime) &&

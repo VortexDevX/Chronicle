@@ -14,7 +14,10 @@ export async function getUpcomingReleases(
     const entries = await MediaItem.find({
       user_id: userId,
       status: { $in: ["Active", "Watching/Reading"] },
-      media_type: { $in: ["Anime", "Donghua"] },
+      $or: [
+        { media_type: "Anime" },
+        { media_type: "Donghua", tracking_source: { $ne: "scraper" } },
+      ],
     })
       .select("title media_type status progress_current progress_total tracker_url custom_cover_url anilist_id simkl_id")
       .sort({ last_updated: -1 })
@@ -48,7 +51,10 @@ export async function getUpcomingReleases(
     const fallback = await MediaItem.find({
       user_id: userId,
       status: { $in: ["Active", "Watching/Reading"] },
-      media_type: { $in: ["Anime", "Donghua"] },
+      $or: [
+        { media_type: "Anime" },
+        { media_type: "Donghua", tracking_source: { $ne: "scraper" } },
+      ],
       next_episode: { $ne: null },
       next_episode_release_at: { $gt: nowIso, $lte: maxIso },
       $expr: { $lt: ["$progress_current", "$next_episode"] },

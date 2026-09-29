@@ -164,11 +164,13 @@ export async function GET(req: NextRequest) {
       status: "Active",
       $or: [
         { media_type: "Manhwa", tracker_url: { $exists: true, $nin: [null, ""] } },
-        { media_type: { $in: ["Anime", "Donghua"] } },
+        { media_type: "Donghua", tracking_source: "scraper", tracker_url: { $exists: true, $nin: [null, ""] } },
+        { media_type: "Donghua", tracking_source: { $ne: "scraper" } },
+        { media_type: "Anime" },
       ],
     })
       .select(
-        "title progress_current tracker_url simkl_id anilist_id user_id media_type last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
+        "title progress_current tracker_url simkl_id anilist_id user_id media_type tracking_source last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
       )
       .sort({ last_attempted_at: 1, last_checked_at: 1, _id: 1 })
       .limit(MAX_ENTRIES_PER_RUN)
@@ -176,7 +178,14 @@ export async function GET(req: NextRequest) {
       .lean();
 
     let simklCalendar: SimklCalendarPayload | null = null;
-    if (entries.some((entry) => entry.media_type === "Anime" || entry.media_type === "Donghua")) {
+    if (
+      entries.some(
+        (entry) =>
+          entry.media_type === "Anime" ||
+          (entry.media_type === "Donghua" &&
+            (entry as { tracking_source?: string | null }).tracking_source !== "scraper"),
+      )
+    ) {
       try {
         simklCalendar = (await fetchSimklAnimeCalendar()).payload;
       } catch (err) {
@@ -288,9 +297,12 @@ export async function GET(req: NextRequest) {
         const userStats = scanStatsByUser.get(uid);
         if (userStats) userStats.started += 1;
         const mediaType = entry.media_type as CronMediaType;
+        const trackingSource = (entry as { tracking_source?: string | null }).tracking_source || "simkl";
+        const isDonghuaScraper = mediaType === "Donghua" && trackingSource === "scraper";
+        const shouldUseScraper = mediaType === "Manhwa" || isDonghuaScraper;
         const trackerUrl = String(entry.tracker_url || "");
         let simklId = Number(entry.simkl_id);
-        if ((!Number.isInteger(simklId) || simklId <= 0) && simklCalendar) {
+        if (!shouldUseScraper && (!Number.isInteger(simklId) || simklId <= 0) && simklCalendar) {
           const anilistId = Number(entry.anilist_id);
           if (Number.isInteger(anilistId) && anilistId > 0) {
             const matched = Object.entries(simklCalendar.metadata).find(
@@ -332,7 +344,7 @@ export async function GET(req: NextRequest) {
             media_type: mediaType,
           });
         }
-        const host = mediaType === "Manhwa" ? getHostFromUrl(trackerUrl) : null;
+        const host = shouldUseScraper ? getHostFromUrl(trackerUrl) : null;
         const cooldownUntil = host ? hostCooldownUntil.get(host) || 0 : 0;
 
         try {
@@ -342,12 +354,12 @@ export async function GET(req: NextRequest) {
             );
           }
 
-          const schedule = (mediaType === "Anime" || mediaType === "Donghua") && simklCalendar && Number.isInteger(simklId) && simklId > 0
+          const schedule = !shouldUseScraper && (mediaType === "Anime" || mediaType === "Donghua") && simklCalendar && Number.isInteger(simklId) && simklId > 0
             ? findSimklEpisodeSchedule(simklId, simklCalendar)
             : null;
           const latest = schedule
             ? (schedule.latestAiredEpisode ?? schedule.previousEpisode)
-            : mediaType === "Manhwa"
+            : shouldUseScraper && trackerUrl
               ? await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
                   signal: scanDeadline.signal,
                   retryAttempts: getCronScrapeRetries(),
@@ -370,6 +382,11 @@ export async function GET(req: NextRequest) {
                   next_episode_release_at: schedule.nextReleaseAt,
                   previous_episode: schedule.previousEpisode,
                   previous_episode_release_at: schedule.previousReleaseAt,
+                } : isDonghuaScraper ? {
+                  next_episode: null,
+                  next_episode_release_at: null,
+                  previous_episode: null,
+                  previous_episode_release_at: null,
                 } : {}),
               },
               $max: {

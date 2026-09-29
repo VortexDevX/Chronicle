@@ -12,6 +12,7 @@ export interface MediaItem {
   last_updated: string;
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   tracker_url?: string | null;
+  tracking_source?: "simkl" | "scraper" | null;
   anilist_id?: number | null;
   simkl_id?: number | null;
   next_episode?: number | null;

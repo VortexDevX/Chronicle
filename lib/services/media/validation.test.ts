@@ -79,4 +79,27 @@ describe("media validation", () => {
       message: "Paste a valid MangaDex title URL or MangaDex ID",
     });
   });
+
+  it("accepts valid tracking_source values and rejects invalid ones", () => {
+    expect(
+      validateMediaPayload({ tracking_source: "simkl" }, true),
+    ).toEqual({
+      ok: true,
+      normalized: { tracking_source: "simkl" },
+    });
+
+    expect(
+      validateMediaPayload({ tracking_source: "scraper" }, true),
+    ).toEqual({
+      ok: true,
+      normalized: { tracking_source: "scraper" },
+    });
+
+    expect(
+      validateMediaPayload({ tracking_source: "invalid_source" as any }, true),
+    ).toEqual({
+      ok: false,
+      message: "tracking_source must be 'simkl' or 'scraper'",
+    });
+  });
 });

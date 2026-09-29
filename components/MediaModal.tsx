@@ -70,6 +70,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     progress_total: 0,
     rating: 0,
     notes: "",
+    tracking_source: "simkl",
     tracker_url: "",
     mangadex_id: "",
     custom_cover_url: "",
@@ -83,7 +84,9 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
   const [testingTracker, setTestingTracker] = useState(false);
   const [error, setError] = useState("");
   const [trackerResult, setTrackerResult] = useState("");
-  const isScreenMedia = formData.media_type === "Anime" || formData.media_type === "Donghua";
+  const isDonghua = formData.media_type === "Donghua";
+  const isDonghuaScraper = isDonghua && formData.tracking_source === "scraper";
+  const isScreenMedia = formData.media_type === "Anime" || (isDonghua && !isDonghuaScraper);
 
   const [linkSearch, setLinkSearch] = useState("");
   const [searchResults, setSearchResults] = useState<LinkSearchResult[]>([]);
@@ -94,6 +97,9 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       const initialData = { ...media };
       if (initialData.status === "Watching/Reading") {
         initialData.status = "Active";
+      }
+      if (!initialData.tracking_source && initialData.media_type === "Donghua") {
+        initialData.tracking_source = "simkl";
       }
       setFormData(initialData);
       setTrackerResult("");
@@ -109,6 +115,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         progress_total: 0,
         rating: 0,
         notes: "",
+        tracking_source: "simkl",
         tracker_url: "",
         mangadex_id: "",
         custom_cover_url: "",
@@ -186,6 +193,12 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       setFormData((prev) => ({
         ...prev,
         [name]: value === "" ? "" : Number(value),
+      }));
+    } else if (name === "media_type") {
+      setFormData((prev) => ({
+        ...prev,
+        media_type: value,
+        tracking_source: value === "Donghua" ? (prev.tracking_source || "simkl") : prev.tracking_source,
       }));
     } else {
       setFormData((prev) => ({
@@ -497,6 +510,47 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
               <span>Connections & Releases</span>
             </div>
             <div className="form-grid full">
+              {isDonghua && (
+                <div className="form-group full">
+                  <label>Release Tracking Source</label>
+                  <div
+                    className="tracking-source-toggle"
+                    role="group"
+                    aria-label="Release Tracking Source"
+                  >
+                    <button
+                      type="button"
+                      className={`tracking-source-btn ${formData.tracking_source !== "scraper" ? "is-active" : ""}`}
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, tracking_source: "simkl" }));
+                        setTrackerResult("");
+                      }}
+                    >
+                      <Sparkles size={14} />
+                      <span>SIMKL Calendar</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`tracking-source-btn ${formData.tracking_source === "scraper" ? "is-active" : ""}`}
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, tracking_source: "scraper" }));
+                        setTrackerResult("");
+                      }}
+                    >
+                      <LinkIcon size={14} />
+                      <span>Scraper (Animexin)</span>
+                    </button>
+                  </div>
+                  <div className="form-hint-row">
+                    {formData.tracking_source === "scraper" ? (
+                      <small>Scrapes animexin.dev directly for newly uploaded episode releases.</small>
+                    ) : (
+                      <small>Syncs episode air dates and countdowns via the SIMKL anime calendar.</small>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {isScreenMedia ? (
                 <div className="form-group">
                   <label htmlFor="media-tracker-url">Watch URL (Optional)</label>
@@ -511,7 +565,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                   <div className="form-hint-row">
                     <Sparkles size={13} />
                     <small>
-                      Anime and Donghua episode schedules sync automatically via SIMKL.
+                      {formData.media_type === "Anime" ? "Anime" : "Donghua"} episode schedules sync automatically via SIMKL.
                     </small>
                   </div>
                 </div>
@@ -525,9 +579,13 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                       name="tracker_url"
                       value={formData.tracker_url || ""}
                       onChange={handleChange}
-                      placeholder="https://asuracomic.net/series/... or supported scraper URL"
+                      placeholder={
+                        isDonghuaScraper
+                          ? "https://animexin.dev/... series or episode URL"
+                          : "https://asuracomic.net/series/... or supported scraper URL"
+                      }
                     />
-                    {formData.media_type === "Manhwa" && (
+                    {(formData.media_type === "Manhwa" || isDonghuaScraper) && (
                       <div className="tracker-test-row">
                         <button
                           type="button"
@@ -543,21 +601,23 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                     )}
                   </div>
 
-                  <div className="form-group">
-                    <label htmlFor="media-mangadex">MangaDex URL or ID (Optional)</label>
-                    <input
-                      id="media-mangadex"
-                      className="form-input"
-                      name="mangadex_id"
-                      value={formData.mangadex_id || ""}
-                      onChange={handleChange}
-                      onBlur={normalizeMangaDexField}
-                      placeholder="Paste title URL or UUID"
-                      inputMode="url"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                    />
-                  </div>
+                  {formData.media_type !== "Donghua" && (
+                    <div className="form-group">
+                      <label htmlFor="media-mangadex">MangaDex URL or ID (Optional)</label>
+                      <input
+                        id="media-mangadex"
+                        className="form-input"
+                        name="mangadex_id"
+                        value={formData.mangadex_id || ""}
+                        onChange={handleChange}
+                        onBlur={normalizeMangaDexField}
+                        placeholder="Paste title URL or UUID"
+                        inputMode="url"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </div>

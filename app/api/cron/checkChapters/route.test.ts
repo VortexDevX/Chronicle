@@ -73,6 +73,7 @@ type Entry = {
   progress_current: number;
   tracker_url: string;
   simkl_id?: number | null;
+  tracking_source?: "simkl" | "scraper" | null;
   latest_remote_progress?: number | null;
   last_notified_progress?: number | null;
   last_push_notified_progress?: number | null;
@@ -280,6 +281,37 @@ describe("cron chapter notification state", () => {
     expect(message).toContain("One Piece");
     expect(message).toContain("Episode 1175 (+1)");
     expect(message).not.toContain("🎬 <b>Donghua</b>");
+  });
+
+  it("scrapes tracker URL for Donghua when tracking_source is scraper", async () => {
+    mockFindResults(
+      [
+        makeEntry({
+          media_type: "Donghua",
+          title: "Battle Through the Heavens",
+          tracker_url: "https://animexin.dev/btth",
+          tracking_source: "scraper",
+          progress_current: 136,
+          latest_remote_progress: 136,
+        }),
+      ],
+      [makeUser()],
+    );
+    mocks.scrapeTrackerUrl.mockResolvedValue(137);
+
+    await GET(authorizedRequest());
+
+    expect(mocks.scrapeTrackerUrl).toHaveBeenCalledWith(
+      "https://animexin.dev/btth",
+      "Donghua",
+      expect.objectContaining({ retryAttempts: expect.any(Number) }),
+    );
+
+    const message = mocks.sendTelegramToChat.mock.calls[0][1];
+    expect(message).toContain("🎬 <b>Donghua</b> <i>(1)</i>");
+    expect(message).toContain("Battle Through the Heavens");
+    expect(message).toContain("Episode 136 (+1)");
+    expect(message).toContain("https://animexin.dev/btth");
   });
 
   it("shows fractional unread chapter progress", async () => {
