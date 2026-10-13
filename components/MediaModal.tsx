@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MediaItem, Shelf } from "@/types/media";
+import type { UnifiedSearchResult } from "@/app/api/search/unified/route";
 import {
   X,
   Link as LinkIcon,
@@ -9,11 +10,13 @@ import {
   Book,
   Video,
   BookOpen,
-  Sparkles,
   Info,
   Sliders,
   Layers,
   Globe,
+  ChevronDown,
+  Bookmark,
+  Sparkles,
 } from "lucide-react";
 import { useFeedback } from "@/components/FeedbackProvider";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
@@ -32,14 +35,28 @@ type LinkSearchResult = {
 };
 
 type MediaFormData = Partial<
-  Omit<MediaItem, "progress_current" | "progress_total" | "rating">
+  Omit<
+    MediaItem,
+    "progress_current" | "progress_total" | "rating" | "season_number" | "episode_offset"
+  >
 > & {
   progress_current?: number | "";
   progress_total?: number | "";
   rating?: number | "";
+  season_number?: number | "";
+  episode_offset?: number | "";
+  english_alias?: string;
+  pinyin_alias?: string;
+  hanzi_alias?: string;
 };
 
-const NUMBER_FIELDS = new Set(["progress_current", "progress_total", "rating"]);
+const NUMBER_FIELDS = new Set([
+  "progress_current",
+  "progress_total",
+  "rating",
+  "season_number",
+  "episode_offset",
+]);
 
 function getShelfMediaIds(shelf: Shelf): string[] {
   return Array.isArray(shelf.media_ids) ? shelf.media_ids.map(String) : [];
@@ -50,6 +67,11 @@ function numberInputValue(value: unknown): string {
 }
 
 function normalizeNumericFormFields(data: MediaFormData): Partial<MediaItem> {
+  const aliases: { english?: string | null; pinyin?: string | null; hanzi?: string | null } = {};
+  if (data.english_alias?.trim()) aliases.english = data.english_alias.trim();
+  if (data.pinyin_alias?.trim()) aliases.pinyin = data.pinyin_alias.trim();
+  if (data.hanzi_alias?.trim()) aliases.hanzi = data.hanzi_alias.trim();
+
   return {
     ...data,
     progress_current:
@@ -57,6 +79,17 @@ function normalizeNumericFormFields(data: MediaFormData): Partial<MediaItem> {
     progress_total:
       data.progress_total === "" ? 0 : Number(data.progress_total || 0),
     rating: data.rating === "" ? 0 : Number(data.rating || 0),
+    season_number:
+      data.season_number === "" || data.season_number === undefined
+        ? 1
+        : Math.max(1, Number(data.season_number)),
+    episode_offset:
+      data.episode_offset === "" ||
+      data.episode_offset === undefined ||
+      data.episode_offset === null
+        ? null
+        : Math.max(0, Number(data.episode_offset)),
+    ...(Object.keys(aliases).length > 0 ? { title_aliases: aliases } : {}),
   };
 }
 
@@ -70,23 +103,36 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     progress_total: 0,
     rating: 0,
     notes: "",
-    tracking_source: "simkl",
+    tracking_source: "anilist",
     tracker_url: "",
+    watch_url: "",
     mangadex_id: "",
     custom_cover_url: "",
     drop_reason: "",
     retry_flag: false,
+    numbering_mode: "unspecified",
+    season_number: 1,
+    episode_offset: "",
+    numbering_status: null,
+    english_alias: "",
+    pinyin_alias: "",
+    hanzi_alias: "",
   });
+
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [selectedShelfIds, setSelectedShelfIds] = useState<Set<string>>(new Set());
   const [originalShelfIds, setOriginalShelfIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [testingTracker, setTestingTracker] = useState(false);
   const [error, setError] = useState("");
-  const [trackerResult, setTrackerResult] = useState("");
-  const isDonghua = formData.media_type === "Donghua";
-  const isDonghuaScraper = isDonghua && formData.tracking_source === "scraper";
-  const isScreenMedia = formData.media_type === "Anime" || (isDonghua && !isDonghuaScraper);
+
+  // Suggestions Autocomplete state for media title
+  const [titleSuggestions, setTitleSuggestions] = useState<UnifiedSearchResult[]>([]);
+  const [isSearchingTitle, setIsSearchingTitle] = useState(false);
+  const [showTitleDropdown, setShowTitleDropdown] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const titleSearchTimer = useRef<NodeJS.Timeout | null>(null);
+  const titleWrapperRef = useRef<HTMLDivElement | null>(null);
 
   const [linkSearch, setLinkSearch] = useState("");
   const [searchResults, setSearchResults] = useState<LinkSearchResult[]>([]);
@@ -94,17 +140,27 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
 
   useEffect(() => {
     if (media) {
-      const initialData = { ...media };
+      const initialData: MediaFormData = {
+        ...media,
+        tracking_source: media.tracking_source || "anilist",
+        watch_url: media.watch_url || media.tracker_url || "",
+        english_alias: media.title_aliases?.english || "",
+        pinyin_alias: media.title_aliases?.pinyin || "",
+        hanzi_alias: media.title_aliases?.hanzi || "",
+        season_number: media.season_number ?? 1,
+        episode_offset: media.episode_offset ?? "",
+        numbering_mode: media.numbering_mode || "unspecified",
+      };
       if (initialData.status === "Watching/Reading") {
         initialData.status = "Active";
       }
-      if (!initialData.tracking_source && initialData.media_type === "Donghua") {
-        initialData.tracking_source = "simkl";
-      }
       setFormData(initialData);
-      setTrackerResult("");
+
       if (media.linked_entries_data) {
         setLinkedEntries(media.linked_entries_data);
+      }
+      if (media.episode_offset !== null && media.episode_offset !== undefined) {
+        setShowAdvanced(true);
       }
     } else {
       setFormData({
@@ -115,15 +171,22 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         progress_total: 0,
         rating: 0,
         notes: "",
-        tracking_source: "simkl",
+        tracking_source: "anilist",
         tracker_url: "",
+        watch_url: "",
         mangadex_id: "",
         custom_cover_url: "",
         drop_reason: "",
         retry_flag: false,
+        numbering_mode: "unspecified",
+        season_number: 1,
+        episode_offset: "",
+        numbering_status: null,
+        english_alias: "",
+        pinyin_alias: "",
+        hanzi_alias: "",
       });
       setLinkedEntries([]);
-      setTrackerResult("");
     }
 
     setSelectedShelfIds(new Set());
@@ -134,27 +197,40 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       .then((json) => {
         const items = Array.isArray(json.data?.items) ? (json.data.items as Shelf[]) : [];
         setShelves(items);
-        if (items.length > 0) {
-          if (media) {
-            const activeIds = new Set<string>();
-            items.forEach((s) => {
-              if (getShelfMediaIds(s).includes(media._id)) activeIds.add(s._id);
-            });
-            setSelectedShelfIds(activeIds);
-            setOriginalShelfIds(new Set(activeIds));
-          }
+        if (items.length > 0 && media && media._id) {
+          const activeIds = new Set<string>();
+          items.forEach((s) => {
+            if (getShelfMediaIds(s).includes(media._id)) activeIds.add(s._id);
+          });
+          setSelectedShelfIds(activeIds);
+          setOriginalShelfIds(new Set(activeIds));
         }
       })
       .catch(() => {
         setShelves([]);
-        toast("Shelves are temporarily unavailable", "info");
       });
-  }, [media, toast]);
+  }, [media]);
+
+  // Click outside to dismiss title suggestions dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        titleWrapperRef.current &&
+        !titleWrapperRef.current.contains(e.target as Node)
+      ) {
+        setShowTitleDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (linkSearch.length > 2) {
       const t = setTimeout(() => {
-        fetch(`/api/media?search=${encodeURIComponent(linkSearch)}&limit=10`, { cache: "no-store" })
+        fetch(`/api/media?search=${encodeURIComponent(linkSearch)}&limit=10`, {
+          cache: "no-store",
+        })
           .then((res) => res.json())
           .then((json) => {
             if (json.data?.items) {
@@ -183,6 +259,87 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     });
   };
 
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setFormData((prev) => ({ ...prev, title: val }));
+    setSelectedSuggestionIndex(-1);
+
+    if (val.trim().length >= 2) {
+      if (titleSearchTimer.current) clearTimeout(titleSearchTimer.current);
+      setIsSearchingTitle(true);
+      titleSearchTimer.current = setTimeout(async () => {
+        try {
+          const res = await fetch(
+            `/api/search/unified?q=${encodeURIComponent(val.trim())}&type=all`,
+            { cache: "no-store" },
+          );
+          const json = await res.json();
+          if (json.data?.items && Array.isArray(json.data.items)) {
+            setTitleSuggestions(json.data.items);
+            setShowTitleDropdown(json.data.items.length > 0);
+          } else {
+            setTitleSuggestions([]);
+            setShowTitleDropdown(false);
+          }
+        } catch {
+          setTitleSuggestions([]);
+          setShowTitleDropdown(false);
+        } finally {
+          setIsSearchingTitle(false);
+        }
+      }, 220);
+    } else {
+      setTitleSuggestions([]);
+      setShowTitleDropdown(false);
+      setIsSearchingTitle(false);
+    }
+  };
+
+  const applySuggestion = (s: UnifiedSearchResult) => {
+    setFormData((prev) => ({
+      ...prev,
+      title: s.title,
+      media_type: s.mediaType,
+      custom_cover_url: s.posterUrl || prev.custom_cover_url,
+      anilist_id: s.anilistId || prev.anilist_id,
+      mangadex_id: s.mangadexId || prev.mangadex_id,
+      progress_total: s.totalEpisodes ?? prev.progress_total,
+      numbering_mode:
+        s.mediaType === "Anime" || s.mediaType === "Donghua"
+          ? "seasonal"
+          : "continuous",
+      english_alias: s.title,
+      pinyin_alias:
+        s.mediaType === "Donghua" && s.subtitle ? s.subtitle : prev.pinyin_alias,
+      notes: s.subtitle ? `Alternate: ${s.subtitle}` : prev.notes,
+    }));
+    setShowTitleDropdown(false);
+    setTitleSuggestions([]);
+    toast(`Auto-filled details for "${s.title}"`, "success");
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showTitleDropdown || titleSuggestions.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedSuggestionIndex((prev) =>
+        prev < titleSuggestions.length - 1 ? prev + 1 : 0,
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedSuggestionIndex((prev) =>
+        prev > 0 ? prev - 1 : titleSuggestions.length - 1,
+      );
+    } else if (e.key === "Enter" && selectedSuggestionIndex >= 0) {
+      e.preventDefault();
+      const selected = titleSuggestions[selectedSuggestionIndex];
+      if (selected) applySuggestion(selected);
+    } else if (e.key === "Escape") {
+      setShowTitleDropdown(false);
+    }
+  };
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) => {
@@ -198,7 +355,8 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       setFormData((prev) => ({
         ...prev,
         media_type: value,
-        tracking_source: value === "Donghua" ? (prev.tracking_source || "simkl") : prev.tracking_source,
+        numbering_mode:
+          value === "Anime" || value === "Donghua" ? "seasonal" : "continuous",
       }));
     } else {
       setFormData((prev) => ({
@@ -216,7 +374,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
   };
 
   const handleLink = async (targetId: string, title: string) => {
-    if (!media) {
+    if (!media || !media._id) {
       toast("Save this entry before linking another title.", "info");
       return;
     }
@@ -237,7 +395,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
   };
 
   const handleUnlink = async (targetId: string) => {
-    if (!media) return;
+    if (!media || !media._id) return;
     try {
       await apiRequest("/api/media/link", {
         method: "POST",
@@ -256,16 +414,26 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     setError("");
 
     try {
-      const method = media ? "PUT" : "POST";
-      const url = media ? `/api/media?id=${media._id}` : "/api/media";
+      const isExisting = Boolean(media && media._id);
+      const method = isExisting ? "PUT" : "POST";
+      const url = isExisting ? `/api/media?id=${media!._id}` : "/api/media";
+
+      const cleanData: Record<string, unknown> = {
+        ...normalizeNumericFormFields(formData),
+      };
+      delete cleanData.schedule_source_url;
+      delete cleanData.english_alias;
+      delete cleanData.pinyin_alias;
+      delete cleanData.hanzi_alias;
+
+      if (cleanData.watch_url && !cleanData.tracker_url) {
+        cleanData.tracker_url = cleanData.watch_url;
+      }
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify((() => {
-          const cleanData: Record<string, unknown> = { ...normalizeNumericFormFields(formData) };
-          delete cleanData.schedule_source_url;
-          return cleanData;
-        })()),
+        body: JSON.stringify(cleanData),
       });
 
       const data = await res.json();
@@ -273,59 +441,34 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         throw new Error(data.error?.message || "Failed to save");
       }
 
-      const mediaId = media ? media._id : data.data._id;
+      const mediaId = isExisting ? media!._id : data.data?._id;
 
       // Update shelves if changed
-      for (const s of shelves) {
-        const wasSelected = originalShelfIds.has(s._id);
-        const isSelected = selectedShelfIds.has(s._id);
-        if (wasSelected !== isSelected) {
-          const shelfMediaIds = getShelfMediaIds(s);
-          const newMediaIds = isSelected
-            ? Array.from(new Set([...shelfMediaIds, mediaId]))
-            : shelfMediaIds.filter((id) => id !== mediaId);
-          await apiRequest(`/api/shelves?id=${s._id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ media_ids: newMediaIds }),
-          });
+      if (mediaId) {
+        for (const s of shelves) {
+          const wasSelected = originalShelfIds.has(s._id);
+          const isSelected = selectedShelfIds.has(s._id);
+          if (wasSelected !== isSelected) {
+            const shelfMediaIds = getShelfMediaIds(s);
+            const newMediaIds = isSelected
+              ? Array.from(new Set([...shelfMediaIds, mediaId]))
+              : shelfMediaIds.filter((id) => id !== mediaId);
+            await apiRequest(`/api/shelves?id=${s._id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ media_ids: newMediaIds }),
+            });
+          }
         }
       }
 
       onSave();
-      toast(media ? "Entry updated" : "Entry added", "success");
+      toast(isExisting ? "Entry updated" : "Entry added", "success");
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleTestTracker = async () => {
-    setTestingTracker(true);
-    setError("");
-    setTrackerResult("");
-
-    try {
-      const res = await fetch("/api/media/test-tracker", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: media?._id,
-          tracker_url: formData.tracker_url,
-          media_type: formData.media_type,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error?.message || "Tracker test failed");
-      }
-      setTrackerResult(`Latest found: ${data.data?.latest ?? "none"}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Tracker test failed");
-    } finally {
-      setTestingTracker(false);
     }
   };
 
@@ -345,6 +488,8 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     }
   };
 
+  const isExisting = Boolean(media && media._id);
+
   return (
     <div className="modal-overlay" onClick={handleOverlayClick} role="presentation">
       <div
@@ -362,28 +507,105 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
           <X size={20} />
         </button>
         <div className="modal-header" id="entry-modal-title">
-          {media ? "Edit Entry" : "Add Entry"}
+          {isExisting ? "Edit Entry" : "Add Entry"}
         </div>
 
         <form className="modal-form" onSubmit={handleSubmit}>
           <div className="modal-scroll">
-            {/* Section 1: Basics */}
+            {/* Essentials Section */}
             <div className="modal-section-header">
               <Info size={15} />
-              <span>Basics</span>
+              <span>Essentials</span>
             </div>
+
+            {/* Title with live search suggestions dropdown */}
             <div className="form-grid full">
-              <div className="form-group">
+              <div className="form-group title-search-wrapper" ref={titleWrapperRef}>
                 <label htmlFor="media-title">Title</label>
-                <input
-                  id="media-title"
-                  className="form-input"
-                  required
-                  name="title"
-                  value={formData.title || ""}
-                  onChange={handleChange}
-                  placeholder="e.g. One Piece, Solo Leveling"
-                />
+                <div style={{ position: "relative" }}>
+                  <input
+                    id="media-title"
+                    className="form-input"
+                    required
+                    name="title"
+                    value={formData.title || ""}
+                    onChange={handleTitleChange}
+                    onKeyDown={handleTitleKeyDown}
+                    onFocus={() => {
+                      if (titleSuggestions.length > 0) setShowTitleDropdown(true);
+                    }}
+                    placeholder="Search name for suggestions (e.g. Solo Leveling, Soul Land, Frieren)"
+                    autoComplete="off"
+                  />
+                  {isSearchingTitle && (
+                    <span
+                      className="spinner"
+                      style={{
+                        width: 14,
+                        height: 14,
+                        position: "absolute",
+                        right: 12,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                      }}
+                    />
+                  )}
+                </div>
+
+                {showTitleDropdown && titleSuggestions.length > 0 && (
+                  <div className="title-suggestions-dropdown" role="listbox">
+                    {titleSuggestions.map((s, idx) => {
+                      const typeClass = s.mediaType.toLowerCase();
+                      const isSelected = selectedSuggestionIndex === idx;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          className={`title-suggestion-item ${isSelected ? "is-selected" : ""}`}
+                          onClick={() => applySuggestion(s)}
+                          onMouseEnter={() => setSelectedSuggestionIndex(idx)}
+                        >
+                          {s.posterUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={s.posterUrl}
+                              alt=""
+                              className="title-suggestion-poster"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div
+                              className="title-suggestion-poster"
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Sparkles size={13} />
+                            </div>
+                          )}
+                          <div className="title-suggestion-info">
+                            <span className="title-suggestion-main">{s.title}</span>
+                            {s.subtitle && (
+                              <span className="title-suggestion-sub">{s.subtitle}</span>
+                            )}
+                          </div>
+                          <div className="title-suggestion-meta">
+                            <span className={`title-suggestion-tag ${typeClass}`}>
+                              {s.mediaType}
+                            </span>
+                            {s.totalEpisodes && (
+                              <span className="title-suggestion-tag">
+                                {s.totalEpisodes} {s.mediaType === "Manhwa" ? "chs" : "eps"}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -398,8 +620,8 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                   onChange={handleChange}
                 >
                   <option value="Anime">Anime</option>
-                  <option value="Manhwa">Manhwa</option>
                   <option value="Donghua">Donghua</option>
+                  <option value="Manhwa">Manhwa</option>
                   <option value="Light Novel">Light Novel</option>
                 </select>
               </div>
@@ -421,11 +643,6 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
               </div>
             </div>
 
-            {/* Section 2: Progress & Rating */}
-            <div className="modal-section-header">
-              <Sliders size={15} />
-              <span>Progress & Rating</span>
-            </div>
             <div className="form-grid">
               <div className="form-group">
                 <label htmlFor="media-progress-current">Current Progress</label>
@@ -443,7 +660,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="media-progress-total">Total Progress (Optional)</label>
+                <label htmlFor="media-progress-total">Total (Optional)</label>
                 <input
                   id="media-progress-total"
                   type="number"
@@ -454,7 +671,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                   name="progress_total"
                   value={numberInputValue(formData.progress_total)}
                   onChange={handleChange}
-                  placeholder="0 if ongoing / unknown"
+                  placeholder="0 if ongoing"
                 />
               </div>
               <div className="form-group">
@@ -473,6 +690,50 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                 />
               </div>
             </div>
+
+            {/* Direct Watch / Reading Bookmark */}
+            <div className="form-grid full">
+              <div className="form-group">
+                <label htmlFor="media-watch-url">
+                  <Bookmark size={13} style={{ display: "inline", marginRight: 4 }} />
+                  Watch / Read Link (Optional)
+                </label>
+                <input
+                  id="media-watch-url"
+                  className="form-input"
+                  name="watch_url"
+                  value={formData.watch_url || ""}
+                  onChange={handleChange}
+                  placeholder="e.g. Animexin, Crunchyroll, or reader bookmark"
+                />
+              </div>
+            </div>
+
+            {/* Shelves - prominent in main essentials view */}
+            {shelves.length > 0 && (
+              <div className="form-group" style={{ marginTop: 4 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Layers size={13} />
+                  <span>Shelves</span>
+                </label>
+                <div className="shelf-picker">
+                  {shelves.map((s) => (
+                    <label
+                      key={s._id}
+                      className="shelf-chip"
+                      data-selected={selectedShelfIds.has(s._id) ? "true" : "false"}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedShelfIds.has(s._id)}
+                        onChange={() => toggleShelf(s._id)}
+                      />
+                      <span>{s.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {formData.status === "Dropped" && (
               <div className="dropped-fields-group">
@@ -504,106 +765,138 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
               </div>
             )}
 
-            {/* Section 3: Connections */}
-            <div className="modal-section-header">
-              <Globe size={15} />
-              <span>Connections & Releases</span>
-            </div>
-            <div className="form-grid full">
-              {isDonghua && (
-                <div className="form-group full">
-                  <label>Release Tracking Source</label>
-                  <div
-                    className="tracking-source-toggle"
-                    role="group"
-                    aria-label="Release Tracking Source"
-                  >
-                    <button
-                      type="button"
-                      className={`tracking-source-btn ${formData.tracking_source !== "scraper" ? "is-active" : ""}`}
-                      onClick={() => {
-                        setFormData((prev) => ({ ...prev, tracking_source: "simkl" }));
-                        setTrackerResult("");
-                      }}
-                    >
-                      <Sparkles size={14} />
-                      <span>SIMKL Calendar</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`tracking-source-btn ${formData.tracking_source === "scraper" ? "is-active" : ""}`}
-                      onClick={() => {
-                        setFormData((prev) => ({ ...prev, tracking_source: "scraper" }));
-                        setTrackerResult("");
-                      }}
-                    >
-                      <LinkIcon size={14} />
-                      <span>Scraper (Animexin)</span>
-                    </button>
-                  </div>
-                  <div className="form-hint-row">
-                    {formData.tracking_source === "scraper" ? (
-                      <small>Scrapes animexin.dev directly for newly uploaded episode releases.</small>
-                    ) : (
-                      <small>Syncs episode air dates and countdowns via the SIMKL anime calendar.</small>
-                    )}
-                  </div>
-                </div>
-              )}
+            {/* Collapsible Advanced Drawer */}
+            <button
+              type="button"
+              className="advanced-drawer-toggle"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              aria-expanded={showAdvanced}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Sliders size={15} />
+                <span>Advanced Settings & Numbering (Offsets, Aliases)</span>
+              </div>
+              <ChevronDown
+                size={16}
+                style={{
+                  transform: showAdvanced ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s ease",
+                }}
+              />
+            </button>
 
-              {isScreenMedia ? (
-                <div className="form-group">
-                  <label htmlFor="media-tracker-url">Watch URL (Optional)</label>
-                  <input
-                    id="media-tracker-url"
-                    className="form-input"
-                    name="tracker_url"
-                    value={formData.tracker_url || ""}
-                    onChange={handleChange}
-                    placeholder="https://crunchyroll.com/... or your streaming link"
-                  />
-                  <div className="form-hint-row">
-                    <Sparkles size={13} />
-                    <small>
-                      {formData.media_type === "Anime" ? "Anime" : "Donghua"} episode schedules sync automatically via SIMKL.
-                    </small>
-                  </div>
+            {showAdvanced && (
+              <div className="advanced-drawer-content">
+                {/* Numbering Normalization */}
+                <div className="modal-section-header">
+                  <Globe size={14} />
+                  <span>Episode Numbering & Offsets</span>
                 </div>
-              ) : (
-                <>
+
+                <div className="form-grid">
                   <div className="form-group">
-                    <label htmlFor="media-tracker-url">Tracker URL (Optional)</label>
-                    <input
-                      id="media-tracker-url"
+                    <label htmlFor="media-numbering-mode">Numbering Mode</label>
+                    <select
+                      id="media-numbering-mode"
                       className="form-input"
-                      name="tracker_url"
-                      value={formData.tracker_url || ""}
+                      name="numbering_mode"
+                      value={formData.numbering_mode || "unspecified"}
                       onChange={handleChange}
-                      placeholder={
-                        isDonghuaScraper
-                          ? "https://animexin.dev/... series or episode URL"
-                          : "https://asuracomic.net/series/... or supported scraper URL"
-                      }
-                    />
-                    {(formData.media_type === "Manhwa" || isDonghuaScraper) && (
-                      <div className="tracker-test-row">
-                        <button
-                          type="button"
-                          className="btn-ghost btn-sm"
-                          onClick={handleTestTracker}
-                          disabled={testingTracker || !formData.tracker_url}
-                        >
-                          {testingTracker ? <span className="spinner" /> : <LinkIcon size={13} />}
-                          Test tracker
-                        </button>
-                        {trackerResult && <span className="tracker-test-output">{trackerResult}</span>}
-                      </div>
-                    )}
+                    >
+                      <option value="seasonal">Seasonal (S2 Ep 4)</option>
+                      <option value="continuous">Continuous (Ep 28)</option>
+                      <option value="unspecified">Unspecified (Legacy)</option>
+                    </select>
                   </div>
 
-                  {formData.media_type !== "Donghua" && (
+                  <div className="form-group">
+                    <label htmlFor="media-season-number">Season Number</label>
+                    <input
+                      id="media-season-number"
+                      type="number"
+                      min="1"
+                      className="form-input"
+                      name="season_number"
+                      value={numberInputValue(formData.season_number)}
+                      onChange={handleChange}
+                      placeholder="1"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="media-episode-offset">
+                      Episode Offset
+                      {formData.numbering_status === "verified" && (
+                        <span style={{ color: "var(--green)", marginLeft: 6, fontSize: "0.75rem" }}>
+                          ✓ Verified
+                        </span>
+                      )}
+                      {formData.numbering_status === "needs_review" && (
+                        <span style={{ color: "var(--warning)", marginLeft: 6, fontSize: "0.75rem" }}>
+                          ⚠ Review
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      id="media-episode-offset"
+                      type="number"
+                      min="0"
+                      className="form-input"
+                      name="episode_offset"
+                      value={numberInputValue(formData.episode_offset)}
+                      onChange={handleChange}
+                      placeholder="e.g. 24 (prior episodes)"
+                    />
+                  </div>
+                </div>
+
+                {/* Title Aliases for Donghua & Multi-language */}
+                <div className="modal-section-header">
+                  <BookOpen size={14} />
+                  <span>Alternate Title Aliases</span>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label htmlFor="alias-english">English Title</label>
+                    <input
+                      id="alias-english"
+                      className="form-input"
+                      name="english_alias"
+                      value={formData.english_alias || ""}
+                      onChange={handleChange}
+                      placeholder="e.g. Battle Through the Heavens"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="alias-pinyin">Pinyin (Romanized)</label>
+                    <input
+                      id="alias-pinyin"
+                      className="form-input"
+                      name="pinyin_alias"
+                      value={formData.pinyin_alias || ""}
+                      onChange={handleChange}
+                      placeholder="e.g. Doupo Cangqiong"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="alias-hanzi">Hanzi (Chinese)</label>
+                    <input
+                      id="alias-hanzi"
+                      className="form-input"
+                      name="hanzi_alias"
+                      value={formData.hanzi_alias || ""}
+                      onChange={handleChange}
+                      placeholder="e.g. 斗破苍穹"
+                    />
+                  </div>
+                </div>
+
+                {/* MangaDex Integration (For Manhwa/Manga) */}
+                {formData.media_type !== "Donghua" && (
+                  <div className="form-grid full">
                     <div className="form-group">
-                      <label htmlFor="media-mangadex">MangaDex URL or ID (Optional)</label>
+                      <label htmlFor="media-mangadex">MangaDex URL or Title ID</label>
                       <input
                         id="media-mangadex"
                         className="form-input"
@@ -611,128 +904,99 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                         value={formData.mangadex_id || ""}
                         onChange={handleChange}
                         onBlur={normalizeMangaDexField}
-                        placeholder="Paste title URL or UUID"
-                        inputMode="url"
-                        autoCapitalize="none"
-                        autoCorrect="off"
+                        placeholder="Paste MangaDex title URL or UUID"
                       />
                     </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {media && (
-              <div className="linked-entries-section">
-                <div className="modal-section-header">
-                  <LinkIcon size={14} />
-                  <span>Linked Entries</span>
-                </div>
-                <div className="linked-entry-panel">
-                  <div className="linked-entry-list">
-                    {linkedEntries.map((l) => (
-                      <div key={l._id} className="linked-entry-chip">
-                        <LinkIcon size={12} />
-                        <span>{l.title}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleUnlink(l._id)}
-                          aria-label={`Unlink ${l.title}`}
-                          title="Unlink entry"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
                   </div>
-                  <div className="linked-entry-search">
+                )}
+
+                {/* Cover Image & Personal Notes */}
+                <div className="form-grid full">
+                  <div className="form-group">
+                    <label htmlFor="media-custom-cover">Custom Cover Image URL</label>
                     <input
+                      id="media-custom-cover"
                       className="form-input"
-                      value={linkSearch}
-                      onChange={(e) => setLinkSearch(e.target.value)}
-                      placeholder="Search other titles in library to link..."
+                      name="custom_cover_url"
+                      value={formData.custom_cover_url || ""}
+                      onChange={handleChange}
+                      placeholder="https://... cover image override"
                     />
-                    {searchResults.length > 0 && (
-                      <div className="linked-entry-results">
-                        {searchResults.map((s) => {
-                          let Icon = Book;
-                          if (s.media_type === "Anime") Icon = Tv;
-                          else if (s.media_type === "Donghua") Icon = Video;
-                          else if (s.media_type === "Light Novel") Icon = BookOpen;
-
-                          return (
-                            <button
-                              key={s._id}
-                              type="button"
-                              onClick={() => handleLink(s._id, s.title)}
-                              className="linked-entry-result"
-                            >
-                              <Icon size={14} />
-                              <span>{s.title}</span>
-                              <small>{s.media_type}</small>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="media-notes">Personal Notes</label>
+                    <textarea
+                      id="media-notes"
+                      className="form-input"
+                      name="notes"
+                      value={formData.notes || ""}
+                      onChange={handleChange}
+                      rows={3}
+                      placeholder="Notes, thoughts, or custom remarks..."
+                    />
                   </div>
                 </div>
+
+                {/* Linked Entries */}
+                {isExisting && (
+                  <div className="linked-entries-section">
+                    <div className="modal-section-header">
+                      <LinkIcon size={14} />
+                      <span>Linked Entries</span>
+                    </div>
+                    <div className="linked-entry-panel">
+                      <div className="linked-entry-list">
+                        {linkedEntries.map((l) => (
+                          <div key={l._id} className="linked-entry-chip">
+                            <LinkIcon size={12} />
+                            <span>{l.title}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleUnlink(l._id)}
+                              aria-label={`Unlink ${l.title}`}
+                              title="Unlink entry"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="linked-entry-search">
+                        <input
+                          className="form-input"
+                          value={linkSearch}
+                          onChange={(e) => setLinkSearch(e.target.value)}
+                          placeholder="Search other library titles to link..."
+                        />
+                        {searchResults.length > 0 && (
+                          <div className="linked-entry-results">
+                            {searchResults.map((s) => {
+                              let Icon = Book;
+                              if (s.media_type === "Anime") Icon = Tv;
+                              else if (s.media_type === "Donghua") Icon = Video;
+                              else if (s.media_type === "Light Novel") Icon = BookOpen;
+
+                              return (
+                                <button
+                                  key={s._id}
+                                  type="button"
+                                  onClick={() => handleLink(s._id, s.title)}
+                                  className="linked-entry-result"
+                                >
+                                  <Icon size={14} />
+                                  <span>{s.title}</span>
+                                  <small>{s.media_type}</small>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-
-            {/* Section 4: Organization & Details */}
-            <div className="modal-section-header">
-              <Layers size={15} />
-              <span>Organization & Notes</span>
-            </div>
-
-            {shelves.length > 0 && (
-              <div className="form-group">
-                <label>Shelves</label>
-                <div className="shelf-picker">
-                  {shelves.map((s) => (
-                    <label
-                      key={s._id}
-                      className="shelf-chip"
-                      data-selected={selectedShelfIds.has(s._id) ? "true" : "false"}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedShelfIds.has(s._id)}
-                        onChange={() => toggleShelf(s._id)}
-                      />
-                      <span>{s.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="form-grid full">
-              <div className="form-group">
-                <label htmlFor="media-custom-cover">Custom Cover Image URL (Optional)</label>
-                <input
-                  id="media-custom-cover"
-                  className="form-input"
-                  name="custom_cover_url"
-                  value={formData.custom_cover_url || ""}
-                  onChange={handleChange}
-                  placeholder="https://... image link override"
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="media-notes">Personal Notes</label>
-                <textarea
-                  id="media-notes"
-                  className="form-input"
-                  name="notes"
-                  value={formData.notes || ""}
-                  onChange={handleChange}
-                  rows={3}
-                  placeholder="Thoughts, bookmarks, reading status..."
-                />
-              </div>
-            </div>
 
             {error && <div className="auth-error">{error}</div>}
           </div>
@@ -747,7 +1011,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? <span className="spinner" /> : media ? "Save changes" : "Add entry"}
+              {loading ? <span className="spinner" /> : isExisting ? "Save changes" : "Add entry"}
             </button>
           </div>
         </form>

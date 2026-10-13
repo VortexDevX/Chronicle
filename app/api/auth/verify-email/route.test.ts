@@ -26,6 +26,7 @@ vi.mock("@/lib/models", () => ({
 }));
 
 vi.mock("@/lib/email", () => ({
+  sendEmail: vi.fn(),
   sendBrevoEmail: vi.fn(),
 }));
 
@@ -33,10 +34,10 @@ vi.mock("@/lib/log", () => ({
   logInternalError: vi.fn(),
 }));
 
-import { sendBrevoEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import { EmailVerificationToken, User } from "@/lib/models";
 
-const sendBrevoEmailMock = sendBrevoEmail as unknown as ReturnType<typeof vi.fn>;
+const sendEmailMock = sendEmail as unknown as ReturnType<typeof vi.fn>;
 const tokenUpdateManyMock = EmailVerificationToken.updateMany as unknown as ReturnType<typeof vi.fn>;
 const tokenCreateMock = EmailVerificationToken.create as unknown as ReturnType<typeof vi.fn>;
 const tokenFindOneMock = EmailVerificationToken.findOne as unknown as ReturnType<typeof vi.fn>;
@@ -63,7 +64,7 @@ describe("verify email API route", () => {
     );
     tokenUpdateManyMock.mockResolvedValue({});
     tokenCreateMock.mockResolvedValue({});
-    sendBrevoEmailMock.mockResolvedValue(undefined);
+    sendEmailMock.mockResolvedValue(undefined);
 
     const res = await POST(
       new NextRequest("https://chronicle.example/api/auth/verify-email", {
@@ -80,7 +81,7 @@ describe("verify email API route", () => {
         email: "reader@example.com",
       }),
     );
-    expect(sendBrevoEmailMock).toHaveBeenCalledWith(
+    expect(sendEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({
         to: [{ email: "reader@example.com", name: "reader" }],
       }),

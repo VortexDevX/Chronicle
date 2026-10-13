@@ -53,9 +53,16 @@ export function MediaCard({
   const isActive = normalizedStatus === "Active";
   const canIncrement = isActive && Boolean(onIncrement);
   const isStale = isActive && daysSince(m.last_updated) >= 14;
-  const safeTrackerUrl = m.tracker_url
-    ? normalizePublicHttpUrl(m.tracker_url)
-    : null;
+  const safeWatchUrl = m.watch_url
+    ? normalizePublicHttpUrl(m.watch_url)
+    : m.tracker_url
+      ? normalizePublicHttpUrl(m.tracker_url)
+      : null;
+  const isSeasonal = m.numbering_mode === "seasonal";
+  const seasonPrefix =
+    isSeasonal && m.season_number && m.season_number > 1
+      ? `S${m.season_number} `
+      : "";
 
   const pct =
     m.progress_total > 0
@@ -150,7 +157,7 @@ export function MediaCard({
           </p>
         </div>
         <div className="media-list-progress">
-          <strong>{formatProgress(m.progress_current)}</strong>
+          <strong>{seasonPrefix}{formatProgress(m.progress_current)}</strong>
           <span>/ {total} {unit}</span>
           <div className="progress-track">
             <i style={{ width: `${pct}%` }} />
@@ -183,9 +190,9 @@ export function MediaCard({
               <Edit3 size={16} />
             </button>
           )}
-          {safeTrackerUrl ? (
+          {safeWatchUrl ? (
             <a
-              href={safeTrackerUrl}
+              href={safeWatchUrl}
               target="_blank"
               rel="noreferrer"
               aria-label={`Open tracker for ${m.title}`}
@@ -262,12 +269,12 @@ export function MediaCard({
             </span>
           )}
         </div>
-        {(safeTrackerUrl || canIncrement) && (
+        {(safeWatchUrl || canIncrement) && (
           <div className="media-card-poster-actions">
-            {safeTrackerUrl && (
+            {safeWatchUrl && (
               <a
                 className="poster-tracker"
-                href={safeTrackerUrl}
+                href={safeWatchUrl}
                 target="_blank"
                 rel="noreferrer"
                 aria-label={`Open tracker for ${m.title}`}
@@ -309,7 +316,7 @@ export function MediaCard({
 
         <div className="media-card-progress-row">
           <span>
-            {formatProgress(m.progress_current)} / {total}
+            {seasonPrefix}{formatProgress(m.progress_current)} / {total}
           </span>
           <span className="progress-unit-label">{unit}</span>
         </div>

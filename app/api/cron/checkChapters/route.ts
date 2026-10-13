@@ -23,11 +23,14 @@ import {
   scrapeTrackerUrl,
 } from "@/lib/trackerScraper";
 import {
-  fetchSimklAnimeCalendar,
-  findSimklEpisodeSchedule,
-  findSimklIdByTitle,
-  SimklCalendarPayload,
-} from "@/lib/sources/simklCalendar";
+  fetchAniListMediaBatch,
+  formatAniListSchedule,
+  AniListMedia,
+} from "@/lib/sources/anilistAiring";
+import {
+  calculateOffsetFromAniListRelations,
+  compareProgress,
+} from "@/lib/services/media/progressBridge";
 
 export const maxDuration = 60;
 
@@ -170,26 +173,32 @@ export async function GET(req: NextRequest) {
       ],
     })
       .select(
-        "title progress_current tracker_url simkl_id anilist_id user_id media_type tracking_source last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress",
+        "title progress_current tracker_url simkl_id anilist_id user_id media_type tracking_source last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress numbering_mode season_number episode_offset numbering_status",
       )
       .sort({ last_attempted_at: 1, last_checked_at: 1, _id: 1 })
       .limit(MAX_ENTRIES_PER_RUN)
       .maxTimeMS(CRON_DB_QUERY_TIMEOUT_MS)
       .lean();
 
-    let simklCalendar: SimklCalendarPayload | null = null;
-    if (
-      entries.some(
-        (entry) =>
-          entry.media_type === "Anime" ||
-          (entry.media_type === "Donghua" &&
-            (entry as { tracking_source?: string | null }).tracking_source !== "scraper"),
-      )
-    ) {
-      try {
-        simklCalendar = (await fetchSimklAnimeCalendar()).payload;
-      } catch (err) {
-        logInternalError("cron_simkl_calendar_error", err, { route: "cron/checkChapters" });
+    let aniListMediaMap = new Map<number, AniListMedia>();
+    const anilistEligible = entries.filter(
+      (entry) =>
+        entry.media_type === "Anime" ||
+        (entry.media_type === "Donghua" &&
+          (entry as { tracking_source?: string | null }).tracking_source !== "scraper"),
+    );
+
+    if (anilistEligible.length > 0) {
+      const anilistIds = anilistEligible
+        .map((e) => Number(e.anilist_id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+
+      if (anilistIds.length > 0) {
+        try {
+          aniListMediaMap = await fetchAniListMediaBatch(anilistIds);
+        } catch (err) {
+          logInternalError("cron_anilist_schedule_error", err, { route: "cron/checkChapters" });
+        }
       }
     }
 
@@ -297,29 +306,10 @@ export async function GET(req: NextRequest) {
         const userStats = scanStatsByUser.get(uid);
         if (userStats) userStats.started += 1;
         const mediaType = entry.media_type as CronMediaType;
-        const trackingSource = (entry as { tracking_source?: string | null }).tracking_source || "simkl";
+        const trackingSource = (entry as { tracking_source?: string | null }).tracking_source || "anilist";
         const isDonghuaScraper = mediaType === "Donghua" && trackingSource === "scraper";
         const shouldUseScraper = mediaType === "Manhwa" || isDonghuaScraper;
         const trackerUrl = String(entry.tracker_url || "");
-        let simklId = Number(entry.simkl_id);
-        if (!shouldUseScraper && (!Number.isInteger(simklId) || simklId <= 0) && simklCalendar) {
-          const anilistId = Number(entry.anilist_id);
-          if (Number.isInteger(anilistId) && anilistId > 0) {
-            const matched = Object.entries(simklCalendar.metadata).find(
-              ([, show]) => Number(show.ids?.anilist) === anilistId,
-            );
-            simklId = matched ? Number(matched[0]) : 0;
-          }
-          if ((!simklId || simklId <= 0) && entry.title) {
-            simklId = findSimklIdByTitle(String(entry.title), simklCalendar) || 0;
-          }
-          if (simklId > 0) {
-            await MediaItem.updateOne(
-              { _id: entry._id },
-              { $set: { simkl_id: simklId } },
-            );
-          }
-        }
         const current = Number(entry.progress_current || 0);
         const notificationBaseline = getNotificationBaseline({
           progressCurrent: current,
@@ -340,7 +330,7 @@ export async function GET(req: NextRequest) {
             title: entry.title as string,
             latest: storedLatest,
             current,
-            tracker_url: trackerUrl || "https://simkl.com",
+            tracker_url: trackerUrl || "https://anilist.co",
             media_type: mediaType,
           });
         }
@@ -354,17 +344,60 @@ export async function GET(req: NextRequest) {
             );
           }
 
-          const schedule = !shouldUseScraper && (mediaType === "Anime" || mediaType === "Donghua") && simklCalendar && Number.isInteger(simklId) && simklId > 0
-            ? findSimklEpisodeSchedule(simklId, simklCalendar)
+          const anilistId = Number(entry.anilist_id);
+          const anilistMedia = (!shouldUseScraper && anilistId > 0)
+            ? aniListMediaMap.get(anilistId)
             : null;
-          const latest = schedule
-            ? (schedule.latestAiredEpisode ?? schedule.previousEpisode)
-            : shouldUseScraper && trackerUrl
-              ? await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
-                  signal: scanDeadline.signal,
-                  retryAttempts: getCronScrapeRetries(),
-                })
-              : null;
+          const schedule = anilistMedia ? formatAniListSchedule(anilistMedia) : null;
+
+          const entryWithNumbering = entry as typeof entry & {
+            numbering_mode?: "continuous" | "seasonal" | "unspecified" | null;
+            episode_offset?: number | null;
+            numbering_status?: "verified" | "needs_review" | null;
+          };
+
+          let resolvedOffset = typeof entryWithNumbering.episode_offset === "number"
+            ? entryWithNumbering.episode_offset
+            : null;
+          let numberingStatusUpdate = entryWithNumbering.numbering_status || null;
+
+          if (anilistMedia && entryWithNumbering.numbering_mode === "seasonal" && resolvedOffset === null) {
+            const offsetResult = calculateOffsetFromAniListRelations(anilistMedia.relations);
+            if (offsetResult.isReliable && offsetResult.offset !== null) {
+              resolvedOffset = offsetResult.offset;
+              numberingStatusUpdate = "verified";
+            }
+          }
+
+          let rawLatest: number | null = null;
+          if (schedule) {
+            if (schedule.nextEpisode) {
+              rawLatest = schedule.nextEpisode - 1;
+            } else if (schedule.state === "CONCLUDED" && schedule.totalEpisodes) {
+              rawLatest = schedule.totalEpisodes;
+            }
+          } else if (shouldUseScraper && trackerUrl) {
+            rawLatest = await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
+              signal: scanDeadline.signal,
+              retryAttempts: getCronScrapeRetries(),
+            });
+          }
+
+          let latest: number | null = rawLatest;
+          if (rawLatest !== null) {
+            const comparison = compareProgress({
+              current,
+              latestRemote: rawLatest,
+              numberingMode: entryWithNumbering.numbering_mode,
+              episodeOffset: resolvedOffset,
+              remoteIsContinuous: true,
+            });
+
+            if (comparison.suspectedMismatch) {
+              numberingStatusUpdate = "needs_review";
+            }
+            latest = comparison.remoteInUserUnits;
+          }
           totalChecked += 1;
           if (userStats) userStats.checked += 1;
 
@@ -377,11 +410,13 @@ export async function GET(req: NextRequest) {
                 last_scrape_status: "ok",
                 last_scrape_error: null,
                 ...(latest !== null ? { latest_remote_progress: latest } : {}),
+                ...(resolvedOffset !== (entryWithNumbering.episode_offset ?? null) ? { episode_offset: resolvedOffset } : {}),
+                ...(numberingStatusUpdate !== (entryWithNumbering.numbering_status ?? null) ? { numbering_status: numberingStatusUpdate } : {}),
                 ...(schedule ? {
                   next_episode: schedule.nextEpisode,
                   next_episode_release_at: schedule.nextReleaseAt,
-                  previous_episode: schedule.previousEpisode,
-                  previous_episode_release_at: schedule.previousReleaseAt,
+                  previous_episode: schedule.nextEpisode ? schedule.nextEpisode - 1 : null,
+                  previous_episode_release_at: null,
                 } : isDonghuaScraper ? {
                   next_episode: null,
                   next_episode_release_at: null,
@@ -404,7 +439,7 @@ export async function GET(req: NextRequest) {
               title: entry.title as string,
               latest,
               current,
-              tracker_url: trackerUrl || schedule?.episodeUrl || "https://simkl.com",
+              tracker_url: trackerUrl || schedule?.episodeUrl || "https://anilist.co",
               media_type: mediaType,
             };
             setUnreadUpdate(unreadByUser, uid, update);

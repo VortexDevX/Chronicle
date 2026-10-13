@@ -96,10 +96,74 @@ describe("media validation", () => {
     });
 
     expect(
+      validateMediaPayload({ tracking_source: "anilist" }, true),
+    ).toEqual({
+      ok: true,
+      normalized: { tracking_source: "anilist" },
+    });
+
+    expect(
       validateMediaPayload({ tracking_source: "invalid_source" as any }, true),
     ).toEqual({
       ok: false,
-      message: "tracking_source must be 'simkl' or 'scraper'",
+      message: "tracking_source must be 'anilist', 'simkl', or 'scraper'",
+    });
+  });
+
+  it("validates numbering and alias fields properly", () => {
+    const valid = validateMediaPayload(
+      {
+        numbering_mode: "seasonal",
+        season_number: 2,
+        episode_offset: 24,
+        numbering_status: "verified",
+        watch_url: "https://animexin.vip/donghua/example",
+        title_aliases: {
+          english: "Soul Land 2",
+          pinyin: "Douluo Dalu 2",
+          hanzi: "斗罗大陆2",
+          custom: ["DL2"],
+        },
+      },
+      true,
+    );
+
+    expect(valid).toEqual({
+      ok: true,
+      normalized: {
+        numbering_mode: "seasonal",
+        season_number: 2,
+        episode_offset: 24,
+        numbering_status: "verified",
+        watch_url: "https://animexin.vip/donghua/example",
+        title_aliases: {
+          english: "Soul Land 2",
+          pinyin: "Douluo Dalu 2",
+          hanzi: "斗罗大陆2",
+          custom: ["DL2"],
+        },
+      },
+    });
+
+    expect(
+      validateMediaPayload({ numbering_mode: "invalid_mode" as any }, true),
+    ).toEqual({
+      ok: false,
+      message: "numbering_mode must be 'continuous', 'seasonal', or 'unspecified'",
+    });
+
+    expect(
+      validateMediaPayload({ season_number: 0 }, true),
+    ).toEqual({
+      ok: false,
+      message: "season_number must be >= 1",
+    });
+
+    expect(
+      validateMediaPayload({ episode_offset: -1 }, true),
+    ).toEqual({
+      ok: false,
+      message: "episode_offset must be >= 0",
     });
   });
 });

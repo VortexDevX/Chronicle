@@ -241,6 +241,12 @@ async function scrapeAnimexinTrackerUrl(
     options,
   );
 
+  if (res.status === 403) {
+    throw new Error(
+      "HTTP 403 Forbidden: animexin is Cloudflare protected. Use AniList schedule tracking and save Animexin as Watch Bookmark.",
+    );
+  }
+
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }

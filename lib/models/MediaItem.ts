@@ -34,8 +34,8 @@ const mediaSchema = new mongoose.Schema(
     tracker_url: { type: String, default: null },
     tracking_source: {
       type: String,
-      enum: ["simkl", "scraper"],
-      default: "simkl",
+      enum: ["anilist", "simkl", "scraper"],
+      default: "anilist",
     },
     anilist_id: { type: Number, default: null },
     simkl_id: { type: Number, default: null },
@@ -59,6 +59,25 @@ const mediaSchema = new mongoose.Schema(
     mangadex_id: { type: String, default: null },
     custom_cover_url: { type: String, default: null },
     linked_entries: [{ type: mongoose.Schema.Types.ObjectId, ref: "MediaItem" }],
+    numbering_mode: {
+      type: String,
+      enum: ["continuous", "seasonal", "unspecified", null],
+      default: "unspecified",
+    },
+    season_number: { type: Number, default: 1 },
+    episode_offset: { type: Number, default: null },
+    numbering_status: {
+      type: String,
+      enum: ["verified", "needs_review", null],
+      default: null,
+    },
+    title_aliases: {
+      english: { type: String, default: null },
+      pinyin: { type: String, default: null },
+      hanzi: { type: String, default: null },
+      custom: [{ type: String }],
+    },
+    watch_url: { type: String, default: null },
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },
 );
@@ -98,9 +117,32 @@ if (existingMediaItem && !existingMediaItem.schema.path("tracking_source")) {
   existingMediaItem.schema.add({
     tracking_source: {
       type: String,
-      enum: ["simkl", "scraper"],
-      default: "simkl",
+      enum: ["anilist", "simkl", "scraper"],
+      default: "anilist",
     },
+  });
+}
+if (existingMediaItem && !existingMediaItem.schema.path("numbering_mode")) {
+  existingMediaItem.schema.add({
+    numbering_mode: {
+      type: String,
+      enum: ["continuous", "seasonal", "unspecified", null],
+      default: "unspecified",
+    },
+    season_number: { type: Number, default: 1 },
+    episode_offset: { type: Number, default: null },
+    numbering_status: {
+      type: String,
+      enum: ["verified", "needs_review", null],
+      default: null,
+    },
+    title_aliases: {
+      english: { type: String, default: null },
+      pinyin: { type: String, default: null },
+      hanzi: { type: String, default: null },
+      custom: [{ type: String }],
+    },
+    watch_url: { type: String, default: null },
   });
 }
 

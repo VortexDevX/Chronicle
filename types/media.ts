@@ -12,7 +12,7 @@ export interface MediaItem {
   last_updated: string;
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   tracker_url?: string | null;
-  tracking_source?: "simkl" | "scraper" | null;
+  tracking_source?: "anilist" | "simkl" | "scraper" | null;
   anilist_id?: number | null;
   simkl_id?: number | null;
   next_episode?: number | null;
@@ -31,6 +31,17 @@ export interface MediaItem {
   retry_flag?: boolean;
   linked_entries?: string[];
   linked_entries_data?: { _id: string; title: string }[];
+  numbering_mode?: "continuous" | "seasonal" | "unspecified" | null;
+  season_number?: number | null;
+  episode_offset?: number | null;
+  numbering_status?: "verified" | "needs_review" | null;
+  title_aliases?: {
+    english?: string | null;
+    pinyin?: string | null;
+    hanzi?: string | null;
+    custom?: string[];
+  } | null;
+  watch_url?: string | null;
 }
 
 type ImportRow = {

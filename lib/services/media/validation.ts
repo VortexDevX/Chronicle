@@ -15,11 +15,22 @@ export type MediaPayload = {
   notes?: string;
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   tracker_url?: string | null;
-  tracking_source?: "simkl" | "scraper" | "" | null;
+  tracking_source?: "anilist" | "simkl" | "scraper" | "" | null;
   mangadex_id?: string | null;
   custom_cover_url?: string | null;
   drop_reason?: string | null;
   retry_flag?: boolean;
+  numbering_mode?: "continuous" | "seasonal" | "unspecified" | "" | null;
+  season_number?: number | null;
+  episode_offset?: number | null;
+  numbering_status?: "verified" | "needs_review" | "" | null;
+  title_aliases?: {
+    english?: string | null;
+    pinyin?: string | null;
+    hanzi?: string | null;
+    custom?: string[];
+  } | null;
+  watch_url?: string | null;
 };
 
 export const MAX_TITLE_LENGTH = 200;
@@ -159,6 +170,7 @@ export function validateMediaPayload(
     if (payload.tracking_source === null || payload.tracking_source === "") {
       normalized.tracking_source = null;
     } else if (
+      payload.tracking_source === "anilist" ||
       payload.tracking_source === "simkl" ||
       payload.tracking_source === "scraper"
     ) {
@@ -166,7 +178,7 @@ export function validateMediaPayload(
     } else {
       return {
         ok: false,
-        message: "tracking_source must be 'simkl' or 'scraper'",
+        message: "tracking_source must be 'anilist', 'simkl', or 'scraper'",
       };
     }
   }
@@ -199,6 +211,83 @@ export function validateMediaPayload(
         };
       }
       normalized.custom_cover_url = url;
+    }
+  }
+
+  if (payload.numbering_mode !== undefined) {
+    if (payload.numbering_mode === null || payload.numbering_mode === "") {
+      normalized.numbering_mode = null;
+    } else if (["continuous", "seasonal", "unspecified"].includes(payload.numbering_mode)) {
+      normalized.numbering_mode = payload.numbering_mode;
+    } else {
+      return { ok: false, message: "numbering_mode must be 'continuous', 'seasonal', or 'unspecified'" };
+    }
+  }
+
+  if (payload.season_number !== undefined) {
+    if (payload.season_number === null) {
+      normalized.season_number = 1;
+    } else {
+      const season = Number(payload.season_number);
+      if (!Number.isFinite(season) || season < 1) {
+        return { ok: false, message: "season_number must be >= 1" };
+      }
+      normalized.season_number = Math.floor(season);
+    }
+  }
+
+  if (payload.episode_offset !== undefined) {
+    if (payload.episode_offset === null) {
+      normalized.episode_offset = null;
+    } else {
+      const offset = Number(payload.episode_offset);
+      if (!Number.isFinite(offset) || offset < 0) {
+        return { ok: false, message: "episode_offset must be >= 0" };
+      }
+      normalized.episode_offset = Math.floor(offset);
+    }
+  }
+
+  if (payload.numbering_status !== undefined) {
+    if (payload.numbering_status === null || payload.numbering_status === "") {
+      normalized.numbering_status = null;
+    } else if (["verified", "needs_review"].includes(payload.numbering_status)) {
+      normalized.numbering_status = payload.numbering_status;
+    } else {
+      return { ok: false, message: "numbering_status must be 'verified' or 'needs_review'" };
+    }
+  }
+
+  if (payload.watch_url !== undefined) {
+    if (payload.watch_url === null || payload.watch_url === "") {
+      normalized.watch_url = null;
+    } else {
+      const url = normalizePublicHttpUrl(String(payload.watch_url).trim());
+      if (!url) {
+        return {
+          ok: false,
+          message: "watch_url must be a valid public http/https URL under 500 characters",
+        };
+      }
+      normalized.watch_url = url;
+    }
+  }
+
+  if (payload.title_aliases !== undefined) {
+    if (payload.title_aliases === null) {
+      normalized.title_aliases = null;
+    } else if (typeof payload.title_aliases === "object") {
+      normalized.title_aliases = {
+        english: payload.title_aliases.english ? String(payload.title_aliases.english).trim().substring(0, 200) : null,
+        pinyin: payload.title_aliases.pinyin ? String(payload.title_aliases.pinyin).trim().substring(0, 200) : null,
+        hanzi: payload.title_aliases.hanzi ? String(payload.title_aliases.hanzi).trim().substring(0, 200) : null,
+        custom: Array.isArray(payload.title_aliases.custom)
+          ? payload.title_aliases.custom
+              .map((a) => String(a || "").trim())
+              .filter(Boolean)
+              .slice(0, 10)
+          : [],
+      };
     }
   }
 

@@ -15,8 +15,7 @@ const mocks = vi.hoisted(() => ({
   sendTelegramToChat: vi.fn(),
   isAndroidPushConfigured: vi.fn(),
   sendAndroidPush: vi.fn(),
-  fetchSimklAnimeCalendar: vi.fn(),
-  findSimklEpisodeSchedule: vi.fn(),
+  fetchAniListMediaBatch: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ connectDB: mocks.connectDB }));
@@ -53,9 +52,19 @@ vi.mock("@/lib/log", () => ({
   logInfo: vi.fn(),
   logInternalError: vi.fn(),
 }));
-vi.mock("@/lib/sources/simklCalendar", () => ({
-  fetchSimklAnimeCalendar: mocks.fetchSimklAnimeCalendar,
-  findSimklEpisodeSchedule: mocks.findSimklEpisodeSchedule,
+vi.mock("@/lib/sources/anilistAiring", () => ({
+  fetchAniListMediaBatch: mocks.fetchAniListMediaBatch,
+  formatAniListSchedule: (media: any) => ({
+    anilistId: media.id,
+    state: media.status === "FINISHED" ? "CONCLUDED" : (media.nextAiringEpisode ? "SCHEDULED" : "SCHEDULE_PENDING"),
+    nextEpisode: media.nextAiringEpisode?.episode ?? null,
+    nextReleaseAt: media.nextAiringEpisode?.airingAt ? new Date(media.nextAiringEpisode.airingAt * 1000) : null,
+    totalEpisodes: media.episodes,
+    status: media.status,
+    title: media.title?.english || "Test Title",
+    subtitle: null,
+    posterUrl: null,
+  }),
 }));
 
 import { GET } from "./route";
@@ -72,11 +81,16 @@ type Entry = {
   media_type: "Anime" | "Manhwa" | "Donghua";
   progress_current: number;
   tracker_url: string;
+  anilist_id?: number | null;
   simkl_id?: number | null;
-  tracking_source?: "simkl" | "scraper" | null;
+  tracking_source?: "anilist" | "simkl" | "scraper" | null;
   latest_remote_progress?: number | null;
   last_notified_progress?: number | null;
   last_push_notified_progress?: number | null;
+  numbering_mode?: "continuous" | "seasonal" | "unspecified" | null;
+  season_number?: number | null;
+  episode_offset?: number | null;
+  numbering_status?: "verified" | "needs_review" | null;
 };
 
 type User = {
@@ -172,8 +186,7 @@ beforeEach(() => {
   });
   mocks.pushDeviceDeleteMany.mockResolvedValue({ deletedCount: 0 });
   mocks.cronHistoryBulkWrite.mockResolvedValue({ acknowledged: true });
-  mocks.fetchSimklAnimeCalendar.mockResolvedValue({ payload: { calendar: [], metadata: {} } });
-  mocks.findSimklEpisodeSchedule.mockReturnValue(null);
+  mocks.fetchAniListMediaBatch.mockResolvedValue(new Map());
 });
 
 afterEach(() => {
@@ -261,18 +274,26 @@ describe("cron chapter notification state", () => {
 
   it("places Anime releases in their own Telegram section", async () => {
     mockFindResults(
-      [makeEntry({ media_type: "Anime", title: "One Piece", tracker_url: "", simkl_id: 38636, progress_current: 1175, latest_remote_progress: 1175 })],
+      [makeEntry({ media_type: "Anime", title: "One Piece", tracker_url: "", anilist_id: 21, progress_current: 1175, latest_remote_progress: 1175 })],
       [makeUser()],
     );
-    mocks.findSimklEpisodeSchedule.mockReturnValue({
-      previousEpisode: 1176,
-      previousReleaseAt: new Date(),
-      nextEpisode: 1177,
-      nextReleaseAt: new Date(Date.now() + 86_400_000),
-      episodeTitle: null,
-      finaleType: null,
-      episodeUrl: "https://simkl.com/anime/one-piece",
-    });
+    mocks.fetchAniListMediaBatch.mockResolvedValue(
+      new Map([
+        [
+          21,
+          {
+            id: 21,
+            title: { english: "One Piece", romaji: "One Piece", native: "ONE PIECE" },
+            countryOfOrigin: "JP",
+            format: "TV",
+            status: "RELEASING",
+            episodes: null,
+            nextAiringEpisode: { episode: 1177, airingAt: Math.floor(Date.now() / 1000) + 86400, timeUntilAiring: 86400 },
+            coverImage: null,
+          },
+        ],
+      ]),
+    );
 
     await GET(authorizedRequest());
 

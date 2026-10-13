@@ -20,6 +20,7 @@ import {
 import { useMediaStore } from "@/store/mediaStore";
 import { apiRequest } from "@/lib/client/api";
 import type { MediaItem } from "@/types/media";
+import type { UnifiedSearchResult } from "@/app/api/search/unified/route";
 
 const ACTIONS = [
   { id: "home", label: "Open Home", hint: "Page", icon: Home, path: "/home" },
@@ -54,6 +55,8 @@ export function CommandPalette() {
   const openSettings = useMediaStore((state) => state.openSettings);
   const [query, setQuery] = useState("");
   const [media, setMedia] = useState<MediaItem[]>([]);
+  const [discoverItems, setDiscoverItems] = useState<UnifiedSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [selected, setSelected] = useState(0);
   const requestId = useRef(0);
 
@@ -86,29 +89,63 @@ export function CommandPalette() {
     if (!open) {
       setQuery("");
       setMedia([]);
+      setDiscoverItems([]);
       setSelected(0);
+      setIsSearching(false);
       return;
     }
     const normalized = query.trim();
     if (normalized.length < 2) {
       setMedia([]);
+      setDiscoverItems([]);
+      setIsSearching(false);
       return;
     }
 
     const currentRequest = ++requestId.current;
+    setIsSearching(true);
     const timer = window.setTimeout(async () => {
       try {
-        const payload = await apiRequest<{ items: MediaItem[] }>(
-          `/api/media?search=${encodeURIComponent(normalized)}&limit=5`,
-          { cache: "no-store" },
-        );
+        const [libraryRes, discoverRes] = await Promise.allSettled([
+          apiRequest<{ items: MediaItem[] }>(
+            `/api/media?search=${encodeURIComponent(normalized)}&limit=5`,
+            { cache: "no-store" },
+          ),
+          apiRequest<{ items: UnifiedSearchResult[] }>(
+            `/api/search/unified?q=${encodeURIComponent(normalized)}`,
+            { cache: "no-store" },
+          ),
+        ]);
+
         if (currentRequest === requestId.current) {
-          setMedia(payload.items || []);
+          const libraryItems =
+            libraryRes.status === "fulfilled" ? libraryRes.value.items || [] : [];
+          setMedia(libraryItems);
+
+          if (discoverRes.status === "fulfilled") {
+            const rawDiscover = discoverRes.value.items || [];
+            const existingTitles = new Set(
+              libraryItems.map((m) => m.title.toLowerCase().trim()),
+            );
+            const fresh = rawDiscover.filter(
+              (d) => !existingTitles.has(d.title.toLowerCase().trim()),
+            );
+            setDiscoverItems(fresh.slice(0, 6));
+          } else {
+            setDiscoverItems([]);
+          }
         }
       } catch {
-        if (currentRequest === requestId.current) setMedia([]);
+        if (currentRequest === requestId.current) {
+          setMedia([]);
+          setDiscoverItems([]);
+        }
+      } finally {
+        if (currentRequest === requestId.current) {
+          setIsSearching(false);
+        }
       }
-    }, 180);
+    }, 220);
     return () => window.clearTimeout(timer);
   }, [open, query]);
 
@@ -119,7 +156,7 @@ export function CommandPalette() {
     );
   }, [query]);
 
-  const resultCount = actions.length + media.length;
+  const resultCount = actions.length + media.length + discoverItems.length;
 
   const runAction = (action: CommandAction) => {
     if ("path" in action) router.push(action.path);
@@ -128,15 +165,58 @@ export function CommandPalette() {
     setOpen(false);
   };
 
+  const handleTrackDiscover = (item: UnifiedSearchResult) => {
+    openModal({
+      _id: "",
+      title: item.title,
+      media_type: item.mediaType,
+      status: "Active",
+      progress_current: 0,
+      progress_total: item.totalEpisodes || 0,
+      rating: 0,
+      notes: item.subtitle ? `Alternate: ${item.subtitle}` : "",
+      custom_cover_url: item.posterUrl || "",
+      anilist_id: item.anilistId || null,
+      mangadex_id: item.mangadexId || null,
+      tracking_source: item.source === "anilist" ? "anilist" : null,
+      numbering_mode:
+        item.mediaType === "Anime" || item.mediaType === "Donghua"
+          ? "seasonal"
+          : "continuous",
+      season_number: 1,
+      episode_offset: 0,
+      numbering_status: "verified",
+      title_aliases: item.subtitle
+        ? {
+            english: item.title,
+            pinyin: null,
+            hanzi: null,
+            custom: [item.subtitle],
+          }
+        : null,
+      last_updated: new Date().toISOString(),
+    });
+    setOpen(false);
+  };
+
   const runSelected = () => {
     if (selected < actions.length) {
       runAction(actions[selected]);
       return;
     }
-    const item = media[selected - actions.length];
-    if (item) {
-      openModal(item);
-      setOpen(false);
+    const mediaIndex = selected - actions.length;
+    if (mediaIndex < media.length) {
+      const item = media[mediaIndex];
+      if (item) {
+        openModal(item);
+        setOpen(false);
+      }
+      return;
+    }
+    const discoverIndex = mediaIndex - media.length;
+    const discoverItem = discoverItems[discoverIndex];
+    if (discoverItem) {
+      handleTrackDiscover(discoverItem);
     }
   };
 
@@ -148,7 +228,7 @@ export function CommandPalette() {
         className="command-palette"
         role="dialog"
         aria-modal="true"
-        aria-label="Command palette"
+        aria-label="Omnisearch command palette"
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (event.key === "Escape") setOpen(false);
@@ -177,8 +257,9 @@ export function CommandPalette() {
               setQuery(event.target.value);
               setSelected(0);
             }}
-            placeholder="Search your library or run a command…"
+            placeholder="Search library, discover titles, or run command… (⌘K)"
           />
+          {isSearching && <span className="spinner" style={{ width: 14, height: 14 }} />}
           <button onClick={() => setOpen(false)} aria-label="Close command palette">
             <X size={17} />
           </button>
@@ -205,6 +286,7 @@ export function CommandPalette() {
               })}
             </div>
           )}
+
           {media.length > 0 && (
             <div className="palette-group">
               <span>Library</span>
@@ -229,13 +311,61 @@ export function CommandPalette() {
               })}
             </div>
           )}
-          {resultCount === 0 && (
-            <div className="palette-empty">No matching command or title.</div>
+
+          {discoverItems.length > 0 && (
+            <div className="palette-group">
+              <span>Discover & Track (AniList & MangaDex)</span>
+              {discoverItems.map((item, index) => {
+                const resultIndex = actions.length + media.length + index;
+                const typeClass = item.mediaType.toLowerCase();
+                return (
+                  <button
+                    key={item.id}
+                    className={`palette-discover-item ${selected === resultIndex ? "is-selected" : ""}`}
+                    onMouseEnter={() => setSelected(resultIndex)}
+                    onClick={() => handleTrackDiscover(item)}
+                  >
+                    {item.posterUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={item.posterUrl}
+                        alt=""
+                        className="palette-discover-poster"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div
+                        className="palette-discover-poster"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Sparkles size={14} />
+                      </div>
+                    )}
+                    <div className="palette-discover-info">
+                      <strong className="palette-discover-title">{item.title}</strong>
+                      {item.subtitle && (
+                        <small className="palette-discover-sub">{item.subtitle}</small>
+                      )}
+                    </div>
+                    <span className={`palette-badge ${typeClass}`}>{item.mediaType}</span>
+                    <Plus size={14} style={{ opacity: 0.7 }} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {resultCount === 0 && !isSearching && (
+            <div className="palette-empty">No matching command, library title, or discover result.</div>
           )}
         </div>
         <footer>
           <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
-          <span><kbd>↵</kbd> Open</span>
+          <span><kbd>↵</kbd> Select & Track</span>
           <span><kbd>esc</kbd> Close</span>
         </footer>
       </section>

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuthUserId } from "@/lib/guards";
 import { jsonError, jsonOk } from "@/lib/http";
-import { fetchSimklAnimeCalendar, searchSimklCalendarTitles } from "@/lib/sources/simklCalendar";
+import { searchAniListMedia } from "@/lib/sources/anilistAiring";
 
 export async function GET(req: NextRequest) {
   const { userId, errorResponse } = await requireAuthUserId(req);
@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { payload } = await fetchSimklAnimeCalendar();
-    return jsonOk({ items: searchSimklCalendarTitles(query, payload) });
+    const items = await searchAniListMedia(query);
+    return jsonOk({ items });
   } catch {
     return jsonError("TITLE_SEARCH_UNAVAILABLE", "Title search is temporarily unavailable", 503);
   }

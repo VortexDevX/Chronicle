@@ -4,12 +4,7 @@ import { enforceRateLimit } from "@/lib/guards";
 import { getClientIp } from "@/lib/rateLimit";
 import { logInternalError } from "@/lib/log";
 import { fetchWithTimeout } from "@/lib/externalFetch";
-
-import {
-  fetchSimklAnimeCalendar,
-  findSimklIdByTitle,
-  getSimklPosterUrl,
-} from "@/lib/sources/simklCalendar";
+import { fetchAniListMediaById } from "@/lib/sources/anilistAiring";
 
 type KitsuCoverResponse = {
   data?: Array<{
@@ -46,49 +41,13 @@ type JikanCoverResponse = {
   }[];
 };
 
-async function fetchSimklCover(
-  title: string,
-  simklId?: number | null,
-): Promise<string | null> {
+async function fetchAniListCoverById(anilistId: number): Promise<string | null> {
   try {
-    const { payload } = await fetchSimklAnimeCalendar();
-    if (simklId && Number.isInteger(simklId) && simklId > 0) {
-      const show =
-        payload.metadata[String(simklId)] || payload.metadata[simklId];
-      if (show?.poster) {
-        return getSimklPosterUrl(show.poster);
-      }
-    }
-    const resolvedId = findSimklIdByTitle(title, payload);
-    if (resolvedId) {
-      const show =
-        payload.metadata[String(resolvedId)] || payload.metadata[resolvedId];
-      if (show?.poster) {
-        return getSimklPosterUrl(show.poster);
-      }
-    }
+    const media = await fetchAniListMediaById(anilistId);
+    return media?.coverImage?.large || media?.coverImage?.extraLarge || null;
   } catch {
-    // Continue to next provider
+    return null;
   }
-  return null;
-}
-
-async function fetchKitsuCover(title: string): Promise<string | null> {
-  const res = await fetchWithTimeout(
-    `https://kitsu.io/api/edge/anime?filter[text]=${encodeURIComponent(title)}&page[limit]=1`,
-    {
-      cache: "no-store",
-      headers: {
-        Accept: "application/vnd.api+json",
-        "User-Agent": "Chronicle/1.0",
-      },
-    },
-    4000,
-  );
-  if (!res.ok) return null;
-  const json = (await res.json()) as KitsuCoverResponse;
-  const poster = json.data?.[0]?.attributes?.posterImage;
-  return poster?.large || poster?.original || poster?.medium || null;
 }
 
 async function fetchAniListCover(title: string): Promise<string | null> {
@@ -100,6 +59,7 @@ async function fetchAniListCover(title: string): Promise<string | null> {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        "User-Agent": "Chronicle/1.0",
       },
       body: JSON.stringify({
         query: `
@@ -125,6 +85,24 @@ async function fetchAniListCover(title: string): Promise<string | null> {
   return cover?.extraLarge || cover?.large || cover?.medium || null;
 }
 
+async function fetchKitsuCover(title: string): Promise<string | null> {
+  const res = await fetchWithTimeout(
+    `https://kitsu.io/api/edge/anime?filter[text]=${encodeURIComponent(title)}&page[limit]=1`,
+    {
+      cache: "no-store",
+      headers: {
+        Accept: "application/vnd.api+json",
+        "User-Agent": "Chronicle/1.0",
+      },
+    },
+    3000,
+  );
+  if (!res.ok) return null;
+  const json = (await res.json()) as KitsuCoverResponse;
+  const poster = json.data?.[0]?.attributes?.posterImage;
+  return poster?.large || poster?.original || poster?.medium || null;
+}
+
 async function fetchJikanCover(title: string): Promise<string | null> {
   const res = await fetchWithTimeout(
     `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`,
@@ -147,8 +125,8 @@ async function fetchJikanCover(title: string): Promise<string | null> {
 export async function GET(req: NextRequest) {
   try {
     const title = req.nextUrl.searchParams.get("title");
-    const rawSimklId = req.nextUrl.searchParams.get("simkl_id");
-    const simklId = rawSimklId ? Number(rawSimklId) : null;
+    const rawAniListId = req.nextUrl.searchParams.get("anilist_id");
+    const anilistId = rawAniListId ? Number(rawAniListId) : null;
     const normalizedTitle = String(title || "").trim();
     if (!normalizedTitle) return jsonError("MISSING_TITLE", "Missing title", 400);
     if (normalizedTitle.length > 200) {
@@ -167,22 +145,26 @@ export async function GET(req: NextRequest) {
     });
     if (!guard.allowed && guard.errorResponse) return guard.errorResponse;
 
-    // 1. Primary: SIMKL calendar metadata (fast, high quality, CDN cached)
-    let imageUrl: string | null = await fetchSimklCover(normalizedTitle, simklId);
+    let imageUrl: string | null = null;
 
-    // 2. Secondary: Kitsu API (public, no key required, high availability)
-    if (!imageUrl) {
-      try {
-        imageUrl = await fetchKitsuCover(normalizedTitle);
-      } catch {
-        // Fall through to AniList
-      }
+    // 1. Primary: Direct AniList ID lookup if provided
+    if (anilistId && Number.isInteger(anilistId) && anilistId > 0) {
+      imageUrl = await fetchAniListCoverById(anilistId);
     }
 
-    // 3. Tertiary: AniList GraphQL
+    // 2. Secondary: AniList GraphQL search by title
     if (!imageUrl) {
       try {
         imageUrl = await fetchAniListCover(normalizedTitle);
+      } catch {
+        // Fall through to Kitsu
+      }
+    }
+
+    // 3. Tertiary: Kitsu API (public, no key required, high availability)
+    if (!imageUrl) {
+      try {
+        imageUrl = await fetchKitsuCover(normalizedTitle);
       } catch {
         // Fall through to Jikan
       }

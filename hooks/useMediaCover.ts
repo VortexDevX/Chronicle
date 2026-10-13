@@ -11,7 +11,7 @@ import {
 
 function coverIdentity(media: MediaItem) {
   if (media.mangadex_id) return `md-${media.mangadex_id}`;
-  if (media.simkl_id) return `simkl-${media.simkl_id}`;
+  if (media.anilist_id) return `al-${media.anilist_id}`;
   return media.title;
 }
 
@@ -44,7 +44,7 @@ export function useMediaCover(media: MediaItem) {
           media.title,
           media._id,
           media.mangadex_id || undefined,
-          media.simkl_id || undefined,
+          media.anilist_id || undefined,
         );
       } else {
         const cached = getCachedCover(cacheKey);
@@ -58,7 +58,7 @@ export function useMediaCover(media: MediaItem) {
           media.title,
           media._id,
           media.mangadex_id || undefined,
-          media.simkl_id || undefined,
+          media.anilist_id || undefined,
         );
       }
 

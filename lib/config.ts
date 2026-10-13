@@ -37,9 +37,9 @@ function validateCoreConfig() {
     appOrigin: getOptionalEnv("APP_ORIGIN"),
     appOrigins: getOptionalEnvList("APP_ORIGIN"),
     cronSecret: getOptionalEnv("CRON_SECRET"),
-    brevoApiKey: getOptionalEnv("BREVO_API_KEY"),
-    brevoFromEmail: getOptionalEnv("BREVO_FROM_EMAIL"),
-    brevoFromName: getOptionalEnv("BREVO_FROM_NAME", "Chronicle"),
+    resendApiKey: getOptionalEnv("RESEND_API_KEY", getOptionalEnv("BREVO_API_KEY")),
+    senderEmail: getOptionalEnv("SENDER_EMAIL", getOptionalEnv("BREVO_FROM_EMAIL")),
+    senderName: getOptionalEnv("SENDER_NAME", getOptionalEnv("BREVO_FROM_NAME", "Chronicle")),
     telegramBotToken: getOptionalEnv("TELEGRAM_BOT_TOKEN"),
     telegramChatId: getOptionalEnv("TELEGRAM_CHAT_ID"),
   };

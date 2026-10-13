@@ -39,7 +39,13 @@ type ReleaseRadarResponse = {
   refreshed_at: string | null;
 };
 
-type MatchCandidate = { simklId: number; title: string; subtitle: string | null };
+type MatchCandidate = {
+  anilistId: number;
+  title: string;
+  subtitle: string | null;
+  format?: string | null;
+  posterUrl?: string | null;
+};
 type Range = "all" | "today" | "threeDays";
 
 function releaseTime(item: RadarItem): number | null {
@@ -70,6 +76,7 @@ export default function ReleaseRadarPage() {
   const setActiveRoute = useMediaStore((state) => state.setActiveRoute);
   const mediaRev = useMediaStore((state) => state.mediaRev);
   const [items, setItems] = useState<RadarItem[]>([]);
+  const [pendingItems, setPendingItems] = useState<RadarItem[]>([]);
   const [tracked, setTracked] = useState(0);
   const [unmatched, setUnmatched] = useState(0);
   const [needsMatching, setNeedsMatching] = useState<ReleaseRadarResponse["needs_matching"]>([]);
@@ -92,6 +99,7 @@ export default function ReleaseRadarPage() {
     try {
       const radar = await apiRequest<ReleaseRadarResponse>("/api/release-radar");
       setItems(radar.items.filter((item) => releaseTime(item) !== null));
+      setPendingItems(radar.items.filter((item) => releaseTime(item) === null));
       setTracked(radar.tracked);
       setUnmatched(radar.unmatched);
       setNeedsMatching(radar.needs_matching);
@@ -99,6 +107,7 @@ export default function ReleaseRadarPage() {
     } catch (loadError) {
       setError(getErrorMessage(loadError, "Release Radar could not load"));
       setItems([]);
+      setPendingItems([]);
       setTracked(0);
       setUnmatched(0);
       setNeedsMatching([]);
@@ -154,13 +163,13 @@ export default function ReleaseRadarPage() {
 
   const saveMatch = async (candidate: MatchCandidate) => {
     if (!matchingItem) return;
-    setMatchSaving(candidate.simklId);
+    setMatchSaving(candidate.anilistId);
     setMatchError("");
     try {
       await apiRequest("/api/release-radar/match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: matchingItem._id, simkl_id: candidate.simklId }),
+        body: JSON.stringify({ id: matchingItem._id, anilist_id: candidate.anilistId }),
       });
       setNeedsMatching((current) => current.filter((item) => item._id !== matchingItem._id));
       setMatchingItem(null);
@@ -235,7 +244,7 @@ export default function ReleaseRadarPage() {
           <div>
             <h1>Your next episodes.</h1>
             <p>
-              Anime and Donghua releases matched from your library and synced with SIMKL.
+              Anime and Donghua releases matched from your library and synced with AniList.
             </p>
           </div>
           <div className="release-radar-stats">
@@ -245,6 +254,11 @@ export default function ReleaseRadarPage() {
             <span>
               <strong>{items.length}</strong> scheduled
             </span>
+            {pendingItems.length > 0 && (
+              <span>
+                <strong>{pendingItems.length}</strong> pending dates
+              </span>
+            )}
           </div>
         </div>
 
@@ -460,6 +474,30 @@ export default function ReleaseRadarPage() {
         </details>
       )}
 
+      {!loading && !error && pendingItems.length > 0 && (
+        <details className="release-radar-saved-matches">
+          <summary>
+            Awaiting air dates or next season <span>{pendingItems.length}</span>
+          </summary>
+          <p>
+            These series are tracked in your library, but their next air date is pending announcement.
+          </p>
+          <div className="release-radar-match-list">
+            {pendingItems.map((item) => (
+              <button
+                key={item._id}
+                type="button"
+                onClick={() => openModal(item)}
+              >
+                <span>{item.media_type}</span>
+                <strong>{item.title}</strong>
+                <Pencil size={15} />
+              </button>
+            ))}
+          </div>
+        </details>
+      )}
+
       {matchingItem && (
         <div
           className="release-radar-picker-backdrop"
@@ -515,7 +553,7 @@ export default function ReleaseRadarPage() {
               <div className="release-radar-options">
                 {matchOptions.map((candidate) => (
                   <button
-                    key={candidate.simklId}
+                    key={candidate.anilistId}
                     type="button"
                     onClick={() => void saveMatch(candidate)}
                     disabled={matchSaving !== null}
@@ -524,7 +562,7 @@ export default function ReleaseRadarPage() {
                       <strong>{candidate.title}</strong>
                       {candidate.subtitle && <small>{candidate.subtitle}</small>}
                     </span>
-                    {matchSaving === candidate.simklId ? (
+                    {matchSaving === candidate.anilistId ? (
                       <span className="spinner" />
                     ) : (
                       <Check size={18} />

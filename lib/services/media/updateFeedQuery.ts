@@ -11,7 +11,7 @@ export async function getUpdateFeed(
   const tracked = {
     user_id: userObjectId,
     status: { $in: activeStatuses },
-    // Manhwa needs a tracker URL. Anime/Donghua progress comes from SIMKL and
+    // Manhwa needs a tracker URL. Anime/Donghua progress comes from AniList and
     // must remain visible even when Watch URL is empty.
     $or: [
       { media_type: "Manhwa", tracker_url: { $exists: true, $nin: [null, ""] } },

@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { EmailVerificationToken, User } from "@/lib/models";
-import { sendBrevoEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import { jsonError, jsonOk } from "@/lib/http";
 import { requireAuthUserId, enforceRateLimit } from "@/lib/guards";
 import { getClientIp } from "@/lib/rateLimit";
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     });
 
     const verifyUrl = `${getVerifyOrigin(req)}/api/auth/verify-email?token=${token}`;
-    await sendBrevoEmail({
+    await sendEmail({
       to: [{ email: user.email, name: user.username }],
       subject: "Verify your Chronicle email",
       htmlContent: [

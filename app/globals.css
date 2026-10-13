@@ -7547,6 +7547,208 @@ textarea:focus-visible {
   border-color: rgba(239, 68, 68, 0.4) !important;
 }
 
+/* Advanced Drawer Toggle & Drawer Content */
+.advanced-drawer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-base);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+.advanced-drawer-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.advanced-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
+  margin-top: -8px;
+}
+
+/* Omnisearch Result Cards */
+.palette-discover-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.15s ease;
+}
+.palette-discover-item:hover,
+.palette-discover-item.is-selected {
+  background: rgba(255, 255, 255, 0.08);
+}
+.palette-discover-poster {
+  width: 36px;
+  height: 50px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+.palette-discover-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.palette-discover-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.palette-discover-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.palette-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+.palette-badge.anime {
+  background: rgba(147, 51, 234, 0.2);
+  color: #c084fc;
+}
+.palette-badge.donghua {
+  background: rgba(234, 88, 12, 0.2);
+  color: #fb923c;
+}
+.palette-badge.manhwa {
+  background: rgba(14, 165, 233, 0.2);
+  color: #38bdf8;
+}
+
+/* MediaModal Title Suggestions Autocomplete */
+.title-search-wrapper {
+  position: relative;
+  width: 100%;
+}
+.title-suggestions-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface, #18181b);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+}
+.title-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  width: 100%;
+}
+.title-suggestion-item:last-child {
+  border-bottom: none;
+}
+.title-suggestion-item:hover,
+.title-suggestion-item.is-selected {
+  background: rgba(255, 255, 255, 0.08);
+}
+.title-suggestion-poster {
+  width: 34px;
+  height: 48px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+.title-suggestion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.title-suggestion-main {
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-base, #fff);
+}
+.title-suggestion-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted, #a1a1aa);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.title-suggestion-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.title-suggestion-tag {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted, #a1a1aa);
+}
+.title-suggestion-tag.anime {
+  background: rgba(147, 51, 234, 0.2);
+  color: #c084fc;
+}
+.title-suggestion-tag.donghua {
+  background: rgba(234, 88, 12, 0.2);
+  color: #fb923c;
+}
+.title-suggestion-tag.manhwa {
+  background: rgba(14, 165, 233, 0.2);
+  color: #38bdf8;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

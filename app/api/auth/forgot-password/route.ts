@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import { PasswordResetToken, User } from "@/lib/models";
-import { sendBrevoEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import { jsonOk } from "@/lib/http";
 import { getClientIp } from "@/lib/rateLimit";
 import { enforceRateLimit } from "@/lib/guards";
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     });
 
     const resetUrl = `${getResetOrigin(req)}/reset-password?token=${token}`;
-    await sendBrevoEmail({
+    await sendEmail({
       to: [{ email, name: user.username }],
       subject: "Reset your Chronicle password",
       htmlContent: [
