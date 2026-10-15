@@ -73,6 +73,7 @@ export async function getUpcomingReleases(
           progressCurrent: Number(entry.progress_current || 0),
           nextEpisode,
           numberingMode: entry.numbering_mode,
+          seasonNumber: entry.season_number,
           episodeOffset: entry.episode_offset,
         });
 

@@ -185,6 +185,7 @@ export function isCaughtUpToRelease(params: {
   progressCurrent: number;
   nextEpisode: number | null;
   numberingMode?: NumberingMode | null;
+  seasonNumber?: number | null;
   episodeOffset?: number | null;
   remoteIsContinuous?: boolean;
 }): boolean {
