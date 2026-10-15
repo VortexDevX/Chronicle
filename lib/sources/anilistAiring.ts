@@ -397,7 +397,7 @@ export async function searchAniListMedia(
       format: item.format,
       countryOfOrigin: item.countryOfOrigin,
       totalEpisodes: item.episodes,
-      posterUrl: item.coverImage?.large || item.coverImage?.extraLarge || null,
+      posterUrl: item.coverImage?.extraLarge || item.coverImage?.large || null,
       status: item.status,
     };
   });
@@ -422,7 +422,7 @@ export function formatAniListSchedule(media: AniListMedia): AniListScheduleResul
     status: media.status,
     title: main,
     subtitle: sub,
-    posterUrl: media.coverImage?.large || media.coverImage?.extraLarge || null,
+    posterUrl: media.coverImage?.extraLarge || media.coverImage?.large || null,
     episodeUrl: `https://anilist.co/anime/${media.id}`,
   };
 }

@@ -36,8 +36,9 @@ export async function POST(req: NextRequest) {
       updates.next_episode = media.nextAiringEpisode.episode;
       updates.next_episode_release_at = new Date(media.nextAiringEpisode.airingAt * 1000);
     }
-    if (media.coverImage?.large) {
-      updates.custom_cover_url = media.coverImage.large;
+    const bestCover = media.coverImage?.extraLarge || media.coverImage?.large || null;
+    if (bestCover) {
+      updates.custom_cover_url = bestCover;
     }
   }
 

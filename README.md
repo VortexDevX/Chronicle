@@ -55,11 +55,13 @@ See [ANDROID_APP.md](./ANDROID_APP.md) for APK builds, Firebase setup, and relea
 
 ## Episode schedules and Release Radar
 
-Release Radar uses the [AniList GraphQL API](https://graphql.anilist.co) for Anime and Donghua airing schedules. It matches each title through its stable AniList ID, preserving schedule state (`SCHEDULED`, `SCHEDULE_PENDING`, `HIATUS`, `CONCLUDED`). Airing schedules are refreshed with a conservative configurable rate limiter (default 25 req/min, capped at 30 req/min) respecting retry headers and TTL caching.
+Release Radar combines the [AniList GraphQL API](https://graphql.anilist.co) with a multi-source airing calendar fallback for active Anime and Donghua. It matches each title through its stable AniList ID and title aliases, preserving schedule state (`SCHEDULED`, `SCHEDULE_PENDING`, `HIATUS`, `CONCLUDED`). Airing schedules are refreshed with a conservative configurable rate limiter (default 25 req/min, capped at 30 req/min) respecting retry headers and TTL caching.
 
 1. Keep an Anime or Donghua entry **Active**.
 2. Add any streaming/site link in **Watch URL**. Chronicle opens it as a 1-click bookmark but never scrapes it.
-3. Open Release Radar. It shows upcoming announced episodes in your local time with countdowns.
+3. Configure **Numbering Mode** (`Continuous` or `Seasonal`) with optional **Episode Offset** if tracking multi-season series (e.g. Season 4 with offset 91). Chronicle normalizes progress units safely so upcoming episode countdowns are accurately tracked without false "caught-up" filtering.
+4. Open Release Radar. It shows upcoming announced episodes in your local time with countdowns and season/episode context.
+5. Covers are automatically resolved in high-definition (prioritizing AniList extraLarge, Kitsu original master art, and Simkl HD posters).
 
 Release Radar never changes `progress_current`. Manhwa tracker checks remain separate.
 

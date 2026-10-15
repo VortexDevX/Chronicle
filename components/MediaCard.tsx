@@ -24,6 +24,7 @@ import {
 } from "@/utils/format";
 import { normalizePublicHttpUrl } from "@/lib/publicUrl";
 import { MediaArtwork } from "@/components/MediaArtwork";
+import { isCaughtUpToRelease } from "@/lib/services/media/progressBridge";
 
 function formatProgress(value: number) {
   return Number.isInteger(value)
@@ -82,8 +83,12 @@ export function MediaCard({
   const nextReleaseTime = m.next_episode_release_at
     ? new Date(m.next_episode_release_at).getTime()
     : null;
-  const isCaughtUp =
-    m.next_episode != null && m.progress_current >= m.next_episode;
+  const isCaughtUp = isCaughtUpToRelease({
+    progressCurrent: m.progress_current,
+    nextEpisode: m.next_episode ?? null,
+    numberingMode: m.numbering_mode,
+    episodeOffset: m.episode_offset,
+  });
   const hasReleaseSchedule =
     isScreenMedia &&
     !isDonghuaScraper &&

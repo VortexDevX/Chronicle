@@ -6,6 +6,7 @@ import {
   detectNumberingMismatch,
   compareProgress,
   formatEpisodeDisplay,
+  isCaughtUpToRelease,
 } from "./progressBridge";
 
 describe("progressBridge", () => {
@@ -186,6 +187,53 @@ describe("progressBridge", () => {
 
     it("formats unspecified or standard show", () => {
       expect(formatEpisodeDisplay({ progress: 15 })).toBe("Ep 15");
+    });
+  });
+
+  describe("isCaughtUpToRelease", () => {
+    it("returns false when user is behind scheduled continuous episode", () => {
+      expect(
+        isCaughtUpToRelease({
+          progressCurrent: 50,
+          nextEpisode: 21,
+          numberingMode: "continuous",
+          episodeOffset: 91,
+          remoteIsContinuous: false, // 21 + 91 = 112
+        }),
+      ).toBe(false);
+    });
+
+    it("returns false when user has seasonal show but is behind next episode", () => {
+      expect(
+        isCaughtUpToRelease({
+          progressCurrent: 20,
+          nextEpisode: 21,
+          numberingMode: "seasonal",
+          seasonNumber: 4,
+          episodeOffset: 91,
+          remoteIsContinuous: false,
+        }),
+      ).toBe(false);
+    });
+
+    it("returns true when user reached or exceeded next episode", () => {
+      expect(
+        isCaughtUpToRelease({
+          progressCurrent: 21,
+          nextEpisode: 21,
+          numberingMode: "seasonal",
+          seasonNumber: 4,
+          episodeOffset: 91,
+          remoteIsContinuous: false,
+        }),
+      ).toBe(true);
+    });
+
+    it("handles regular anime without offset", () => {
+      expect(isCaughtUpToRelease({ progressCurrent: 5, nextEpisode: 6 })).toBe(false);
+      expect(isCaughtUpToRelease({ progressCurrent: 6, nextEpisode: 6 })).toBe(true);
+      expect(isCaughtUpToRelease({ progressCurrent: 7, nextEpisode: 6 })).toBe(true);
+      expect(isCaughtUpToRelease({ progressCurrent: 5, nextEpisode: null })).toBe(false);
     });
   });
 });

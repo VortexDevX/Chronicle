@@ -144,7 +144,7 @@ describe("anilistAiring", () => {
       expect(formatted.state).toBe("SCHEDULED");
       expect(formatted.nextEpisode).toBe(15);
       expect(formatted.nextReleaseAt).toEqual(new Date(epochSeconds * 1000));
-      expect(formatted.posterUrl).toBe("https://anilist.co/cover_l.jpg");
+      expect(formatted.posterUrl).toBe("https://anilist.co/cover_xl.jpg");
     });
   });
 

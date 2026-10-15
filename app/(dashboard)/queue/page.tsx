@@ -19,6 +19,7 @@ import { apiRequest, getErrorMessage } from "@/lib/client/api";
 import { normalizePublicHttpUrl } from "@/lib/publicUrl";
 import type { MediaItem } from "@/types/media";
 import { formatReleaseCountdown } from "@/utils/format";
+import { isCaughtUpToRelease } from "@/lib/services/media/progressBridge";
 
 type RadarItem = MediaItem & {
   next_episode: number;
@@ -69,6 +70,30 @@ function dayLabel(value: number, now: number): string {
     month: "short",
     day: "numeric",
   }).format(date);
+}
+
+function formatRadarEpisode(item: RadarItem): string {
+  if (item.numbering_mode === "seasonal" && item.season_number) {
+    if (item.episode_offset && item.episode_offset > 0) {
+      const continuous =
+        item.next_episode !== null && item.next_episode !== undefined
+          ? item.next_episode + item.episode_offset
+          : null;
+      return continuous
+        ? `S${item.season_number} Ep ${item.next_episode} (Ep ${continuous})`
+        : `S${item.season_number} Ep ${item.next_episode}`;
+    }
+    return `S${item.season_number} Ep ${item.next_episode}`;
+  }
+  if (
+    item.episode_offset &&
+    item.episode_offset > 0 &&
+    item.next_episode !== null &&
+    item.next_episode !== undefined
+  ) {
+    return `Ep ${item.next_episode + item.episode_offset} (S${item.season_number || 1} Ep ${item.next_episode})`;
+  }
+  return `Episode ${item.next_episode}`;
 }
 
 export default function ReleaseRadarPage() {
@@ -192,9 +217,14 @@ export default function ReleaseRadarPage() {
 
     return items.filter((item) => {
       const releaseAt = releaseTime(item)!;
-      const current = Number(item.progress_current || 0);
+      const isCaughtUp = isCaughtUpToRelease({
+        progressCurrent: item.progress_current,
+        nextEpisode: item.next_episode,
+        numberingMode: item.numbering_mode,
+        episodeOffset: item.episode_offset,
+      });
       // If the episode already aired and user is caught up to it, hide it
-      if (releaseAt <= now && current >= item.next_episode) {
+      if (releaseAt <= now && isCaughtUp) {
         return false;
       }
       if (
@@ -267,7 +297,7 @@ export default function ReleaseRadarPage() {
             <Clock3 size={17} />
             <span>Next up</span>
             <strong>
-              {next.title} · Episode {next.next_episode}
+              {next.title} · {formatRadarEpisode(next)}
             </strong>
             <b>{formatReleaseCountdown(next.next_episode_release_at, now)}</b>
           </div>
@@ -367,7 +397,7 @@ export default function ReleaseRadarPage() {
                         </div>
                         <h2>{item.title}</h2>
                         <p>
-                          Episode {item.next_episode}
+                          {formatRadarEpisode(item)}
                           {item.episode_title ? ` · ${item.episode_title}` : ""} ·{" "}
                           {new Intl.DateTimeFormat(undefined, {
                             hour: "numeric",

@@ -5,6 +5,7 @@ import {
   formatAniListSchedule,
 } from "@/lib/sources/anilistAiring";
 import { resolveAiringCalendarSchedule } from "@/lib/sources/airingCalendar";
+import { isCaughtUpToRelease } from "@/lib/services/media/progressBridge";
 import type { MediaItem as MediaItemType } from "@/types/media";
 
 export async function getUpcomingReleases(
@@ -23,7 +24,7 @@ export async function getUpcomingReleases(
         { media_type: "Donghua" },
       ],
     })
-      .select("title media_type status progress_current progress_total tracker_url custom_cover_url anilist_id simkl_id next_episode next_episode_release_at")
+      .select("title media_type status progress_current progress_total tracker_url custom_cover_url anilist_id simkl_id next_episode next_episode_release_at numbering_mode season_number episode_offset")
       .sort({ last_updated: -1 })
       .limit(300)
       .lean();
@@ -68,7 +69,12 @@ export async function getUpcomingReleases(
 
       if (nextEpisode !== null && nextReleaseAtStr !== null) {
         const releaseTime = Date.parse(nextReleaseAtStr);
-        const isCaughtUp = Number(entry.progress_current || 0) >= nextEpisode;
+        const isCaughtUp = isCaughtUpToRelease({
+          progressCurrent: Number(entry.progress_current || 0),
+          nextEpisode,
+          numberingMode: entry.numbering_mode,
+          episodeOffset: entry.episode_offset,
+        });
 
         if (
           !isNaN(releaseTime) &&
@@ -106,7 +112,12 @@ export async function getUpcomingReleases(
       ],
       next_episode: { $ne: null },
       next_episode_release_at: { $gt: nowIso, $lte: maxIso },
-      $expr: { $lt: ["$progress_current", "$next_episode"] },
+      $expr: {
+        $lt: [
+          "$progress_current",
+          { $add: [{ $ifNull: ["$episode_offset", 0] }, "$next_episode"] },
+        ],
+      },
     })
       .sort({ next_episode_release_at: 1 })
       .limit(limit)

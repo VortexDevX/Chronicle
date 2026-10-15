@@ -18,6 +18,9 @@ export type RadarItem = {
   status: string;
   progress_current: number;
   progress_total: number;
+  numbering_mode?: "continuous" | "seasonal" | "unspecified" | null;
+  season_number?: number | null;
+  episode_offset?: number | null;
   tracker_url: string | null;
   custom_cover_url: string | null;
   anilist_id: number | null;
@@ -42,7 +45,7 @@ export async function GET(req: NextRequest) {
         { media_type: "Donghua" },
       ],
     })
-      .select("title media_type status progress_current progress_total tracker_url custom_cover_url anilist_id simkl_id next_episode next_episode_release_at")
+      .select("title media_type status progress_current progress_total tracker_url custom_cover_url anilist_id simkl_id next_episode next_episode_release_at numbering_mode season_number episode_offset")
       .sort({ last_updated: -1 })
       .limit(300)
       .lean();
@@ -128,6 +131,9 @@ export async function GET(req: NextRequest) {
         status: String(entry.status),
         progress_current: Number(entry.progress_current || 0),
         progress_total: Number(entry.progress_total || 0),
+        numbering_mode: (entry as { numbering_mode?: "continuous" | "seasonal" | "unspecified" | null }).numbering_mode || null,
+        season_number: (entry as { season_number?: number | null }).season_number || null,
+        episode_offset: (entry as { episode_offset?: number | null }).episode_offset || null,
         tracker_url: entry.tracker_url || null,
         custom_cover_url: entry.custom_cover_url || null,
         anilist_id: anilistId > 0 ? anilistId : null,
@@ -140,7 +146,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (updatesToPersist.length > 0) {
-      void Promise.allSettled(updatesToPersist);
+      await Promise.allSettled(updatesToPersist);
     }
 
     // Sort: Scheduled upcoming releases first (ascending by release time), then pending, hiatus, concluded

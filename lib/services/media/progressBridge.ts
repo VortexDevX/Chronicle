@@ -176,3 +176,43 @@ export function formatEpisodeDisplay(params: {
 
   return `Ep ${progress}`;
 }
+
+/**
+ * Determines whether the user has caught up to a scheduled release.
+ * Accounts for seasonal offsets and mixed continuous/seasonal numbering safely.
+ */
+export function isCaughtUpToRelease(params: {
+  progressCurrent: number;
+  nextEpisode: number | null;
+  numberingMode?: NumberingMode | null;
+  episodeOffset?: number | null;
+  remoteIsContinuous?: boolean;
+}): boolean {
+  if (params.nextEpisode === null || params.nextEpisode === undefined) return false;
+  const current = Number(params.progressCurrent) || 0;
+  const offset =
+    typeof params.episodeOffset === "number" && params.episodeOffset >= 0
+      ? params.episodeOffset
+      : 0;
+  const remoteIsContinuous = params.remoteIsContinuous === true;
+  const mode = params.numberingMode || "unspecified";
+
+  // Determine continuous number of next episode
+  const nextContinuous = remoteIsContinuous
+    ? params.nextEpisode
+    : params.nextEpisode + offset;
+
+  // Determine user's continuous progress
+  let userContinuous = current;
+  if (mode === "seasonal" && offset > 0) {
+    if (current >= offset) {
+      // User entered continuous progress (e.g. 50 or 100 while offset is 91)
+      userContinuous = current;
+    } else {
+      // User entered seasonal progress (e.g. S4 Ep 5, with offset 91 => continuous 96)
+      userContinuous = current + offset;
+    }
+  }
+
+  return userContinuous >= nextContinuous;
+}

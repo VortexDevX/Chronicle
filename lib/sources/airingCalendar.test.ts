@@ -5,7 +5,7 @@ describe("airingCalendar", () => {
   it("formats simkl poster urls correctly", () => {
     expect(getSimklPosterUrl(null)).toBeNull();
     expect(getSimklPosterUrl("https://example.com/cover.jpg")).toBe("https://example.com/cover.jpg");
-    expect(getSimklPosterUrl("12345")).toBe("https://simkl.in/posters/12345_m.jpg");
+    expect(getSimklPosterUrl("12345")).toBe("https://simkl.in/posters/12345_0.jpg");
   });
 
   it("resolves upcoming episode by simkl_id", async () => {

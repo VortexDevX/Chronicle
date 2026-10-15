@@ -4406,6 +4406,10 @@ textarea:focus-visible {
     linear-gradient(145deg, #2a2d34, #101217 72%);
   background-position: center;
   background-size: cover;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .media-artwork::after {

@@ -41,10 +41,16 @@ type JikanCoverResponse = {
   }[];
 };
 
+function isLowResCover(url: string | null): boolean {
+  if (!url) return true;
+  return url.includes("/medium/") || url.includes("/small/") || url.includes("tiny-");
+}
+
 async function fetchAniListCoverById(anilistId: number): Promise<string | null> {
   try {
     const media = await fetchAniListMediaById(anilistId);
-    return media?.coverImage?.large || media?.coverImage?.extraLarge || null;
+    const cover = media?.coverImage;
+    return cover?.extraLarge || cover?.large || cover?.medium || null;
   } catch {
     return null;
   }
@@ -100,7 +106,7 @@ async function fetchKitsuCover(title: string): Promise<string | null> {
   if (!res.ok) return null;
   const json = (await res.json()) as KitsuCoverResponse;
   const poster = json.data?.[0]?.attributes?.posterImage;
-  return poster?.large || poster?.original || poster?.medium || null;
+  return poster?.original || poster?.large || poster?.medium || null;
 }
 
 async function fetchJikanCover(title: string): Promise<string | null> {
@@ -150,32 +156,55 @@ export async function GET(req: NextRequest) {
     // 1. Primary: Direct AniList ID lookup if provided
     if (anilistId && Number.isInteger(anilistId) && anilistId > 0) {
       imageUrl = await fetchAniListCoverById(anilistId);
+      // If AniList only has a low-res thumbnail, attempt to find a sharper HD cover
+      if (imageUrl && isLowResCover(imageUrl)) {
+        try {
+          const sharper = (await fetchKitsuCover(normalizedTitle)) || (await fetchJikanCover(normalizedTitle));
+          if (sharper && !isLowResCover(sharper)) {
+            imageUrl = sharper;
+          }
+        } catch {
+          // Keep AniList candidate as fallback
+        }
+      }
     }
 
     // 2. Secondary: AniList GraphQL search by title
     if (!imageUrl) {
       try {
         imageUrl = await fetchAniListCover(normalizedTitle);
+        if (imageUrl && isLowResCover(imageUrl)) {
+          const sharper = (await fetchKitsuCover(normalizedTitle)) || (await fetchJikanCover(normalizedTitle));
+          if (sharper && !isLowResCover(sharper)) {
+            imageUrl = sharper;
+          }
+        }
       } catch {
         // Fall through to Kitsu
       }
     }
 
-    // 3. Tertiary: Kitsu API (public, no key required, high availability)
-    if (!imageUrl) {
+    // 3. Tertiary: Kitsu API (public, high availability, sharp original images)
+    if (!imageUrl || isLowResCover(imageUrl)) {
       try {
-        imageUrl = await fetchKitsuCover(normalizedTitle);
+        const kitsuCover = await fetchKitsuCover(normalizedTitle);
+        if (kitsuCover && (!imageUrl || !isLowResCover(kitsuCover))) {
+          imageUrl = kitsuCover;
+        }
       } catch {
         // Fall through to Jikan
       }
     }
 
     // 4. Quaternary: Jikan / MyAnimeList
-    if (!imageUrl) {
+    if (!imageUrl || isLowResCover(imageUrl)) {
       try {
-        imageUrl = await fetchJikanCover(normalizedTitle);
+        const jikanCover = await fetchJikanCover(normalizedTitle);
+        if (jikanCover && (!imageUrl || !isLowResCover(jikanCover))) {
+          imageUrl = jikanCover;
+        }
       } catch {
-        imageUrl = null;
+        // Keep whatever candidate exists
       }
     }
 

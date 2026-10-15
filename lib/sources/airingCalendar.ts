@@ -110,7 +110,7 @@ export function getSimklPosterUrl(posterPath?: string | null): string | null {
   if (posterPath.startsWith("http://") || posterPath.startsWith("https://")) {
     return posterPath;
   }
-  return `https://simkl.in/posters/${posterPath}_m.jpg`;
+  return `https://simkl.in/posters/${posterPath}_0.jpg`;
 }
 
 export async function resolveAiringCalendarSchedule(params: {
