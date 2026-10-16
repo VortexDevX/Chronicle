@@ -17,7 +17,14 @@ export function getNotificationBaseline({
   const notified = finiteProgress(lastNotifiedProgress);
   const legacyBaseline = finiteProgress(latestRemoteProgress);
 
-  return Math.max(current, notified ?? legacyBaseline ?? current);
+  // If lastNotifiedProgress is corrupted or from an older/different numbering scale
+  // such that it exceeds latestRemoteProgress, it cannot represent a valid notification baseline.
+  const validNotified =
+    notified !== null && legacyBaseline !== null && notified > legacyBaseline
+      ? null
+      : notified;
+
+  return Math.max(current, validNotified ?? legacyBaseline ?? current);
 }
 
 export function shouldNotifyProgress(

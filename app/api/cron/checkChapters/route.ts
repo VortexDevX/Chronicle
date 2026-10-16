@@ -27,6 +27,7 @@ import {
   formatAniListSchedule,
   AniListMedia,
 } from "@/lib/sources/anilistAiring";
+import { resolveAiringCalendarSchedule } from "@/lib/sources/airingCalendar";
 import {
   calculateOffsetFromAniListRelations,
   compareProgress,
@@ -370,17 +371,65 @@ export async function GET(req: NextRequest) {
           }
 
           let rawLatest: number | null = null;
-          if (schedule) {
-            if (schedule.nextEpisode) {
-              rawLatest = schedule.nextEpisode - 1;
-            } else if (schedule.state === "CONCLUDED" && schedule.totalEpisodes) {
-              rawLatest = schedule.totalEpisodes;
+          let remoteIsContinuous = true;
+          let scheduleNextEpisode: number | null = schedule?.nextEpisode ?? null;
+          let scheduleNextReleaseAt: Date | null = schedule?.nextReleaseAt ?? null;
+          let schedulePrevEpisode: number | null = schedule?.nextEpisode ? schedule.nextEpisode - 1 : null;
+          let schedulePrevReleaseAt: Date | null = null;
+
+          if (mediaType === "Anime" || mediaType === "Donghua") {
+            // 1. AniList schedule (if it tracks nextAiringEpisode)
+            if (schedule?.nextEpisode) {
+              rawLatest = schedule.nextReleaseAt && schedule.nextReleaseAt.getTime() <= Date.now()
+                ? schedule.nextEpisode
+                : schedule.nextEpisode - 1;
+              remoteIsContinuous = false;
             }
-          } else if (shouldUseScraper && trackerUrl) {
+
+            // 2. Airing Calendar fallback (especially for Donghua where AniList lacks weekly airings)
+            if (rawLatest === null || !scheduleNextEpisode) {
+              const calendarSchedule = await resolveAiringCalendarSchedule({
+                anilist_id: entry.anilist_id,
+                simkl_id: (entry as { simkl_id?: number }).simkl_id,
+                title: entry.title as string,
+              });
+
+              if (calendarSchedule) {
+                if (calendarSchedule.nextEpisode) {
+                  scheduleNextEpisode = calendarSchedule.nextEpisode;
+                  scheduleNextReleaseAt = calendarSchedule.nextReleaseAt;
+                }
+                if (calendarSchedule.previousEpisode) {
+                  schedulePrevEpisode = calendarSchedule.previousEpisode;
+                  schedulePrevReleaseAt = calendarSchedule.previousReleaseAt;
+                }
+
+                if (calendarSchedule.previousEpisode) {
+                  rawLatest = calendarSchedule.previousEpisode;
+                  remoteIsContinuous = false;
+                } else if (calendarSchedule.nextEpisode) {
+                  rawLatest = calendarSchedule.nextReleaseAt && calendarSchedule.nextReleaseAt.getTime() <= Date.now()
+                    ? calendarSchedule.nextEpisode
+                    : calendarSchedule.nextEpisode - 1;
+                  remoteIsContinuous = false;
+                }
+              }
+            }
+
+            // 3. Concluded series from AniList
+            if (rawLatest === null && schedule?.state === "CONCLUDED" && schedule.totalEpisodes) {
+              rawLatest = schedule.totalEpisodes;
+              remoteIsContinuous = false;
+            }
+          }
+
+          // 4. Scraper fallback (Manhwa, or Anime/Donghua if schedule yielded nothing and trackerUrl is present)
+          if (rawLatest === null && trackerUrl) {
             rawLatest = await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
               signal: scanDeadline.signal,
               retryAttempts: getCronScrapeRetries(),
             });
+            remoteIsContinuous = true;
           }
 
           let latest: number | null = rawLatest;
@@ -390,7 +439,7 @@ export async function GET(req: NextRequest) {
               latestRemote: rawLatest,
               numberingMode: entryWithNumbering.numbering_mode,
               episodeOffset: resolvedOffset,
-              remoteIsContinuous: true,
+              remoteIsContinuous,
             });
 
             if (comparison.suspectedMismatch) {
@@ -412,11 +461,11 @@ export async function GET(req: NextRequest) {
                 ...(latest !== null ? { latest_remote_progress: latest } : {}),
                 ...(resolvedOffset !== (entryWithNumbering.episode_offset ?? null) ? { episode_offset: resolvedOffset } : {}),
                 ...(numberingStatusUpdate !== (entryWithNumbering.numbering_status ?? null) ? { numbering_status: numberingStatusUpdate } : {}),
-                ...(schedule ? {
-                  next_episode: schedule.nextEpisode,
-                  next_episode_release_at: schedule.nextReleaseAt,
-                  previous_episode: schedule.nextEpisode ? schedule.nextEpisode - 1 : null,
-                  previous_episode_release_at: null,
+                ...(scheduleNextEpisode !== null || schedulePrevEpisode !== null ? {
+                  next_episode: scheduleNextEpisode,
+                  next_episode_release_at: scheduleNextReleaseAt,
+                  previous_episode: schedulePrevEpisode,
+                  previous_episode_release_at: schedulePrevReleaseAt,
                 } : isDonghuaScraper ? {
                   next_episode: null,
                   next_episode_release_at: null,

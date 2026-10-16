@@ -2,6 +2,7 @@ export type AiringCalendarEntry = {
   simkl_id: number;
   date: string;
   episode?: {
+    season?: number | null;
     episode: number;
     title?: string | null;
     url?: string | null;
@@ -21,8 +22,8 @@ export type AiringCalendarShow = {
 };
 
 export type ResolvedSchedule = {
-  nextEpisode: number;
-  nextReleaseAt: Date;
+  nextEpisode: number | null;
+  nextReleaseAt: Date | null;
   previousEpisode: number | null;
   previousReleaseAt: Date | null;
   episodeTitle: string | null;
@@ -59,8 +60,8 @@ export async function fetchAiringCalendar(): Promise<CalendarPayload> {
   const year = now.getUTCFullYear();
   const currentMonth = now.getUTCMonth(); // 0-indexed
 
-  // Fetch current month + next 2 months for upcoming coverage
-  const targetMonths = [0, 1, 2].map((offset) => {
+  // Fetch previous month + current month + next 2 months for upcoming & recent past coverage
+  const targetMonths = [-1, 0, 1, 2].map((offset) => {
     const d = new Date(Date.UTC(year, currentMonth + offset, 1));
     const y = d.getUTCFullYear();
     const m = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -158,9 +159,15 @@ export async function resolveAiringCalendarSchedule(params: {
 
   if (!targetSimklId || targetSimklId <= 0) return null;
 
-  // Find episodes for this show
+  // Find episodes for this show (filter out season 0 specials / mini stories)
   const showEpisodes = calendar
-    .filter((entry) => entry.simkl_id === targetSimklId && entry.episode && entry.date)
+    .filter(
+      (entry) =>
+        entry.simkl_id === targetSimklId &&
+        entry.episode &&
+        entry.date &&
+        (entry.episode.season == null || entry.episode.season > 0),
+    )
     .map((entry) => {
       const airsAt = new Date(entry.date);
       return {
@@ -178,17 +185,17 @@ export async function resolveAiringCalendarSchedule(params: {
   const next = showEpisodes.find((e) => e.airsAt.getTime() >= nowMs);
   const previous = [...showEpisodes].reverse().find((e) => e.airsAt.getTime() < nowMs);
 
-  if (!next) return null;
+  if (!next && !previous) return null;
 
   const showMeta = metadata[String(targetSimklId)];
   const posterUrl = getSimklPosterUrl(showMeta?.poster);
 
   return {
-    nextEpisode: next.episode,
-    nextReleaseAt: next.airsAt,
+    nextEpisode: next?.episode ?? null,
+    nextReleaseAt: next?.airsAt ?? null,
     previousEpisode: previous?.episode ?? null,
     previousReleaseAt: previous?.airsAt ?? null,
-    episodeTitle: next.title,
+    episodeTitle: next?.title || previous?.title || null,
     posterUrl,
     source: "calendar",
   };

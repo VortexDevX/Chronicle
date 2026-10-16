@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
           title: entry.title,
         });
 
-        if (fallback) {
+        if (fallback && fallback.nextEpisode && fallback.nextReleaseAt) {
           nextEpisode = fallback.nextEpisode;
           nextReleaseAtStr = fallback.nextReleaseAt.toISOString();
           scheduleState = "SCHEDULED";

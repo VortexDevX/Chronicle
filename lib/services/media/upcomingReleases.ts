@@ -61,7 +61,7 @@ export async function getUpcomingReleases(
           simkl_id: (entry as { simkl_id?: number }).simkl_id,
           title: entry.title,
         });
-        if (fallback) {
+        if (fallback && fallback.nextEpisode && fallback.nextReleaseAt) {
           nextEpisode = fallback.nextEpisode;
           nextReleaseAtStr = fallback.nextReleaseAt.toISOString();
         }

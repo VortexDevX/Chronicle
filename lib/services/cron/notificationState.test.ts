@@ -40,4 +40,15 @@ describe("notification progress state", () => {
     expect(failedSendBaseline).toBe(112);
     expect(shouldNotifyProgress(113, failedSendBaseline)).toBe(true);
   });
+
+  it("discards stale lastNotifiedProgress that exceeds known latestRemoteProgress", () => {
+    // e.g. entry switched from continuous scraper (162) to seasonal (19/20)
+    const baseline = getNotificationBaseline({
+      progressCurrent: 19,
+      latestRemoteProgress: 19,
+      lastNotifiedProgress: 162,
+    });
+    expect(baseline).toBe(19);
+    expect(shouldNotifyProgress(20, baseline)).toBe(true);
+  });
 });

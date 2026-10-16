@@ -16,8 +16,12 @@ const mocks = vi.hoisted(() => ({
   isAndroidPushConfigured: vi.fn(),
   sendAndroidPush: vi.fn(),
   fetchAniListMediaBatch: vi.fn(),
+  resolveAiringCalendarSchedule: vi.fn(),
 }));
 
+vi.mock("@/lib/sources/airingCalendar", () => ({
+  resolveAiringCalendarSchedule: mocks.resolveAiringCalendarSchedule,
+}));
 vi.mock("@/lib/db", () => ({ connectDB: mocks.connectDB }));
 vi.mock("@/lib/models", () => ({
   MediaItem: {
@@ -536,6 +540,47 @@ describe("cron chapter notification state", () => {
     ]);
     expect(body.data.push_users_notified).toBe(1);
   });
+  it("dispatches notifications for Donghua using Airing Calendar schedule", async () => {
+    mockFindResults(
+      [
+        makeEntry({
+          media_type: "Donghua",
+          tracking_source: "anilist",
+          anilist_id: 202851,
+          simkl_id: 3152178,
+          progress_current: 19,
+          latest_remote_progress: 19,
+          last_notified_progress: 19,
+        }),
+      ],
+      [makeUser()],
+    );
+    mocks.fetchAniListMediaBatch.mockResolvedValue(new Map());
+    mocks.resolveAiringCalendarSchedule.mockResolvedValue({
+      nextEpisode: 21,
+      nextReleaseAt: new Date(Date.now() + 86400000),
+      previousEpisode: 20,
+      previousReleaseAt: new Date(Date.now() - 86400000),
+      episodeTitle: "Episode 20",
+      posterUrl: null,
+      source: "calendar",
+    });
+
+    const res = await GET(authorizedRequest());
+    expect(res.status).toBe(200);
+    expect(mocks.sendTelegramToChat).toHaveBeenCalledOnce();
+    expect(mocks.mediaUpdateOne).toHaveBeenCalledWith(
+      { _id: "media-1" },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          latest_remote_progress: 20,
+          next_episode: 21,
+          previous_episode: 20,
+        }),
+      }),
+    );
+  });
+
 });
 
 describe("cron time budget", () => {
