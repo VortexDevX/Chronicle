@@ -148,7 +148,7 @@ export default async function LandingPage() {
                 </div>
                 <div>
                   <dt>Metadata</dt>
-                  <dd>AniList · Jikan · MangaDex · Custom covers</dd>
+                  <dd>AniList · MangaDex · Custom covers</dd>
                   <span>API</span>
                 </div>
                 <div>

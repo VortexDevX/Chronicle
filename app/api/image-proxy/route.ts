@@ -22,11 +22,17 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const imageHost = new URL(safeUrl).hostname;
+    const isMyAnimeListHost = imageHost === "myanimelist.net"
+      || imageHost.endsWith(".myanimelist.net");
+    const referer = isMyAnimeListHost
+      ? "https://myanimelist.net/"
+      : "https://mangadex.org/";
     const res = await fetchWithTimeout(safeUrl, {
       cache: "no-store",
       headers: {
         "User-Agent": "Chronicle/1.0",
-        "Referer": "https://mangadex.org",
+        Referer: referer,
       },
     });
 

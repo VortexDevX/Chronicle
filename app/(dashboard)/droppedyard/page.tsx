@@ -4,7 +4,7 @@ import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
 import { ArchiveX, Plus } from "lucide-react";
 import { useEffect, useCallback, useState } from "react";
-import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
+import { loadCoverCache } from "@/store/coverCache";
 import { MediaItem } from "@/types/media";
 import { useFeedback } from "@/components/FeedbackProvider";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
@@ -27,7 +27,6 @@ export default function DroppedyardPage() {
   const { toast, confirm } = useFeedback();
 
   const fetchMedia = useCallback(async () => {
-    resetCoverQueue();
     setLoading(true, false);
     setLoadingData(true);
     setLoadError("");
@@ -45,7 +44,6 @@ export default function DroppedyardPage() {
 
   useEffect(() => {
     setActiveRoute("droppedyard");
-    resetCoverQueue();
     loadCoverCache();
     fetchMedia();
   }, [fetchMedia, setActiveRoute, mediaRev]);
@@ -134,9 +132,9 @@ export default function DroppedyardPage() {
               <p>{activeTab === "revisit" ? "You haven't marked any dropped entries for a second chance." : "No permanently dropped entries."}</p>
             </div>
           ) : (
-            displayItems.map((m) => (
+            displayItems.map((m, index) => (
               <div key={m._id} className="droppedyard-media-item">
-                <MediaCard m={m} mode={viewMode} onEdit={openModal} onDelete={handleDelete} />
+                <MediaCard m={m} mode={viewMode} priority={index < 8} onEdit={openModal} onDelete={handleDelete} />
                 <button 
                   onClick={() => handleToggleRetry(m)}
                   className="btn-ghost"

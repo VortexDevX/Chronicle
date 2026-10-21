@@ -137,7 +137,7 @@ export function MediaCard({
   if (mode === "list") {
     return (
       <article className="media-list-row" data-id={m._id} data-status={normalizedStatus}>
-        <MediaArtwork media={m} className="media-list-art" />
+        <MediaArtwork media={m} className="media-list-art" priority={priority} />
         <div className="media-list-main">
           <div>
             <h3>{m.title}</h3>

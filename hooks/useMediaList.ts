@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
-import { resetCoverQueue } from "@/store/coverCache";
 import { useMediaStore } from "@/store/mediaStore";
 import type { MediaItem } from "@/types/media";
 
@@ -26,7 +25,6 @@ export function useMediaList(query: string, errorMessage: string) {
     const requestId = ++requestRef.current;
     abortRef.current = controller;
 
-    if (replace) resetCoverQueue();
     setLoading(true, page > 1);
     setLoadError("");
 

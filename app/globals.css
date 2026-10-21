@@ -744,6 +744,105 @@ button:disabled {
   }
 }
 
+.cover-audit-notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px 20px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: var(--radius-md);
+  background: linear-gradient(110deg, rgba(245, 158, 11, 0.09), rgba(30, 33, 43, 0.88));
+  box-shadow: var(--shadow-sm);
+}
+
+.cover-audit-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--amber);
+}
+
+.cover-audit-copy > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.cover-audit-copy p {
+  display: grid;
+  gap: 3px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.cover-audit-copy strong {
+  color: var(--text-primary);
+}
+
+.cover-audit-copy span {
+  font-size: 0.88rem;
+}
+
+.cover-audit-toggle,
+.cover-audit-list button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.cover-audit-toggle:hover,
+.cover-audit-list button:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.cover-audit-list {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.cover-audit-list button {
+  min-height: 30px;
+  max-width: min(100%, 320px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.cover-audit-overflow {
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+@media (max-width: 640px) {
+  .cover-audit-notice {
+    grid-template-columns: 1fr;
+  }
+
+  .cover-audit-toggle {
+    justify-self: start;
+  }
+}
+
 /* Controls / Toolbar */
 .controls {
   display: flex;
@@ -4421,12 +4520,19 @@ textarea:focus-visible {
 
 .media-artwork > span {
   position: absolute;
+  z-index: 2;
   right: 14px;
   bottom: 9px;
   color: rgba(255, 255, 255, 0.15);
   font-family: var(--font-display);
   font-size: 5rem;
   font-weight: 800;
+}
+
+.media-artwork-image {
+  z-index: 0;
+  object-fit: cover;
+  object-position: center;
 }
 
 .media-artwork.is-loading {

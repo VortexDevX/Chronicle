@@ -2,14 +2,16 @@
 
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
-import { Search, Plus, Book, Grid2X2, List, RefreshCw } from "lucide-react";
+import { Search, Plus, Book, Grid2X2, List, RefreshCw, ImageOff, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
+import { loadCoverCache } from "@/store/coverCache";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
 import { useFeedback } from "@/components/FeedbackProvider";
 import { useMediaList } from "@/hooks/useMediaList";
 
 const LIBRARY_VIEW_KEY = "chronicle:library-view:v1";
+
+type MissingMangaDexEntry = { _id: string; title: string };
 
 export default function LibraryPage() {
   const media = useMediaStore((state) => state.media);
@@ -30,6 +32,11 @@ export default function LibraryPage() {
   const [sortBy, setSortBy] = useState("last_updated");
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [missingMangaDex, setMissingMangaDex] = useState<{
+    items: MissingMangaDexEntry[];
+    total: number;
+  }>({ items: [], total: 0 });
+  const [showMissingMangaDex, setShowMissingMangaDex] = useState(false);
   const query = useMemo(() => {
     const params = new URLSearchParams({ sort_by: sortBy });
     if (debouncedSearch) params.set("search", debouncedSearch);
@@ -56,7 +63,6 @@ export default function LibraryPage() {
 
   useEffect(() => {
     setActiveRoute("library");
-    resetCoverQueue();
     setMedia([], 0, false, true);
     loadCoverCache();
   }, [setActiveRoute, setMedia]);
@@ -64,6 +70,23 @@ export default function LibraryPage() {
   useEffect(() => {
     fetchMedia(1, true);
   }, [fetchMedia, mediaRev]);
+
+  useEffect(() => {
+    let active = true;
+    apiRequest<{ items: MissingMangaDexEntry[]; total: number }>(
+      "/api/media/missing-mangadex",
+      { cache: "no-store" },
+    )
+      .then((result) => {
+        if (active) setMissingMangaDex(result);
+      })
+      .catch(() => {
+        if (active) setMissingMangaDex({ items: [], total: 0 });
+      });
+    return () => {
+      active = false;
+    };
+  }, [mediaRev]);
 
   const handleIncrement = async (id: string) => {
     const item = media.find((m) => m._id === id);
@@ -133,6 +156,52 @@ export default function LibraryPage() {
 
   return (
     <>
+      {missingMangaDex.total > 0 && (
+        <aside className="cover-audit-notice" role="status">
+          <div className="cover-audit-copy">
+            <ImageOff size={18} aria-hidden="true" />
+            <p>
+              <strong>
+                {missingMangaDex.total} Manhwa {missingMangaDex.total === 1 ? "entry is" : "entries are"} missing a MangaDex ID.
+              </strong>
+              <span>We’ll search MangaDex by title for covers; adding an ID makes matching exact.</span>
+            </p>
+          </div>
+          <button
+            className="cover-audit-toggle"
+            onClick={() => setShowMissingMangaDex((shown) => !shown)}
+            aria-expanded={showMissingMangaDex}
+          >
+            {showMissingMangaDex ? "Hide entries" : "View entries"}
+            {showMissingMangaDex ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+          {showMissingMangaDex && (
+            <ul className="cover-audit-list">
+              {missingMangaDex.items.map((item) => (
+                <li key={item._id}>
+                  <button
+                    onClick={() => {
+                      setFilterType("Manhwa");
+                      setFilterStatus("");
+                      setSearch(item.title);
+                      setShowMissingMangaDex(false);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    title={`Find ${item.title} in your library`}
+                  >
+                    {item.title}
+                  </button>
+                </li>
+              ))}
+              {missingMangaDex.total > missingMangaDex.items.length && (
+                <li className="cover-audit-overflow">
+                  And {missingMangaDex.total - missingMangaDex.items.length} more entries
+                </li>
+              )}
+            </ul>
+          )}
+        </aside>
+      )}
       <div className="controls">
         <div className="controls-toolbar">
           <div className="search-wrapper" data-loading={searchPending ? "true" : "false"}>
@@ -227,8 +296,8 @@ export default function LibraryPage() {
         </div>
       ) : (
         <div className={viewMode === "grid" ? "grid media-grid" : "library-media-list"}>
-          {media.map((m) => (
-            <MediaCard key={m._id} m={m} mode={viewMode} onEdit={openModal} onIncrement={handleIncrement} onDelete={handleDelete} />
+          {media.map((m, index) => (
+            <MediaCard key={m._id} m={m} mode={viewMode} priority={index < 8} onEdit={openModal} onIncrement={handleIncrement} onDelete={handleDelete} />
           ))}
         </div>
       )}

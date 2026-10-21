@@ -16,7 +16,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { loadCoverCache, resetCoverQueue } from "@/store/coverCache";
+import { loadCoverCache } from "@/store/coverCache";
 import { Shelf, MediaItem, ShelfPreviewItem } from "@/types/media";
 import { PageLoader } from "@/components/PageLoader";
 import { useFeedback } from "@/components/FeedbackProvider";
@@ -83,7 +83,6 @@ export default function ShelvesPage() {
 
   const fetchShelfMedia = useCallback(
     async (shelfId: string) => {
-      resetCoverQueue();
       setShelfLoading(true);
       try {
         const data = await apiRequest<{ items?: MediaItem[] }>(
@@ -119,7 +118,6 @@ export default function ShelvesPage() {
 
   useEffect(() => {
     setActiveRoute("shelves");
-    resetCoverQueue();
     loadCoverCache();
     fetchShelves();
   }, [fetchShelves, setActiveRoute, mediaRev]);
@@ -466,11 +464,12 @@ export default function ShelvesPage() {
               viewMode === "grid" ? "grid media-grid" : "library-media-list"
             }
           >
-            {visibleShelfMedia.map((m) => (
+            {visibleShelfMedia.map((m, index) => (
               <MediaCard
                 key={m._id}
                 m={m}
                 mode={viewMode}
+                priority={index < 8}
                 onEdit={openModal}
               />
             ))}

@@ -146,7 +146,7 @@ Users expect the simplicity of **AniList, Letterboxd, or TV Time**:
 │  ┌──────────────────────────────────────▼───────────────────────────────────────────┐  │
 │  │  Unified Media Resolver (lib/services/media/resolver.ts)                         │  │
 │  │  ├── Anime/Donghua: AniList GraphQL + Simkl REST API Fallback                    │  │
-│  │  ├── Manhwa:        MangaDex API + Kitsu/AniList Manga API                       │  │
+│  │  ├── Manhwa covers: MangaDex ID lookup with title search fallback                │  │
 │  │  └── Novels:        NovelUpdates / AniList Light Novel Search                    │  │
 │  └──────────────────────────────────────┬───────────────────────────────────────────┘  │
 │                                         │                                              │

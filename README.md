@@ -16,7 +16,7 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 | **Release Radar**       | Automated Anime/Donghua release schedules powered by AniList GraphQL · Live release countdowns · Interactive manual match dialog              |
 | **Statistics**          | Analytics dashboard with type/status breakdowns, ratings, progress totals, and recent activity                                               |
 | **Import / Export**     | Full library export as JSON · Bulk import from JSON to easily restore or migrate libraries                                                   |
-| **Metadata & Covers**   | AniList primary + Jikan fallback lookup for Anime/Donghua · MangaDex IDs for Manhwa · Cached proxy cover pipeline with custom URL overrides  |
+| **Metadata & Covers**   | AniList then MyAnimeList API covers for Anime/Donghua · MangaDex ID/title lookup for Manhwa · Cached proxy covers with custom URL overrides |
 | **Droppedyard**         | Dedicated "Graveyard" for dropped entries with a "Maybe Revisit" queue to filter out shows you might want to try again                        |
 | **Auth & Security**     | JWT cookie auth · bcrypt password hashing · Resend email recovery/verification · Session invalidation after password reset                    |
 | **Design & Experience** | Pure dark geometric aesthetic · Responsive mobile-first layouts · Accessible badging · Skeleton loading states · PWA install support         |
@@ -41,7 +41,7 @@ The page summarizes all four formats without separate tracker landing pages. Tec
 | Auth     | JWT httpOnly cookies · bcryptjs · hashed one-time reset tokens      |
 | Email    | Resend Transactional API                                            |
 | Manhwa scraping | Cheerio · fetch retry/timeout helpers · host-specific rules |
-| APIs     | AniList GraphQL · Jikan v4 · MangaDex · Telegram Bot API            |
+| APIs     | AniList GraphQL · MangaDex · Telegram Bot API                        |
 | Testing  | Vitest · TypeScript · ESLint                                        |
 
 ## Android app
@@ -61,7 +61,7 @@ Release Radar combines the [AniList GraphQL API](https://graphql.anilist.co) wit
 2. Add any streaming/site link in **Watch URL**. Chronicle opens it as a 1-click bookmark but never scrapes it.
 3. Configure **Numbering Mode** (`Continuous` or `Seasonal`) with optional **Episode Offset** if tracking multi-season series (e.g. Season 4 with offset 91). Chronicle normalizes progress units safely so upcoming episode countdowns are accurately tracked without false "caught-up" filtering.
 4. Open Release Radar. It shows upcoming announced episodes in your local time with countdowns and season/episode context.
-5. Covers are automatically resolved in high-definition (prioritizing AniList extraLarge, Kitsu original master art, and Simkl HD posters).
+5. Covers resolve from AniList for Anime/Donghua and MangaDex for Manhwa, with custom cover URLs taking precedence.
 
 Release Radar never changes `progress_current`. Manhwa tracker checks remain separate.
 
@@ -101,6 +101,9 @@ APP_ORIGIN=http://localhost:3000,https://chroniclex.vercel.app
 
 # Optional public URL fallback for metadata when no request host is available.
 NEXT_PUBLIC_APP_URL=https://chroniclex.vercel.app
+
+# Optional MyAnimeList API client ID for anime cover fallback when AniList is unavailable.
+MAL_CLIENT_ID=your-myanimelist-client-id
 
 # Password reset email
 RESEND_API_KEY=your-resend-api-key
@@ -259,7 +262,7 @@ Chronicle/
 | GET    | `/api/search/unified`       | Yes                  | Omnisearch discovery for Anime, Donghua, and Manhwa |
 | GET    | `/api/cron/checkChapters`   | Bearer `CRON_SECRET` | Sync tracker progress/release schedules and send updates |
 | GET    | `/api/manga-cover`          | No                   | Fetch MangaDex cover URL                       |
-| GET    | `/api/anime-cover`          | No                   | Fetch AniList/Jikan cover URL                  |
+| GET    | `/api/anime-cover`          | No                   | Fetch Anime/Donghua covers from AniList, then MyAnimeList API |
 | GET    | `/api/image-proxy`          | No                   | Cache/proxy external cover images              |
 
 ## 📄 License

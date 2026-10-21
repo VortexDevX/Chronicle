@@ -76,6 +76,8 @@ function getMaxRequestsPerMinute(): number {
 const requestTimestamps: number[] = [];
 let rateLimitResetEpochSeconds = 0;
 let remainingAllowedRequests: number | null = null;
+let apiUnavailableUntil = 0;
+const API_UNAVAILABLE_COOLDOWN_MS = 5 * 60 * 1000;
 
 // Cache map with timestamp
 type CachedEntry = {
@@ -103,6 +105,7 @@ export function clearAniListCache(): void {
   requestTimestamps.length = 0;
   rateLimitResetEpochSeconds = 0;
   remainingAllowedRequests = null;
+  apiUnavailableUntil = 0;
 }
 
 export function deriveScheduleState(media: AniListMedia): AiringScheduleState {
@@ -189,7 +192,10 @@ async function executeAniListGraphQL<T>(
   variables: Record<string, unknown> = {},
   retries = 2,
 ): Promise<T | null> {
+  if (Date.now() < apiUnavailableUntil) return null;
+
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (Date.now() < apiUnavailableUntil) return null;
     await enforceRateLimit();
 
     try {
@@ -222,6 +228,16 @@ async function executeAniListGraphQL<T>(
       }
 
       if (!res.ok) {
+        if (res.status === 403) {
+          if (Date.now() >= apiUnavailableUntil) {
+            apiUnavailableUntil = Date.now() + API_UNAVAILABLE_COOLDOWN_MS;
+            logInfo("anilist_api_unavailable", {
+              status: res.status,
+              cooldownSeconds: API_UNAVAILABLE_COOLDOWN_MS / 1000,
+            });
+          }
+          return null;
+        }
         logInfo("anilist_request_failed", { status: res.status, statusText: res.statusText });
         if (attempt < retries && res.status >= 500) {
           await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
@@ -231,6 +247,7 @@ async function executeAniListGraphQL<T>(
       }
 
       const json = (await res.json()) as { data?: T; errors?: Array<{ message: string }> };
+      apiUnavailableUntil = 0;
       if (json.errors && json.errors.length > 0) {
         logInfo("anilist_graphql_errors", { errors: json.errors.map((e) => e.message).join("; ") });
       }
@@ -397,7 +414,7 @@ export async function searchAniListMedia(
       format: item.format,
       countryOfOrigin: item.countryOfOrigin,
       totalEpisodes: item.episodes,
-      posterUrl: item.coverImage?.extraLarge || item.coverImage?.large || null,
+      posterUrl: item.coverImage?.extraLarge || item.coverImage?.large || item.coverImage?.medium || null,
       status: item.status,
     };
   });

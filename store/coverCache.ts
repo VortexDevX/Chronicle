@@ -1,273 +1,220 @@
-import { CoverCacheEntry } from "@/types/media";
+import type { CoverCacheEntry, MediaItem } from "@/types/media";
 
-const COVER_CACHE_KEY = "chronicle:cover-cache:v6";
-const COVER_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
-const COVER_CACHE_NULL_TTL_MS = 1000 * 60 * 30;
-const COVER_CACHE_MAX = 600;
-const COVER_FETCH_BATCH_DELAY_MS = 120;
-const COVER_FETCH_CONCURRENCY = 4;
+const COVER_CACHE_KEY = "chronicle:cover-cache:v7";
+const COVER_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const COVER_CACHE_NULL_TTL_MS = 10 * 60 * 1000;
+const ANIME_COVER_NULL_TTL_MS = 60 * 1000;
+const COVER_CACHE_MAX = 1000;
+const COVER_REQUEST_INTERVAL_MS = 1100;
+const COVER_REQUEST_CONCURRENCY = 4;
 
-const coverCache = new Map<string, CoverCacheEntry>();
-let coverQueue: {
-  title: string;
-  id: string;
-  mangadexId?: string;
-  anilistId?: number;
-}[] = [];
-let coverProcessing = false;
+type CoverRequest = {
+  key: string;
+  media: MediaCoverRequest;
+  force: boolean;
+  resolve: (url: string | null) => void;
+};
 
-let coverCacheDirty = false;
-let coverCacheTimer: ReturnType<typeof setTimeout> | null = null;
-let coverQueueRun = 0;
-let coverAbortController: AbortController | null = null;
-const coverListeners = new Map<string, Set<(url: string | null) => void>>();
+export type MediaCoverRequest = Pick<
+  MediaItem,
+  "title" | "media_type" | "mangadex_id" | "anilist_id"
+>;
 
-function scheduleCoverPersist(): void {
-  if (typeof window === "undefined") return;
-  coverCacheDirty = true;
-  if (!coverCacheTimer) {
-    coverCacheTimer = setTimeout(() => {
-      if (coverCacheDirty) persistCoverCache();
-      coverCacheDirty = false;
-      coverCacheTimer = null;
-    }, 2000);
-  }
+const cache = new Map<string, CoverCacheEntry>();
+const pending = new Map<string, Promise<string | null>>();
+const requestQueue: CoverRequest[] = [];
+let cacheLoaded = false;
+let activeRequests = 0;
+const nextRequestSlots = new Map<string, number>();
+
+function normalizedTitle(title: string): string {
+  return title.trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
-function flushCoverCache(): void {
-  if (typeof window === "undefined") return;
-  if (coverCacheDirty) {
-    persistCoverCache();
-    coverCacheDirty = false;
-  }
-  if (coverCacheTimer) {
-    clearTimeout(coverCacheTimer);
-    coverCacheTimer = null;
-  }
+function getCacheTtl(key: string, url: string | null): number {
+  if (url) return COVER_CACHE_TTL_MS;
+  return key.startsWith("anime:") ? ANIME_COVER_NULL_TTL_MS : COVER_CACHE_NULL_TTL_MS;
 }
 
-function setCoverProcessing(val: boolean) {
-  coverProcessing = val;
+function getCoverKey(media: MediaCoverRequest): string {
+  if (media.media_type === "Manhwa") {
+    return media.mangadex_id
+      ? `manhwa:md:${media.mangadex_id}`
+      : `manhwa:title:${normalizedTitle(media.title)}`;
+  }
+
+  if (media.media_type === "Anime" || media.media_type === "Donghua") {
+    return media.anilist_id
+      ? `anime:al:${media.anilist_id}`
+      : `anime:title:${normalizedTitle(media.title)}`;
+  }
+
+  return `${media.media_type.toLocaleLowerCase()}:title:${normalizedTitle(media.title)}`;
 }
 
-export function loadCoverCache(): void {
-  if (typeof window === "undefined") return;
+function ensureCacheLoaded(): void {
+  if (cacheLoaded || typeof window === "undefined") return;
+  cacheLoaded = true;
+
   try {
-    const raw = localStorage.getItem(COVER_CACHE_KEY);
+    const raw = window.localStorage.getItem(COVER_CACHE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as Record<string, CoverCacheEntry>;
     const now = Date.now();
-    Object.entries(parsed).forEach(([title, entry]) => {
-      if (!entry || typeof entry.ts !== "number") return;
-      const ttl = entry.url ? COVER_CACHE_TTL_MS : COVER_CACHE_NULL_TTL_MS;
-      if (now - entry.ts > ttl) return;
-      coverCache.set(title, { url: entry.url ?? null, ts: entry.ts });
-    });
+    for (const [key, entry] of Object.entries(parsed)) {
+      if (!entry || typeof entry.ts !== "number") continue;
+      const ttl = getCacheTtl(key, entry.url || null);
+      if (now - entry.ts <= ttl) cache.set(key, { url: entry.url || null, ts: entry.ts });
+    }
   } catch {
-    // Ignore corrupt cache payload
+    // Ignore damaged or unavailable browser storage.
   }
 }
 
-function persistCoverCache(): void {
+function persistCache(): void {
   if (typeof window === "undefined") return;
   try {
-    const entries = Array.from(coverCache.entries());
-    const trimmed = entries
+    const entries = [...cache.entries()]
       .sort((a, b) => b[1].ts - a[1].ts)
       .slice(0, COVER_CACHE_MAX);
-    const payload = Object.fromEntries(trimmed);
-    localStorage.setItem(COVER_CACHE_KEY, JSON.stringify(payload));
+    window.localStorage.setItem(COVER_CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
   } catch {
-    // Ignore storage quota and serialization errors
+    // Storage is an optimization; covers still work without it.
   }
 }
 
-export function getCachedCover(title: string): string | null | undefined {
-  if (typeof window === "undefined") return undefined;
-  const entry = coverCache.get(title);
+function readCache(key: string): string | null | undefined {
+  ensureCacheLoaded();
+  const entry = cache.get(key);
   if (!entry) return undefined;
-  const ttl = entry.url ? COVER_CACHE_TTL_MS : COVER_CACHE_NULL_TTL_MS;
+  const ttl = getCacheTtl(key, entry.url);
   if (Date.now() - entry.ts > ttl) {
-    coverCache.delete(title);
-    scheduleCoverPersist();
+    cache.delete(key);
     return undefined;
   }
   return entry.url;
 }
 
-function setCachedCover(title: string, url: string | null): void {
-  if (typeof window === "undefined") return;
-  coverCache.set(title, { url, ts: Date.now() });
-  scheduleCoverPersist();
-  notifyCoverListeners(title, url);
+function writeCache(key: string, url: string | null): void {
+  cache.set(key, { url, ts: Date.now() });
+  persistCache();
 }
 
-export function resetCoverQueue(): void {
-  if (typeof window === "undefined") return;
-  coverQueueRun += 1;
-  coverQueue = [];
-  coverAbortController?.abort();
-  coverAbortController = null;
-  coverProcessing = false;
+async function acquireRequestSlot(route: string): Promise<void> {
+  const now = Date.now();
+  const slot = Math.max(now, nextRequestSlots.get(route) || 0);
+  nextRequestSlots.set(route, slot + COVER_REQUEST_INTERVAL_MS);
+  if (slot > now) await new Promise((resolve) => setTimeout(resolve, slot - now));
 }
 
-async function fetchMangaCover(
-  title: string,
-  mangadexId?: string,
-  signal?: AbortSignal,
-): Promise<string | null> {
-  const params = new URLSearchParams();
-  if (mangadexId) params.set("id", mangadexId);
-  else params.set("title", title);
-
-  const res = await fetch(`/api/manga-cover?${params}`, { signal });
-  if (!res.ok) return null;
-  const json = await res.json();
-  const url = json?.data?.imageUrl || json?.imageUrl || null;
-  return url ? `/api/image-proxy?url=${encodeURIComponent(url)}` : null;
-}
-
-async function fetchAnimeCover(
-  title: string,
-  anilistId?: number,
-  signal?: AbortSignal,
-): Promise<string | null> {
-  const params = new URLSearchParams({ title });
-  if (anilistId && Number.isInteger(anilistId) && anilistId > 0) {
-    params.set("anilist_id", String(anilistId));
-  }
-  const res = await fetch(`/api/anime-cover?${params.toString()}`, { signal });
-  if (!res.ok) return null;
-  const json = await res.json();
-  const url = json?.data?.imageUrl || json?.imageUrl || null;
-  return url ? `/api/image-proxy?url=${encodeURIComponent(url)}` : null;
-}
-
-function applyCoverToThumb(id: string, imageUrl: string): void {
-  if (typeof window === "undefined") return;
-  const thumbEl = document.querySelector(`[data-cover-id="${id}"]`) as HTMLElement;
-  if (!thumbEl) return;
-  thumbEl.style.backgroundImage = `url(${imageUrl})`;
-  thumbEl.classList.add("thumb-loaded");
-}
-
-function notifyCoverListeners(cacheKey: string, url: string | null): void {
-  const listeners = coverListeners.get(cacheKey);
-  if (!listeners) return;
-  listeners.forEach((listener) => listener(url));
-  coverListeners.delete(cacheKey);
-}
-
-export function subscribeCover(
-  cacheKey: string,
-  listener: (url: string | null) => void,
-): () => void {
-  if (typeof window === "undefined") return () => {};
-  const cached = getCachedCover(cacheKey);
-  if (cached !== undefined) {
-    queueMicrotask(() => listener(cached));
-    return () => {};
-  }
-
-  const listeners = coverListeners.get(cacheKey) || new Set();
-  listeners.add(listener);
-  coverListeners.set(cacheKey, listeners);
-
-  return () => {
-    listeners.delete(listener);
-    if (listeners.size === 0) coverListeners.delete(cacheKey);
+async function fetchProviderUrl(path: string, force: boolean): Promise<string | null> {
+  const url = new URL(path, window.location.origin);
+  if (force) url.searchParams.set("retry", String(Date.now()));
+  const requestPath = `${url.pathname}${url.search}`;
+  const route = path.startsWith("/api/manga-cover") ? "manga" : "anime";
+  const send = async () => {
+    await acquireRequestSlot(route);
+    return fetch(requestPath, { cache: "no-store", signal: AbortSignal.timeout(12000) });
   };
-}
 
-async function processCoverItem(
-  item: { title: string; id: string; mangadexId?: string; anilistId?: number },
-  signal: AbortSignal,
-  run: number,
-): Promise<void> {
-  const { title, id, mangadexId, anilistId } = item;
-  const cacheKey = mangadexId
-    ? `md-${mangadexId}`
-    : anilistId
-      ? `al-${anilistId}`
-      : title;
-  if (getCachedCover(cacheKey) !== undefined) return;
-
-  try {
-    const imageUrl = mangadexId
-      ? await fetchMangaCover(title, mangadexId, signal)
-      : await fetchAnimeCover(title, anilistId, signal);
-    if (run !== coverQueueRun || signal.aborted) return;
-    setCachedCover(cacheKey, imageUrl);
-    if (imageUrl) applyCoverToThumb(id, imageUrl);
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") return;
-    setCachedCover(cacheKey, null);
+  let response = await send();
+  if (response.status === 429) {
+    const retryAfter = Number(response.headers.get("Retry-After")) || 5;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(retryAfter, 60) * 1000));
+    response = await send();
   }
+  if (!response.ok) throw new Error(`Cover lookup failed with ${response.status}`);
+  const result = await response.json();
+  return result?.data?.imageUrl || result?.imageUrl || null;
 }
 
-async function processCoverQueue(): Promise<void> {
-  if (typeof window === "undefined") return;
-  if (coverProcessing || coverQueue.length === 0) return;
-  coverProcessing = true;
-  const run = coverQueueRun;
-  const controller = new AbortController();
-  coverAbortController = controller;
+async function fetchCover(media: MediaCoverRequest, force: boolean): Promise<string | null> {
+  if (media.media_type !== "Manhwa" && media.media_type !== "Anime" && media.media_type !== "Donghua") {
+    return null;
+  }
 
-  try {
-    while (coverQueue.length > 0 && run === coverQueueRun && !controller.signal.aborted) {
-      const batch = coverQueue.splice(0, COVER_FETCH_CONCURRENCY);
-      await Promise.all(batch.map((item) => processCoverItem(item, controller.signal, run)));
-      if (coverQueue.length > 0) {
-        await new Promise((r) => setTimeout(r, COVER_FETCH_BATCH_DELAY_MS));
-      }
+  const query = new URLSearchParams();
+  const endpoint = media.media_type === "Manhwa" ? "/api/manga-cover" : "/api/anime-cover";
+
+  if (media.media_type === "Manhwa") {
+    let imageUrl: string | null = null;
+    if (media.mangadex_id) {
+      query.set("id", media.mangadex_id);
+      imageUrl = await fetchProviderUrl(`${endpoint}?${query.toString()}`, force);
     }
+
+    if (!imageUrl) {
+      query.delete("id");
+      query.set("title", media.title);
+      imageUrl = await fetchProviderUrl(`${endpoint}?${query.toString()}`, force);
+    }
+    return imageUrl ? `/api/image-proxy?url=${encodeURIComponent(imageUrl)}` : null;
+  }
+
+  query.set("title", media.title);
+  if (media.anilist_id && Number.isInteger(media.anilist_id) && media.anilist_id > 0) {
+    query.set("anilist_id", String(media.anilist_id));
+  }
+  const imageUrl = await fetchProviderUrl(`${endpoint}?${query.toString()}`, force);
+  if (!imageUrl) return null;
+  return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+}
+
+async function processQueueItem(item: CoverRequest): Promise<void> {
+  try {
+    const url = await fetchCover(item.media, item.force);
+    writeCache(item.key, url);
+    item.resolve(url);
+  } catch {
+    // Do not cache network/rate-limit failures as "no cover". A later visit can retry.
+    item.resolve(null);
   } finally {
-    if (coverAbortController === controller) coverAbortController = null;
-    coverProcessing = false;
-    flushCoverCache();
+    pending.delete(item.key);
+    activeRequests -= 1;
+    pumpQueue();
   }
 }
 
-export function queueCoverFetch(
-  title: string,
-  id: string,
-  mangadexId?: string,
-  anilistId?: number,
-): void {
-  if (typeof window === "undefined") return;
-  const cacheKey = mangadexId
-    ? `md-${mangadexId}`
-    : anilistId
-      ? `al-${anilistId}`
-      : title;
-  if (getCachedCover(cacheKey) !== undefined) return;
-  if (
-    !coverQueue.some((q) =>
-      mangadexId
-        ? q.mangadexId === mangadexId
-        : anilistId
-          ? q.anilistId === anilistId
-          : q.title === title,
-    )
-  ) {
-    coverQueue.push({ title, id, mangadexId, anilistId });
-    processCoverQueue();
+function pumpQueue(): void {
+  while (activeRequests < COVER_REQUEST_CONCURRENCY && requestQueue.length > 0) {
+    const item = requestQueue.shift();
+    if (!item) return;
+    activeRequests += 1;
+    void processQueueItem(item);
   }
 }
 
-export function retryCoverFetch(
-  title: string,
-  id: string,
-  mangadexId?: string,
-  anilistId?: number,
-): void {
-  if (typeof window === "undefined") return;
-  const cacheKey = mangadexId
-    ? `md-${mangadexId}`
-    : anilistId
-      ? `al-${anilistId}`
-      : title;
-  coverCache.delete(cacheKey);
-  scheduleCoverPersist();
-  queueCoverFetch(title, id, mangadexId, anilistId);
+function resolveProviderCover(media: MediaCoverRequest, force = false): Promise<string | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  ensureCacheLoaded();
+  const key = getCoverKey(media);
+
+  const existing = pending.get(key);
+  if (existing) return existing;
+
+  if (!force) {
+    const cached = readCache(key);
+    if (cached !== undefined) return Promise.resolve(cached);
+  } else {
+    cache.delete(key);
+  }
+
+  const request = new Promise<string | null>((resolve) => {
+    requestQueue.push({ key, media, force, resolve });
+  });
+  pending.set(key, request);
+  pumpQueue();
+  return request;
+}
+
+export function loadCoverCache(): void {
+  ensureCacheLoaded();
+}
+
+export function getMediaCover(media: MediaCoverRequest): Promise<string | null> {
+  return resolveProviderCover(media);
+}
+
+export function retryMediaCover(media: MediaCoverRequest): Promise<string | null> {
+  return resolveProviderCover(media, true);
 }

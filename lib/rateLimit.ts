@@ -192,3 +192,10 @@ export function getClientIp(req: NextRequest): string {
     "unknown"
   );
 }
+
+export function isLocalhostDevelopmentRequest(req: NextRequest): boolean {
+  if (process.env.NODE_ENV !== "development") return false;
+
+  const hostname = req.nextUrl.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}

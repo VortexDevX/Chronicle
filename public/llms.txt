@@ -21,7 +21,7 @@ Last product-content update: 2026-08-01
 - Supported media types: Anime, Manhwa, Donghua, and Light Novel.
 - Supported statuses: Planned, Active, On Hold, Dropped, and Completed.
 - Progress supports whole and decimal values.
-- Cover sources include AniList, Jikan, MangaDex, and custom public URLs, depending on media type.
+- Anime and Donghua covers use AniList first, then the MyAnimeList API; Manhwa covers use MangaDex. Custom public cover URLs take precedence.
 - Chronicle can import and export compatible library data as JSON.
 - Personal library routes require an authenticated account.
 - Chronicle is a tracker. It does not stream anime or host comic, donghua, or novel content.
