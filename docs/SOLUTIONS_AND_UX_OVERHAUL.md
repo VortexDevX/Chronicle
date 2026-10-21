@@ -2,7 +2,7 @@
 
 **Date:** October 13, 2026  
 **Project:** Chronicle Media Tracker  
-**Target Areas:** Simkl Syncing, Seasonal vs. Continuous Numbering, Animexin 403 / Cloudflare Bypasses, Donghua Tracking, and End-to-End Userflow Simplification.
+**Target Areas:** Simkl Schedule Fallback, Seasonal vs. Continuous Numbering, AniList Donghua Tracking, and End-to-End Userflow Simplification.
 
 ---
 
@@ -12,8 +12,8 @@ Chronicle is a high-performance, beautifully designed self-hosted media tracker 
 
 1. **Seasonal vs. Continuous Mismatches:** Anime/Donghua entries in Simkl and AniList reset episode numbers per season (e.g., Season 2 Episode 1), while viewers and pirate aggregators track continuous numbering (e.g., Episode 75). Chronicle compares these numbers naively, causing updates to break or forcing users to create fragmented, redundant entries for every season.
 2. **Silent Simkl Calendar Failures:** The current Simkl integration relies exclusively on a static 4-month CDN dump (`calendar/v2/anime.json`). Shows that are concluded, on hiatus, classified under Simkl TV instead of Anime, or outside the 120-day airing window match successfully in the database but silently fail to produce any schedule or progress updates.
-3. **Animexin Scraper Blocking (403 Forbidden & Timeouts):** Animexin has implemented Cloudflare Turnstile / anti-bot WAF. Standard serverless Node.js `fetch()` calls fail Cloudflare's TLS fingerprinting and datacenter IP checks, completely breaking Donghua scraper tracking.
-4. **Donghua Identity Crisis:** Donghua suffers from multiple title aliases (English vs. Pinyin vs. Hanzi), seasonal vs. multi-year run formats (*Nian Fan*), and lack of reliable scraping hosts.
+3. **AniList Schedule Coverage:** Anime and Donghua progress use AniList schedules, with the airing-calendar API retained as backup. Watch URLs remain bookmarks.
+4. **Donghua Identity Crisis:** Donghua suffers from multiple title aliases (English vs. Pinyin vs. Hanzi) and seasonal vs. multi-year run formats (*Nian Fan*).
 5. **High UX Friction & Leaked Plumbing:** The current entry creation and editing workflow exposes internal developer plumbing (MangaDex UUIDs, regex scraper URLs, test tracker buttons, SIMKL calendar toggles) to end users. Normal users do not understand these mechanisms and abandon or struggle with basic tracking.
 
 This document delivers a root-cause breakdown of each issue and provides actionable, step-by-step technical and product solutions to modernize, stabilize, and simplify Chronicle.
@@ -87,30 +87,13 @@ Chronicle fetches `anime.json` plus the next 3 monthly files (`/year/month/anime
 
 ---
 
-### Problem 3: Animexin Scraper 403 Forbidden & Timeout Errors
+### Problem 3: Anime and Donghua Progress Sources
 
-#### Technical Root Cause
-In `lib/trackerScraper.ts`:
-```typescript
-async function scrapeAnimexinTrackerUrl(trackerUrl: string, options: ScrapeTrackerOptions): Promise<number | null> {
-  const res = await fetchWithRetry(trackerUrl, {
-    headers: {
-      ...BROWSER_HEADERS,
-      Referer: "https://animexin.dev/",
-    },
-    redirect: "follow",
-  }, FETCH_TIMEOUT_MS, options);
-  ...
-}
-```
-
-1. **Cloudflare WAF / Turnstile Protection:** Animexin recently placed its domain behind Cloudflare anti-bot verification. Standard Node.js `fetch()` lacks browser TLS fingerprinting (JA3/JA4) and HTTP/2 headers. Cloudflare recognizes the request as automated and immediately responds with `HTTP 403 Forbidden` containing a challenge captcha page.
-2. **Serverless IP Blacklisting:** On Vercel (or typical AWS Lambda / datacenter IPs), Cloudflare applies aggressive rate-limiting or outright IP blocks.
-3. **Hardcoded Single Point of Failure:** `ANIMEXIN_HOST = "animexin.dev"` is hardcoded. If Animexin redirects to a mirror (`animexin.vip`, `animexin.cc`, etc.) or goes down, **every Donghua entry configured for scraping fails simultaneously**.
+Anime and Donghua progress comes from AniList. The airing-calendar API remains a backup for missing schedules. Chronicle does not scrape Anime or Donghua pages; user Watch URLs are bookmarks. Manhwa retains tracker scraping.
 
 ---
 
-### Problem 4: Donghua Scraping & Simkl Tracking Disconnect
+### Problem 4: Donghua Tracking & Simkl Schedule Disconnect
 
 #### Technical Root Cause
 Donghua occupies an inconsistent position across international databases and pirate aggregators:
@@ -124,7 +107,7 @@ Donghua occupies an inconsistent position across international databases and pir
   - Simkl catalogs some under Anime, some under TV, and some are missing entirely.
   - MyAnimeList often delays adding Donghua or lists them strictly by Romaji/Pinyin.
 - **Airing Format:** Many top Donghuas run as *Nian Fan* (multi-year continuous weekly broadcast: 52 to 104+ episodes continuous), unlike the strict 12/24 episode seasonal batches of Japanese Anime.
-- **Scraper Vulnerability:** Donghua streaming sites are notorious for frequent domain churn and aggressive anti-scraping protections.
+- **Progress Source:** AniList is primary; the airing-calendar API remains a backup.
 
 ---
 
@@ -299,34 +282,9 @@ export async function searchSimklFullDatabase(query: string): Promise<SimklSearc
 
 ---
 
-### Solution 3: Defeating Animexin 403 & Scraper Timeouts
+### Solution 3: AniList Progress with Calendar Backup
 
-There are three viable approaches, ranked from simplest/zero-cost to most robust:
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ Animexin / Scraper Remediation Paths                                   │
-│                                                                        │
-│ 1. Zero-Cost / API Native (RECOMMENDED):                               │
-│    Switch Donghua to AniList + Bilibili Official Syndication Feeds.   │
-│    Eliminate dependency on pirate HTML scraping.                      │
-│                                                                        │
-│ 2. Scraper Proxy Service (Cloud):                                      │
-│    Route Animexin fetches through ScrapingBee / ScraperAPI / ZenRows.  │
-│    Solves Cloudflare Turnstile with 1 line of code.                   │
-│                                                                        │
-│ 3. Self-Hosted FlareSolverr (Docker / VPS):                            │
-│    Spin up a FlareSolverr container to solve Cloudflare challenges     │
-│    and return raw HTML to Chronicle.                                  │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-#### Approach A (Recommended): Decouple Release Tracking from Scrapers
-- Why are we scraping Animexin in the first place? Only to find out when Episode $N$ was released!
-- Animexin uploads episodes within 1–3 hours of the official Chinese broadcast on Tencent Video / Bilibili / iQiyi.
-- **AniList tracks these official air times directly via its `airingSchedule` API.**
-- By using AniList for the episode release date and notification trigger, Chronicle gets **100% uptime, zero 403 errors, and zero Cloudflare timeouts**.
-- The user can still store their favorite Animexin URL in the **"Watch URL"** field. When Chronicle sends a notification ("Episode 14 released!"), clicking it simply opens the user's bookmarked Animexin page. Chronicle does not need to scrape it!
+AniList provides Anime and Donghua schedules. The airing-calendar API fills gaps when AniList has no schedule. Watch URLs are bookmarks; scraping stays limited to Manhwa.
 
 #### Approach B: Scraper Proxy for Manhwa & Required Sites
 For manhwa scanlation sites that require scraping (where no API exists):
@@ -360,12 +318,12 @@ async function fetchWithBypass(url: string, options: ScrapeTrackerOptions): Prom
 
 ---
 
-### Solution 4: The Ultimate Donghua Strategy
+### Solution 4: AniList Donghua Strategy
 
 To solve Donghua once and for all:
 
 1. **Title Alias Equivalence Engine:**
-   When searching or scraping Donghua, Chronicle must normalize and store alternate titles:
+   When searching Donghua, Chronicle normalizes and stores alternate titles:
    ```typescript
    title_aliases: {
      english: "Battle Through the Heavens",
@@ -375,15 +333,8 @@ To solve Donghua once and for all:
    }
    ```
    AniList provides English, Romaji (Pinyin), and Native (Hanzi) in a single request. Storing these on `MediaItem` ensures that whether the user searches in English or pastes a Pinyin URL, Chronicle matches instantly.
-2. **Support Multi-Host Donghua Rules:**
-   Do not bind Donghua exclusively to `animexin.dev`. Add rules for:
-   - `lucifferdonghua.in`
-   - `mydonghua.net`
-   - `donghuastream.org`
-   - `lmanhua.com`
-   Allow users to paste any of these hosts if they choose the scraper route.
-3. **Default to AniList Airing Tracker:**
-   Set the default `tracking_source` for Donghua to `"anilist"` instead of `"scraper"` or `"simkl"`. AniList's Chinese animation coverage is superior to Simkl and requires zero brittle scraping.
+2. **Use AniList for progress:**
+   AniList is primary for Donghua, with the airing-calendar API as backup. Watch URLs are bookmarks.
 
 ---
 
@@ -445,7 +396,7 @@ Remove the requirement to paste MangaDex UUIDs.
 - A normal user doesn't understand "Tracker URL with Cheerio Scraper RegEx".
 - Rename it to: **"Watch URL / Reading Link"** with helper text: *"Paste your reading site link here for 1-click access."*
 - If the pasted link happens to match a supported scraper host (e.g., Asura Scans or Manhuafast), Chronicle silently enables automated chapter checking. If not, Chronicle gracefully keeps it as a quick-launch link and relies on MangaDex or manual increments.
-- No scary error messages like *"Scraper failed [Donghua]: No chapter numbers found in DOM"*.
+- Anime and Donghua schedule failures do not appear as scraper errors.
 
 ---
 
@@ -456,7 +407,7 @@ Remove the requirement to paste MangaDex UUIDs.
 | **Adding an Entry** | Manual text form, manual type dropdown, manual cover URL, manual MangaDex ID hunting. | **Omnisearch Auto-complete** across AniList & MangaDex. Click to add in 3 seconds. |
 | **Seasonal vs Continuous** | Clashes. Season 2 episode 1 overwrites continuous episode 25. Requires creating multiple entries. | **Automatic Episode Offset Engine** (`season_base_offset`). Supports continuous progress seamlessly. |
 | **Simkl Schedules** | Static 4-month calendar dump only. Shows outside the window fail silently. | **Dual-Tier Resolver**: In-memory calendar cache + live AniList Airing GraphQL fallback. |
-| **Donghua Scraping** | Hardcoded to `animexin.dev`. Cloudflare 403 blocks all requests. | **AniList Airing as Primary Source** (zero 403s), plus multi-host scraper fallback. |
+| **Donghua Progress** | AniList plus airing-calendar API backup; Watch URLs are bookmarks. | Keep AniList primary and calendar backup; do not scrape Donghua pages. |
 | **MangaDex Integration** | User must manually copy and paste a 36-character UUID or specific URL format. | **Zero-touch**: Chronicle resolves MangaDex UUID in the background from the title automatically. |
 | **Error Exposure** | Raw scraper regex errors and HTTP 403/500 codes displayed to users. | **User-friendly indicators**: "Next episode expected Friday", "Up to date", "Custom watch link saved". |
 
@@ -468,9 +419,9 @@ Remove the requirement to paste MangaDex UUIDs.
 1. **Fix Simkl Silent Drops:**
    - Update `app/api/release-radar/route.ts` and `app/api/cron/checkChapters/route.ts` to fall back to AniList GraphQL for any active Anime or Donghua that has an `anilist_id` or is missing from `simklCalendar.payload`.
    - Update Release Radar UI to display a "Schedule Pending" card for matched shows instead of hiding them completely.
-2. **Resolve Animexin 403 Errors:**
-   - For Donghua, switch default `tracking_source` to `"anilist"`.
-   - In `trackerScraper.ts`, add fallback error suppression so transient 403s on Animexin do not break the cron job or flood users with error toasts.
+2. **Keep Anime/Donghua on AniList:**
+   - Use AniList for progress, with the airing-calendar API as backup.
+   - Keep streaming URLs as bookmarks; reserve scraping and tracker errors for Manhwa.
 
 ### Phase 2: Core Data Engine Upgrades (Seasons & Offsets)
 1. **Add `season_base_offset` to `MediaItem` schema:**
@@ -494,6 +445,6 @@ Remove the requirement to paste MangaDex UUIDs.
 ## Conclusion & Recommendations
 
 By addressing the underlying assumptions in Chronicle's architecture:
-1. **Shifting from brittle scraping to structured official APIs (AniList & MangaDex)** solves the Animexin 403 issue and eliminates broken Donghua tracking.
+1. **Using AniList with an airing-calendar backup for screen media** removes brittle Anime/Donghua page scraping while preserving Manhwa tracking.
 2. **Introducing an Episode Offset Bridge** solves the seasonal vs. continuous dilemma without forcing users to manage disjointed entries.
 3. **Introducing an Omnisearch Auto-Complete workflow** transforms Chronicle from a "developer's scraper dashboard" into a seamless, consumer-grade media tracking experience on par with AniList and Letterboxd.

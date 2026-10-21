@@ -117,7 +117,7 @@ describe("media validation", () => {
         season_number: 2,
         episode_offset: 24,
         numbering_status: "verified",
-        watch_url: "https://animexin.vip/donghua/example",
+        watch_url: "https://watch.example/donghua/example",
         title_aliases: {
           english: "Soul Land 2",
           pinyin: "Douluo Dalu 2",
@@ -135,7 +135,7 @@ describe("media validation", () => {
         season_number: 2,
         episode_offset: 24,
         numbering_status: "verified",
-        watch_url: "https://animexin.vip/donghua/example",
+        watch_url: "https://watch.example/donghua/example",
         title_aliases: {
           english: "Soul Land 2",
           pinyin: "Douluo Dalu 2",

@@ -40,7 +40,7 @@ The page summarizes all four formats without separate tracker landing pages. Tec
 | Database | MongoDB (Atlas or local) via Mongoose                               |
 | Auth     | JWT httpOnly cookies · bcryptjs · hashed one-time reset tokens      |
 | Email    | Resend Transactional API                                            |
-| Scraping | Cheerio · fetch retry/timeout helpers · host-specific rules |
+| Manhwa scraping | Cheerio · fetch retry/timeout helpers · host-specific rules |
 | APIs     | AniList GraphQL · Jikan v4 · MangaDex · Telegram Bot API            |
 | Testing  | Vitest · TypeScript · ESLint                                        |
 
@@ -198,7 +198,7 @@ If `https://chroniclex.vercel.app` is the active deployment, use
 never commit the real value. Run one manual test from the cron-job.org dashboard
 and confirm an HTTP `200` JSON response before enabling the four-hour schedule.
 cron-job.org stops requests after 30 seconds. Chronicle therefore uses a bounded
-24-second run, aborts in-flight scrapes when its scan budget ends, returns partial
+24-second run, aborts in-flight Manhwa tracker requests when its scan budget ends, returns partial
 progress instead of timing out, and retries deferred trackers on the next run.
 
 ### Maintenance

@@ -90,10 +90,10 @@ function CronRunCard({ item }: { item: CronHistoryItem }) {
         </div>
       )}
 
-      {item.tracker_errors.length > 0 && (
+      {item.tracker_errors.some((error) => error.media_type === "Manhwa") && (
         <div className={`${styles.details} ${styles.errors}`}>
           <span>Tracker errors</span>
-          {item.tracker_errors.map((error, index) => (
+          {item.tracker_errors.filter((error) => error.media_type === "Manhwa").map((error, index) => (
             <div key={`${item._id}-error-${index}`}>
               <strong>{error.title}</strong>
               <small>{error.message}</small>

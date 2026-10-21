@@ -1,7 +1,6 @@
 import * as cheerio from "cheerio";
 import {
   collectChapterNumbers,
-  extractEpisodeNumberFromText,
   GENERIC_CHAPTER_SELECTORS,
   getRuleForHost,
 } from "@/lib/scraper";
@@ -9,7 +8,6 @@ import {
 const FETCH_TIMEOUT_MS = 12_000;
 const FETCH_RETRY_ATTEMPTS = 2;
 const FETCH_RETRY_BASE_DELAY_MS = 900;
-const ANIMEXIN_HOST = "animexin.dev";
 const SLOW_HOST_TIMEOUT_MS = 20_000;
 const SLOW_HOSTS = new Set([
   "arenascan.com",
@@ -25,7 +23,7 @@ const BROWSER_HEADERS: Record<string, string> = {
   Referer: "https://www.google.com/",
 };
 
-export type MediaTypeSupported = "Manhwa" | "Donghua";
+export type MediaTypeSupported = "Manhwa";
 
 export type ScrapeTrackerOptions = {
   signal?: AbortSignal;
@@ -224,91 +222,12 @@ async function scrapeManhwaTrackerUrl(
   return Math.max(...chapterNumbers);
 }
 
-async function scrapeAnimexinTrackerUrl(
-  trackerUrl: string,
-  options: ScrapeTrackerOptions,
-): Promise<number | null> {
-  const res = await fetchWithRetry(
-    trackerUrl,
-    {
-      headers: {
-        ...BROWSER_HEADERS,
-        Referer: "https://animexin.dev/",
-      },
-      redirect: "follow",
-    },
-    FETCH_TIMEOUT_MS,
-    options,
-  );
-
-  if (res.status === 403) {
-    throw new Error(
-      "HTTP 403 Forbidden: animexin is Cloudflare protected. Use AniList schedule tracking and save Animexin as Watch Bookmark.",
-    );
-  }
-
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  }
-
-  const resolvedHost = new URL(res.url).host;
-  if (!resolvedHost.includes(ANIMEXIN_HOST)) {
-    throw new Error(
-      `Tracker URL redirected off animexin.dev to ${resolvedHost}`,
-    );
-  }
-
-  const html = await res.text();
-  const $ = cheerio.load(html);
-
-  const candidates: number[] = [];
-
-  $(".epcur.epcurlast").each((_i, el) => {
-    const text = $(el).text().trim();
-    const num = extractEpisodeNumberFromText(text);
-    if (num !== null) candidates.push(num);
-  });
-
-  const lastInepcx = $(".lastend .inepcx").last();
-  if (lastInepcx.length) {
-    const text =
-      lastInepcx.find(".epcur").last().text().trim() ||
-      lastInepcx.text().trim();
-    const num = extractEpisodeNumberFromText(text);
-    if (num !== null) candidates.push(num);
-  }
-
-  $("span.epcur").each((_i, el) => {
-    const text = $(el).text().trim();
-    const num = extractEpisodeNumberFromText(text);
-    if (num !== null) candidates.push(num);
-  });
-
-  const episodeMatches = html.matchAll(/(?:Episode\s+(\d+)|(\d+)\s*(?:\[[^\]]+\]\s*)?Episode)/gi);
-  for (const match of episodeMatches) {
-    const raw = match[1] || match[2];
-    const num = parseInt(raw, 10);
-    if (Number.isFinite(num) && num > 0 && num < 10000) {
-      candidates.push(num);
-    }
-  }
-
-  if (candidates.length > 0) {
-    return Math.max(...candidates);
-  }
-
-  throw new Error("No episode numbers found on animexin page");
-}
-
 export async function scrapeTrackerUrl(
   trackerUrl: string,
   mediaType: MediaTypeSupported,
   options: ScrapeTrackerOptions = {},
 ): Promise<number | null> {
   try {
-    if (mediaType === "Donghua") {
-      return await scrapeAnimexinTrackerUrl(trackerUrl, options);
-    }
     return await scrapeManhwaTrackerUrl(trackerUrl, options);
   } catch (error) {
     throw new Error(`Scraper failed [${mediaType}]: ${getErrorMessage(error)}`);

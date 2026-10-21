@@ -247,7 +247,6 @@ export default function UpdatesPage() {
             items.map((item: UpdateFeedItem) => {
               const telegram = TELEGRAM_COPY[item.telegram_state];
               const TelegramIcon = telegram.icon;
-              const isDonghuaScraper = item.media_type === "Donghua" && item.tracking_source === "scraper";
               const isScreenMedia = item.media_type === "Anime" || item.media_type === "Donghua";
               const trackerUrl = item.tracker_url ? normalizePublicHttpUrl(item.tracker_url) : null;
               const latestRemote = item.latest_remote_progress ?? item.progress_current;
@@ -323,9 +322,9 @@ export default function UpdatesPage() {
                           href={trackerUrl}
                           target="_blank"
                           rel="noreferrer"
-                          title={isScreenMedia && !isDonghuaScraper ? "Open watch link" : "Open tracker"}
+                          title={isScreenMedia ? "Open watch link" : "Open tracker"}
                         >
-                          <ExternalLink size={14} /> {isScreenMedia && !isDonghuaScraper ? "Watch" : "Tracker"}
+                          <ExternalLink size={14} /> {isScreenMedia ? "Watch" : "Tracker"}
                         </a>
                       )}
                     </div>
@@ -354,7 +353,7 @@ export default function UpdatesPage() {
               ? `${errors.length} ${errors.length === 1 ? "tracker needs" : "trackers need"} review`
               : "All trackers healthy"}
           </h3>
-          <p>Scraper issues never affect your manual progress.</p>
+          <p>Manhwa tracker issues never affect your manual progress.</p>
           <div>
             {errors.length ? (
               errors.map((item) => (
@@ -373,7 +372,7 @@ export default function UpdatesPage() {
               ))
             ) : (
               <div className="tracker-healthy">
-                <Check size={16} /> No scraper errors
+                <Check size={16} /> No Manhwa tracker errors
               </div>
             )}
           </div>

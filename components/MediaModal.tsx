@@ -704,7 +704,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                   name="watch_url"
                   value={formData.watch_url || ""}
                   onChange={handleChange}
-                  placeholder="e.g. Animexin, Crunchyroll, or reader bookmark"
+                  placeholder="e.g. Crunchyroll or reader bookmark"
                 />
               </div>
             </div>

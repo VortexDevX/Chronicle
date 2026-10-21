@@ -35,16 +35,4 @@ describe("scheduled tracker scraping controls", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("handles animexin 403 with actionable error message", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response("Forbidden", { status: 403, statusText: "Forbidden" }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      scrapeTrackerUrl("https://animexin.dev/series/test", "Donghua", {
-        retryAttempts: 0,
-      }),
-    ).rejects.toThrow("animexin is Cloudflare protected");
-  });
 });

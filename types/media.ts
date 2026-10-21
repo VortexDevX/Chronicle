@@ -160,7 +160,7 @@ export interface CronHistoryItem {
     current: number;
     latest: number;
   }>;
-  tracker_errors: Array<{ title: string; message: string }>;
+  tracker_errors: Array<{ title: string; message: string; media_type?: "Manhwa" }>;
 }
 
 export interface CronHistoryPayload {

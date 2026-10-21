@@ -14,7 +14,7 @@ Chronicle is transitioning to an **AniList-first media engine**, eliminating bri
 This document establishes the architecture, safety contracts, and phased execution plan to achieve:
 1. **Seasonal Numbering Contract with Existing Progress Protection:** Seasonal numbering becomes the primary format for new metadata, while existing entries retain their exact continuous/legacy progress semantics without blind defaults.
 2. **Complete Simkl Removal & Safe AniList Airing Pipeline:** Replacing Simkl's static 4-month calendar dump with AniList GraphQL (`nextAiringEpisode`), backed by batched queries, rate-limit protection, and explicit state handling for concluded/pending shows.
-3. **Animexin Decoupling & Scraper Hardening:** Converting Animexin into a 1-click Watch Bookmark while AniList handles release notifications; isolating external scraper errors to prevent cron failures.
+3. **Anime/Donghua Tracking:** AniList provides release tracking; streaming links remain bookmarks. Manhwa retains chapter scraping.
 4. **First-Class Donghua Reliability:** Leveraging AniList's native Chinese animation catalog (`countryOfOrigin: "CN"`) and introducing multi-alias title management (English, Pinyin, Hanzi, Custom).
 5. **Radically Simplified User Experience:** An Omnisearch dialog (`⌘K`) for instant 1-click addition across Anime, Donghua, and Manhwa; a clean Essentials-first media form; and the elimination of raw developer plumbing (UUIDs, regex scraper URLs, test buttons).
 
@@ -149,7 +149,7 @@ export function shouldNotifyUpdate(
 - In `MediaModal.tsx` and `types/media.ts`:
   - `tracker_url` is rebranded to **"Watch / Reading Bookmark"**.
   - Any valid URL can be stored. If a scraper host fails with a 403 or timeout, the URL remains saved and functional as a 1-click launch button.
-  - Animexin is strictly a Watch Bookmark; release notifications are driven by AniList.
+  - Anime and Donghua release notifications are driven by AniList; Watch URLs remain bookmarks.
 
 ---
 
@@ -177,10 +177,10 @@ export function shouldNotifyUpdate(
 │ • Verification Gate: Full Vitest suite covering seasonal, continuous, and        │
 │   unspecified progress edge cases.                                               │
 ├──────────────────────────────────────────────────────────────────────────────────┤
-│ PHASE 3: Donghua Reliability & Scraper Isolation                                 │
+│ PHASE 3: AniList Schedules & Manhwa Scraper Scope                               │
 │ • Add `title_aliases` schema (English, Pinyin, Hanzi, Custom).                   │
 │ • Support Donghua via AniList GraphQL (`countryOfOrigin: "CN"`).                 │
-│ • Isolate Animexin as Bookmark-only (no scraping calls in cron).                 │
+│ • Use AniList for Anime/Donghua schedules; retain Manhwa scraping.               │
 │ • Isolate Manhwa scrapers: network timeouts/403s recorded cleanly without        │
 │   failing cron queues or invalidating bookmarks.                                 │
 │ • Verification Gate: Scraper tests, alias resolution tests, cron stability.     │

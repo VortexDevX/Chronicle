@@ -34,6 +34,7 @@ export async function getUpdateFeed(
       .lean(),
     MediaItem.find({
       ...tracked,
+      media_type: "Manhwa",
       last_scrape_status: "error",
     })
       .sort({ last_checked_at: -1 })

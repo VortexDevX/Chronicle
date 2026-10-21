@@ -55,7 +55,7 @@ const hostCooldownUntil = new Map<string, number>();
 //  SHARED TYPES
 // ══════════════════════════════════════════════════════════════════
 
-type CronMediaType = MediaTypeSupported | "Anime";
+type CronMediaType = MediaTypeSupported | "Anime" | "Donghua";
 
 type ChapterUpdate = {
   media_id: string;
@@ -168,8 +168,7 @@ export async function GET(req: NextRequest) {
       status: "Active",
       $or: [
         { media_type: "Manhwa", tracker_url: { $exists: true, $nin: [null, ""] } },
-        { media_type: "Donghua", tracking_source: "scraper", tracker_url: { $exists: true, $nin: [null, ""] } },
-        { media_type: "Donghua", tracking_source: { $ne: "scraper" } },
+        { media_type: "Donghua" },
         { media_type: "Anime" },
       ],
     })
@@ -183,10 +182,7 @@ export async function GET(req: NextRequest) {
 
     let aniListMediaMap = new Map<number, AniListMedia>();
     const anilistEligible = entries.filter(
-      (entry) =>
-        entry.media_type === "Anime" ||
-        (entry.media_type === "Donghua" &&
-          (entry as { tracking_source?: string | null }).tracking_source !== "scraper"),
+      (entry) => entry.media_type === "Anime" || entry.media_type === "Donghua",
     );
 
     if (anilistEligible.length > 0) {
@@ -307,9 +303,7 @@ export async function GET(req: NextRequest) {
         const userStats = scanStatsByUser.get(uid);
         if (userStats) userStats.started += 1;
         const mediaType = entry.media_type as CronMediaType;
-        const trackingSource = (entry as { tracking_source?: string | null }).tracking_source || "anilist";
-        const isDonghuaScraper = mediaType === "Donghua" && trackingSource === "scraper";
-        const shouldUseScraper = mediaType === "Manhwa" || isDonghuaScraper;
+        const shouldUseScraper = mediaType === "Manhwa";
         const trackerUrl = String(entry.tracker_url || "");
         const current = Number(entry.progress_current || 0);
         const notificationBaseline = getNotificationBaseline({
@@ -423,9 +417,9 @@ export async function GET(req: NextRequest) {
             }
           }
 
-          // 4. Scraper fallback (Manhwa, or Anime/Donghua if schedule yielded nothing and trackerUrl is present)
-          if (rawLatest === null && trackerUrl) {
-            rawLatest = await scrapeTrackerUrl(trackerUrl, mediaType as MediaTypeSupported, {
+          // Manhwa alone uses tracker scraping. Anime and Donghua use AniList schedules.
+          if (mediaType === "Manhwa" && rawLatest === null && trackerUrl) {
+            rawLatest = await scrapeTrackerUrl(trackerUrl, "Manhwa", {
               signal: scanDeadline.signal,
               retryAttempts: getCronScrapeRetries(),
             });
@@ -456,8 +450,10 @@ export async function GET(req: NextRequest) {
               $set: {
                 last_attempted_at: new Date(),
                 last_checked_at: new Date(),
-                last_scrape_status: "ok",
-                last_scrape_error: null,
+                ...(mediaType === "Manhwa" ? {
+                  last_scrape_status: "ok",
+                  last_scrape_error: null,
+                } : {}),
                 ...(latest !== null ? { latest_remote_progress: latest } : {}),
                 ...(resolvedOffset !== (entryWithNumbering.episode_offset ?? null) ? { episode_offset: resolvedOffset } : {}),
                 ...(numberingStatusUpdate !== (entryWithNumbering.numbering_status ?? null) ? { numbering_status: numberingStatusUpdate } : {}),
@@ -466,11 +462,6 @@ export async function GET(req: NextRequest) {
                   next_episode_release_at: scheduleNextReleaseAt,
                   previous_episode: schedulePrevEpisode,
                   previous_episode_release_at: schedulePrevReleaseAt,
-                } : isDonghuaScraper ? {
-                  next_episode: null,
-                  next_episode_release_at: null,
-                  previous_episode: null,
-                  previous_episode_release_at: null,
                 } : {}),
               },
               $max: {
@@ -518,9 +509,17 @@ export async function GET(req: NextRequest) {
 
           const message = getErrorMessage(err);
           const transient = isTransientScrapeError(err);
-          const historyErrors = historyErrorsByUser.get(uid) || [];
-          historyErrors.push({ title: entry.title as string, message });
-          historyErrorsByUser.set(uid, historyErrors);
+          if (mediaType === "Manhwa") {
+            const historyErrors = historyErrorsByUser.get(uid) || [];
+            historyErrors.push({ title: entry.title as string, message });
+            historyErrorsByUser.set(uid, historyErrors);
+          } else {
+            logInternalError("cron_anilist_progress_error", err, {
+              route: "cron/checkChapters",
+              media_type: mediaType,
+              media_id: String(entry._id),
+            });
+          }
           if (host && !transient) {
             hostCooldownUntil.set(host, Date.now() + HOST_COOLDOWN_MS);
           }
@@ -530,23 +529,24 @@ export async function GET(req: NextRequest) {
               $set: {
                 last_attempted_at: new Date(),
                 last_checked_at: new Date(),
-                last_scrape_status: "error",
-                last_scrape_error: message.slice(0, 500),
+                ...(mediaType === "Manhwa" ? {
+                  last_scrape_status: "error",
+                  last_scrape_error: message.slice(0, 500),
+                } : {}),
               },
             },
           );
           totalFinished += 1;
           if (userStats) {
             userStats.scanned += 1;
-            userStats.trackerFailures += 1;
+            if (mediaType === "Manhwa") userStats.trackerFailures += 1;
           }
           if (!transient) {
             const errors = errorsByUser.get(uid) || [];
-            errors.push({
-              title: entry.title as string,
-              message,
-            });
-            errorsByUser.set(uid, errors);
+            if (mediaType === "Manhwa") {
+              errors.push({ title: entry.title as string, message });
+              errorsByUser.set(uid, errors);
+            }
           }
         }
       },
@@ -1061,6 +1061,7 @@ async function saveCronHistory({
       tracker_errors: errors.slice(0, 10).map((error) => ({
         title: error.title.slice(0, 200),
         message: error.message.slice(0, 300),
+        media_type: "Manhwa",
       })),
     }];
   });

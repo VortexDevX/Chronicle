@@ -27,6 +27,7 @@ const cronHistoryErrorSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     message: { type: String, required: true },
+    media_type: { type: String, enum: ["Manhwa"] },
   },
   { _id: false },
 );
