@@ -20,6 +20,9 @@ vi.mock("@/lib/models", () => ({
     findOne: vi.fn(),
     create: vi.fn(),
   },
+  PushDevice: {
+    deleteOne: vi.fn(),
+  },
 }));
 
 vi.mock("@/lib/config", () => ({
@@ -28,6 +31,7 @@ vi.mock("@/lib/config", () => ({
 
 vi.mock("@/lib/auth", () => ({
   signAuthToken: vi.fn().mockReturnValue("signed-token"),
+  getAuthTokenClaims: vi.fn().mockReturnValue(null),
 }));
 
 vi.mock("@/lib/log", () => ({
@@ -70,5 +74,24 @@ describe("auth API route", () => {
         email_verified_at: null,
       }),
     );
+    const cookie = res.cookies.get("auth_token");
+    expect(cookie?.value).toBe("signed-token");
+    expect(cookie?.maxAge).toBe(30 * 24 * 60 * 60);
+    expect(cookie?.expires).toBeInstanceOf(Date);
+  });
+
+  it("clears auth_token cookie on logout with maxAge 0 and expires Date", async () => {
+    const res = await POST(
+      new NextRequest("https://chronicle.example/api/auth", {
+        method: "POST",
+        body: JSON.stringify({ action: "logout" }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const cookie = res.cookies.get("auth_token");
+    expect(cookie?.value).toBe("");
+    expect(cookie?.maxAge).toBe(0);
+    expect(cookie?.expires).toEqual(new Date(0));
   });
 });

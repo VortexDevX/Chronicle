@@ -305,6 +305,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "logout" }),
       });
+      try {
+        localStorage.removeItem("chronicle_has_session");
+      } catch {}
       setAuth("unauthenticated");
       onClose();
       router.push("/login");
@@ -515,7 +518,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     title="Download Chronicle Android APK"
                   >
                     <Download size={15} />
-                    <span>Download APK (5338 KB)</span>
+                    <span>Download APK (850 KB)</span>
                   </a>
                 </div>
               </div>

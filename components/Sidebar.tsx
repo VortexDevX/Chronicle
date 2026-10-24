@@ -76,6 +76,9 @@ export function Sidebar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "logout" }),
       });
+      try {
+        localStorage.removeItem("chronicle_has_session");
+      } catch {}
       setAuth("unauthenticated");
       router.push("/login");
     } catch {

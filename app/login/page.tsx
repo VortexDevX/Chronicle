@@ -39,7 +39,25 @@ export default function LoginPage() {
     } else if (status === "invalid") {
       setError("Verification link is invalid or expired.");
     }
-  }, []);
+
+    // If the user already has a valid session, redirect them to /home
+    fetch("/api/auth", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((json) => {
+        const payload = json?.data || json;
+        if (payload?.loggedIn) {
+          try {
+            localStorage.setItem("chronicle_has_session", "true");
+          } catch {}
+          setAuth("authenticated", payload.username);
+          router.replace("/home");
+        }
+      })
+      .catch(() => {});
+  }, [router, setAuth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +103,9 @@ export default function LoginPage() {
       }
 
       setAuth("authenticated", data.data?.username || username);
+      try {
+        localStorage.setItem("chronicle_has_session", "true");
+      } catch {}
       persistNativeSessionCookies();
       router.push("/home");
     } catch (err) {

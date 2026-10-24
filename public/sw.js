@@ -1,11 +1,10 @@
 // Chronicle X – Service Worker
 // Network-first for pages and code, cache-first for images and fonts
 
-const CACHE_NAME = "chronicle-v2";
+const CACHE_NAME = "chronicle-v3";
 
 // App shell assets to pre-cache on install
 const APP_SHELL = [
-  "/login",
   "/icon.png",
   "/favicon.png",
 ];
@@ -97,7 +96,22 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("/login")))
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          if (url.pathname === "/login") {
+            const cachedLogin = await caches.match("/login");
+            if (cachedLogin) return cachedLogin;
+          }
+          return new Response(
+            "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>Chronicle - Offline</title><style>body{background:#0e1117;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;padding:20px;text-align:center;}button{margin-top:16px;padding:10px 20px;background:#e50914;color:#fff;border:none;border-radius:6px;font-size:16px;cursor:pointer;}</style></head><body><h2>You appear to be offline</h2><p>Please check your internet connection.</p><button onclick='location.reload()'>Retry</button></body></html>",
+            {
+              status: 503,
+              statusText: "Offline",
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+            }
+          );
+        })
     );
     return;
   }

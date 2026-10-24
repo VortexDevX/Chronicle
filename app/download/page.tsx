@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 const appDetails = {
   version: "1.0.4",
   versionCode: 5,
-  size: "5338 KB",
+  size: "850 KB",
   minAndroid: "Android 8.0+ (Oreo or higher)",
   package: "com.vortexdevx.chronicle",
   filename: "chronicle.apk",

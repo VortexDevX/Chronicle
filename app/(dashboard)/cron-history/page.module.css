@@ -2,6 +2,10 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 .hero {
@@ -13,6 +17,8 @@
   border-radius: 17px;
   padding: 20px;
   background: linear-gradient(135deg, rgba(244, 63, 94, 0.08), #111318 55%);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .heroIcon {
@@ -24,6 +30,11 @@
   border-radius: 12px;
   background: var(--accent-soft);
   color: var(--accent);
+  flex-shrink: 0;
+}
+
+.hero > div:nth-child(2) {
+  min-width: 0;
 }
 
 .hero > div:nth-child(2) > span,
@@ -38,29 +49,42 @@
 .hero h2 {
   margin-top: 2px;
   font-size: 1.1rem;
+  word-break: break-word;
 }
 
 .hero p {
   margin-top: 4px;
   color: var(--text-secondary);
   font-size: 0.68rem;
+  word-break: break-word;
 }
 
 .hero > button {
   display: flex;
   min-height: 44px;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   padding: 0 14px;
   background: #171a20;
   color: #eae9e5;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.hero > button:hover:not(:disabled) {
+  background: #21252d;
+  border-color: rgba(244, 63, 94, 0.4);
 }
 
 .runList {
   display: grid;
   gap: 11px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .runCard {
@@ -69,6 +93,9 @@
   border-radius: 14px;
   padding: 16px 18px;
   background: #111318;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .runCard[data-status="partial"] {
@@ -80,6 +107,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .runStatus,
@@ -88,12 +117,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .runStatus {
   color: #72d9b3;
   font-size: 0.69rem;
   font-weight: 750;
+  flex-shrink: 0;
 }
 
 .runCard[data-status="partial"] .runStatus {
@@ -103,6 +134,9 @@
 .runCard time {
   color: #747b88;
   font-size: 0.61rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .metrics {
@@ -110,25 +144,34 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-top: 14px;
+  min-width: 0;
 }
 
 .metrics > span {
   display: flex;
   min-height: 58px;
+  min-width: 0;
   flex-direction: column;
   justify-content: center;
   border-radius: 10px;
   padding: 9px 11px;
   background: rgba(255, 255, 255, 0.035);
+  overflow: hidden;
 }
 
 .metrics strong {
   font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metrics small {
   color: #747b88;
   font-size: 0.57rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .deliveries {
@@ -136,15 +179,20 @@
   flex-wrap: wrap;
   gap: 7px;
   margin-top: 10px;
+  min-width: 0;
 }
 
 .delivery {
   min-height: 30px;
+  max-width: 100%;
   border-radius: 999px;
   padding: 0 10px;
   background: rgba(255, 255, 255, 0.04);
   color: #8c939f;
   font-size: 0.58rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .delivery[data-state="sent"] {
@@ -165,6 +213,8 @@
   margin-top: 13px;
   border-top: 1px solid var(--border);
   padding-top: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .details > div {
@@ -175,9 +225,13 @@
   border-radius: 8px;
   padding: 7px 9px;
   background: rgba(255, 255, 255, 0.025);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .details strong {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   font-size: 0.65rem;
   text-overflow: ellipsis;
@@ -185,26 +239,42 @@
 }
 
 .details small {
+  flex-shrink: 0;
+  min-width: 0;
   color: #747b88;
   font-size: 0.58rem;
   text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.errors {
+  border-top-color: rgba(239, 68, 68, 0.18);
 }
 
 .errors small {
   max-width: 65%;
+  flex-shrink: 1;
   color: #d59386;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+  .page {
+    gap: 14px;
+    padding-bottom: max(88px, calc(env(safe-area-inset-bottom, 0px) + 72px));
+  }
+
   .hero {
     grid-template-columns: auto minmax(0, 1fr);
     padding: 16px;
+    gap: 12px;
   }
 
   .hero > button {
     grid-column: 1 / -1;
     justify-content: center;
+    width: 100%;
   }
 
   .runCard {
@@ -214,21 +284,66 @@
   .runCard > header {
     align-items: flex-start;
     flex-direction: column;
+    gap: 6px;
   }
 
   .metrics {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .details > div {
     align-items: flex-start;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
+    padding: 8px 10px;
+  }
+
+  .details strong {
+    width: 100%;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: 0.68rem;
+    line-height: 1.35;
   }
 
   .details small,
   .errors small {
+    width: 100%;
     max-width: 100%;
     text-align: left;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: 0.60rem;
+    line-height: 1.35;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero {
+    padding: 14px 12px;
+  }
+
+  .hero h2 {
+    font-size: 1rem;
+  }
+
+  .hero p {
+    font-size: 0.64rem;
+  }
+
+  .runCard {
+    padding: 12px;
+  }
+
+  .metrics > span {
+    padding: 7px 9px;
+    min-height: 52px;
+  }
+
+  .metrics strong {
+    font-size: 0.9rem;
   }
 }

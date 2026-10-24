@@ -127,12 +127,14 @@ export async function POST(req: NextRequest) {
 
       const token = signAuthToken(String(user._id), user.auth_version || 0);
 
+      const cookieExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const res = jsonOk({ username: normalizedUsername });
       res.cookies.set("auth_token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: 30 * 24 * 60 * 60,
+        expires: cookieExpiry,
         path: "/",
       });
       return res;
@@ -171,12 +173,14 @@ export async function POST(req: NextRequest) {
 
       const token = signAuthToken(String(user._id), user.auth_version || 0);
 
+      const cookieExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const res = jsonOk({ username: normalizedUsername });
       res.cookies.set("auth_token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: 30 * 24 * 60 * 60,
+        expires: cookieExpiry,
         path: "/",
       });
       return res;
@@ -206,6 +210,7 @@ export async function POST(req: NextRequest) {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: 0,
+        expires: new Date(0),
         path: "/",
       });
       return res;

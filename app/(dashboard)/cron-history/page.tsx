@@ -83,7 +83,7 @@ function CronRunCard({ item }: { item: CronHistoryItem }) {
           <span>Updates found</span>
           {item.updates.map((update) => (
             <div key={`${item._id}-${update.media_id}`}>
-              <strong>{update.title}</strong>
+              <strong title={update.title}>{update.title}</strong>
               <small>{update.media_type} · {update.current} → {update.latest}</small>
             </div>
           ))}
@@ -95,7 +95,7 @@ function CronRunCard({ item }: { item: CronHistoryItem }) {
           <span>Tracker errors</span>
           {item.tracker_errors.filter((error) => error.media_type === "Manhwa").map((error, index) => (
             <div key={`${item._id}-error-${index}`}>
-              <strong>{error.title}</strong>
+              <strong title={error.title}>{error.title}</strong>
               <small>{error.message}</small>
             </div>
           ))}
