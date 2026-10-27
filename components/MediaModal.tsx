@@ -124,6 +124,8 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
   const [selectedShelfIds, setSelectedShelfIds] = useState<Set<string>>(new Set());
   const [originalShelfIds, setOriginalShelfIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [testingTracker, setTestingTracker] = useState(false);
+  const [trackerResult, setTrackerResult] = useState("");
   const [error, setError] = useState("");
 
   // Suggestions Autocomplete state for media title
@@ -143,6 +145,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       const initialData: MediaFormData = {
         ...media,
         tracking_source: media.tracking_source || "anilist",
+        tracker_url: media.tracker_url || "",
         watch_url: media.watch_url || media.tracker_url || "",
         english_alias: media.title_aliases?.english || "",
         pinyin_alias: media.title_aliases?.pinyin || "",
@@ -155,6 +158,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         initialData.status = "Active";
       }
       setFormData(initialData);
+      setTrackerResult("");
 
       if (media.linked_entries_data) {
         setLinkedEntries(media.linked_entries_data);
@@ -187,6 +191,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         hanzi_alias: "",
       });
       setLinkedEntries([]);
+      setTrackerResult("");
     }
 
     setSelectedShelfIds(new Set());
@@ -373,6 +378,35 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     if (id) setFormData((previous) => ({ ...previous, mangadex_id: id }));
   };
 
+  const handleTestTracker = async () => {
+    const targetUrl = (formData.tracker_url || formData.watch_url || "").trim();
+    if (!targetUrl) return;
+    setTestingTracker(true);
+    setError("");
+    setTrackerResult("");
+
+    try {
+      const res = await fetch("/api/media/test-tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: media?._id,
+          tracker_url: targetUrl,
+          media_type: formData.media_type,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Tracker test failed");
+      }
+      setTrackerResult(`Latest found: ${data.data?.latest ?? "none"}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Tracker test failed");
+    } finally {
+      setTestingTracker(false);
+    }
+  };
+
   const handleLink = async (targetId: string, title: string) => {
     if (!media || !media._id) {
       toast("Save this entry before linking another title.", "info");
@@ -428,6 +462,9 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
 
       if (cleanData.watch_url && !cleanData.tracker_url) {
         cleanData.tracker_url = cleanData.watch_url;
+      }
+      if (cleanData.tracker_url && !cleanData.watch_url) {
+        cleanData.watch_url = cleanData.tracker_url;
       }
 
       const res = await fetch(url, {
@@ -693,20 +730,49 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
 
             {/* Direct Watch / Reading Bookmark */}
             <div className="form-grid full">
-              <div className="form-group">
-                <label htmlFor="media-watch-url">
-                  <Bookmark size={13} style={{ display: "inline", marginRight: 4 }} />
-                  Watch / Read Link (Optional)
-                </label>
-                <input
-                  id="media-watch-url"
-                  className="form-input"
-                  name="watch_url"
-                  value={formData.watch_url || ""}
-                  onChange={handleChange}
-                  placeholder="e.g. Crunchyroll or reader bookmark"
-                />
-              </div>
+              {formData.media_type === "Manhwa" ? (
+                <div className="form-group">
+                  <label htmlFor="media-tracker-url">
+                    <LinkIcon size={13} style={{ display: "inline", marginRight: 4 }} />
+                    Tracker URL (Supported Scrapers)
+                  </label>
+                  <input
+                    id="media-tracker-url"
+                    className="form-input"
+                    name="tracker_url"
+                    value={formData.tracker_url || ""}
+                    onChange={handleChange}
+                    placeholder="https://asuracomic.net/... or flamecomics.xyz/..."
+                  />
+                  <div className="tracker-test-row">
+                    <button
+                      type="button"
+                      className="btn-ghost btn-sm"
+                      onClick={handleTestTracker}
+                      disabled={testingTracker || (!formData.tracker_url && !formData.watch_url)}
+                    >
+                      {testingTracker ? <span className="spinner" /> : <LinkIcon size={13} />}
+                      Test tracker
+                    </button>
+                    {trackerResult && <span className="tracker-test-output">{trackerResult}</span>}
+                  </div>
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label htmlFor="media-watch-url">
+                    <Bookmark size={13} style={{ display: "inline", marginRight: 4 }} />
+                    Watch / Read Link (Optional)
+                  </label>
+                  <input
+                    id="media-watch-url"
+                    className="form-input"
+                    name="watch_url"
+                    value={formData.watch_url || ""}
+                    onChange={handleChange}
+                    placeholder="e.g. Crunchyroll or reader bookmark"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Shelves - prominent in main essentials view */}

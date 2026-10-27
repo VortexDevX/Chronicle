@@ -371,6 +371,8 @@ export async function GET(req: NextRequest) {
           let schedulePrevEpisode: number | null = schedule?.nextEpisode ? schedule.nextEpisode - 1 : null;
           let schedulePrevReleaseAt: Date | null = null;
 
+          let matchedSimklId: number | null = null;
+
           if (mediaType === "Anime" || mediaType === "Donghua") {
             // 1. AniList schedule (if it tracks nextAiringEpisode)
             if (schedule?.nextEpisode) {
@@ -385,10 +387,13 @@ export async function GET(req: NextRequest) {
               const calendarSchedule = await resolveAiringCalendarSchedule({
                 anilist_id: entry.anilist_id,
                 simkl_id: (entry as { simkl_id?: number }).simkl_id,
-                title: entry.title as string,
+                title: (entry.title as string) || anilistMedia?.title.english || anilistMedia?.title.romaji,
               });
 
               if (calendarSchedule) {
+                if (calendarSchedule.simklId) {
+                  matchedSimklId = calendarSchedule.simklId;
+                }
                 if (calendarSchedule.nextEpisode) {
                   scheduleNextEpisode = calendarSchedule.nextEpisode;
                   scheduleNextReleaseAt = calendarSchedule.nextReleaseAt;
@@ -400,12 +405,12 @@ export async function GET(req: NextRequest) {
 
                 if (calendarSchedule.previousEpisode) {
                   rawLatest = calendarSchedule.previousEpisode;
-                  remoteIsContinuous = false;
+                  remoteIsContinuous = mediaType === "Donghua";
                 } else if (calendarSchedule.nextEpisode) {
                   rawLatest = calendarSchedule.nextReleaseAt && calendarSchedule.nextReleaseAt.getTime() <= Date.now()
                     ? calendarSchedule.nextEpisode
                     : calendarSchedule.nextEpisode - 1;
-                  remoteIsContinuous = false;
+                  remoteIsContinuous = mediaType === "Donghua";
                 }
               }
             }
@@ -457,6 +462,7 @@ export async function GET(req: NextRequest) {
                 ...(latest !== null ? { latest_remote_progress: latest } : {}),
                 ...(resolvedOffset !== (entryWithNumbering.episode_offset ?? null) ? { episode_offset: resolvedOffset } : {}),
                 ...(numberingStatusUpdate !== (entryWithNumbering.numbering_status ?? null) ? { numbering_status: numberingStatusUpdate } : {}),
+                ...(matchedSimklId && !(entry as { simkl_id?: number }).simkl_id ? { simkl_id: matchedSimklId } : {}),
                 ...(scheduleNextEpisode !== null || schedulePrevEpisode !== null ? {
                   next_episode: scheduleNextEpisode,
                   next_episode_release_at: scheduleNextReleaseAt,

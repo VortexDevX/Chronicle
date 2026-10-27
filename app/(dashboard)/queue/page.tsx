@@ -237,6 +237,10 @@ export default function ReleaseRadarPage() {
         return releaseAt >= todayStart.getTime() && releaseAt <= todayEnd.getTime();
       }
       return range !== "threeDays" || releaseAt <= now + 3 * 86_400_000;
+    }).sort((a, b) => {
+      const timeA = releaseTime(a) ?? Infinity;
+      const timeB = releaseTime(b) ?? Infinity;
+      return timeA - timeB;
     });
   }, [items, now, query, range]);
 
@@ -246,12 +250,20 @@ export default function ReleaseRadarPage() {
     for (const item of visibleItems) {
       const releaseAt = releaseTime(item)!;
       const date = new Date(releaseAt);
-      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       const group = groups.get(key) || { releaseAt, items: [] };
+      if (releaseAt < group.releaseAt) {
+        group.releaseAt = releaseAt;
+      }
       group.items.push(item);
       groups.set(key, group);
     }
-    return Array.from(groups.values());
+    const result = Array.from(groups.values());
+    result.sort((a, b) => a.releaseAt - b.releaseAt);
+    for (const group of result) {
+      group.items.sort((a, b) => (releaseTime(a) ?? 0) - (releaseTime(b) ?? 0));
+    }
+    return result;
   }, [visibleItems, now]);
 
   const next = visibleItems[0];

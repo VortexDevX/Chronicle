@@ -22,6 +22,7 @@ export type AiringCalendarShow = {
 };
 
 export type ResolvedSchedule = {
+  simklId?: number | null;
   nextEpisode: number | null;
   nextReleaseAt: Date | null;
   previousEpisode: number | null;
@@ -191,6 +192,7 @@ export async function resolveAiringCalendarSchedule(params: {
   const posterUrl = getSimklPosterUrl(showMeta?.poster);
 
   return {
+    simklId: targetSimklId,
     nextEpisode: next?.episode ?? null,
     nextReleaseAt: next?.airsAt ?? null,
     previousEpisode: previous?.episode ?? null,

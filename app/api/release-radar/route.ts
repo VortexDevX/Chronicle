@@ -10,6 +10,7 @@ import {
   AiringScheduleState,
 } from "@/lib/sources/anilistAiring";
 import { resolveAiringCalendarSchedule } from "@/lib/sources/airingCalendar";
+import { isCaughtUpToRelease } from "@/lib/services/media/progressBridge";
 
 export type RadarItem = {
   _id: string;
@@ -58,10 +59,16 @@ export async function GET(req: NextRequest) {
 
     const items: RadarItem[] = [];
     const updatesToPersist: Promise<unknown>[] = [];
+    const nowMs = Date.now();
+    const recentWindowMs = 3 * 86_400_000;
 
     for (const entry of entries) {
       const anilistId = Number(entry.anilist_id);
       const media = anilistId ? mediaMap.get(anilistId) : null;
+      const entryOffset = (entry as { episode_offset?: number | null }).episode_offset || null;
+      const entryMode = (entry as { numbering_mode?: "continuous" | "seasonal" | "unspecified" | null }).numbering_mode || null;
+      const entrySimklId = (entry as { simkl_id?: number }).simkl_id;
+      const userProgress = Number(entry.progress_current || 0);
 
       let scheduleState: AiringScheduleState = "SCHEDULE_PENDING";
       let nextEpisode = entry.next_episode ?? null;
@@ -81,28 +88,84 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // If AniList did not provide an upcoming episode date, query fallback calendar (Donghua & Anime)
-      if (!nextEpisode || !nextReleaseAtStr || Date.parse(nextReleaseAtStr) <= Date.now()) {
+      // Check if existing episode is in recent past (< 3 days ago) and user has not caught up to it yet
+      const existingTime = nextReleaseAtStr ? Date.parse(nextReleaseAtStr) : null;
+      const isAiredRecently =
+        existingTime !== null && !isNaN(existingTime) && existingTime <= nowMs && nowMs - existingTime <= recentWindowMs;
+      const isUserCaughtUp = isCaughtUpToRelease({
+        progressCurrent: userProgress,
+        nextEpisode,
+        numberingMode: entryMode,
+        episodeOffset: entryOffset,
+      });
+
+      // If episode aired recently and user hasn't caught up, keep it visible as released/available
+      const keepAiredEpisode = isAiredRecently && !isUserCaughtUp;
+
+      // If AniList did not provide an upcoming episode date, or if it already aired and user caught up, query fallback calendar
+      if (!keepAiredEpisode && (!nextEpisode || !nextReleaseAtStr || Date.parse(nextReleaseAtStr) <= nowMs)) {
         const fallback = await resolveAiringCalendarSchedule({
           anilist_id: entry.anilist_id,
-          simkl_id: (entry as { simkl_id?: number }).simkl_id,
+          simkl_id: entrySimklId,
           title: entry.title,
         });
 
-        if (fallback && fallback.nextEpisode && fallback.nextReleaseAt) {
-          nextEpisode = fallback.nextEpisode;
-          nextReleaseAtStr = fallback.nextReleaseAt.toISOString();
-          scheduleState = "SCHEDULED";
-          posterUrl = posterUrl || fallback.posterUrl;
-        } else if (entry.next_episode && entry.next_episode_release_at) {
-          // If the entry already had a scheduled date in the future, preserve it
-          const existingTime = new Date(entry.next_episode_release_at).getTime();
-          if (existingTime > Date.now()) {
-            nextEpisode = entry.next_episode;
-            nextReleaseAtStr = new Date(entry.next_episode_release_at).toISOString();
+        if (fallback) {
+          let matchedEpisode: number | null = null;
+          let matchedReleaseAt: Date | null = null;
+
+          // Check if previous episode aired recently and user is not caught up
+          if (fallback.previousEpisode && fallback.previousReleaseAt) {
+            const prevAiredMs = fallback.previousReleaseAt.getTime();
+            const prevIsRecent = prevAiredMs <= nowMs && nowMs - prevAiredMs <= recentWindowMs;
+            const isCaughtUpToPrev = isCaughtUpToRelease({
+              progressCurrent: userProgress,
+              nextEpisode: fallback.previousEpisode,
+              numberingMode: entryMode,
+              episodeOffset: entryOffset,
+            });
+
+            if (prevIsRecent && !isCaughtUpToPrev) {
+              matchedEpisode = fallback.previousEpisode;
+              matchedReleaseAt = fallback.previousReleaseAt;
+            }
+          }
+
+          // Otherwise use upcoming next episode
+          if (!matchedEpisode && fallback.nextEpisode && fallback.nextReleaseAt) {
+            matchedEpisode = fallback.nextEpisode;
+            matchedReleaseAt = fallback.nextReleaseAt;
+          }
+
+          if (matchedEpisode && matchedReleaseAt) {
+            nextEpisode = matchedEpisode;
+            nextReleaseAtStr = matchedReleaseAt.toISOString();
             scheduleState = "SCHEDULED";
+            posterUrl = posterUrl || fallback.posterUrl;
+          } else if (entry.next_episode && entry.next_episode_release_at) {
+            // If the entry already had a scheduled date in the future, preserve it
+            const preservedTime = new Date(entry.next_episode_release_at).getTime();
+            if (preservedTime > nowMs) {
+              nextEpisode = entry.next_episode;
+              nextReleaseAtStr = new Date(entry.next_episode_release_at).toISOString();
+              scheduleState = "SCHEDULED";
+            }
+          }
+
+          // Save matched simkl_id if discovered
+          if (fallback.simklId && !entrySimklId) {
+            updatesToPersist.push(
+              MediaItem.updateOne({ _id: entry._id }, { $set: { simkl_id: fallback.simklId } }),
+            );
           }
         }
+      } else if (keepAiredEpisode && nextEpisode && nextReleaseAtStr) {
+        scheduleState = "SCHEDULED";
+      }
+
+      // If next release is in the future, it is scheduled
+      if (nextReleaseAtStr && Date.parse(nextReleaseAtStr) > nowMs) {
+        scheduleState = "SCHEDULED";
       }
 
       // Persist fresh upcoming schedule to database if valid
@@ -129,11 +192,11 @@ export async function GET(req: NextRequest) {
         title: String(entry.title),
         media_type: String(entry.media_type),
         status: String(entry.status),
-        progress_current: Number(entry.progress_current || 0),
+        progress_current: userProgress,
         progress_total: Number(entry.progress_total || 0),
-        numbering_mode: (entry as { numbering_mode?: "continuous" | "seasonal" | "unspecified" | null }).numbering_mode || null,
+        numbering_mode: entryMode,
         season_number: (entry as { season_number?: number | null }).season_number || null,
-        episode_offset: (entry as { episode_offset?: number | null }).episode_offset || null,
+        episode_offset: entryOffset,
         tracker_url: entry.tracker_url || null,
         custom_cover_url: entry.custom_cover_url || null,
         anilist_id: anilistId > 0 ? anilistId : null,
@@ -149,16 +212,18 @@ export async function GET(req: NextRequest) {
       await Promise.allSettled(updatesToPersist);
     }
 
-    // Sort: Scheduled upcoming releases first (ascending by release time), then pending, hiatus, concluded
+    // Sort: strictly by release time ascending, then non-scheduled alphabetically
     items.sort((a, b) => {
-      if (a.schedule_state === "SCHEDULED" && b.schedule_state === "SCHEDULED") {
-        return (
-          Date.parse(a.next_episode_release_at || "") -
-          Date.parse(b.next_episode_release_at || "")
-        );
+      const timeA = a.next_episode_release_at ? Date.parse(a.next_episode_release_at) : NaN;
+      const timeB = b.next_episode_release_at ? Date.parse(b.next_episode_release_at) : NaN;
+      const hasTimeA = !isNaN(timeA);
+      const hasTimeB = !isNaN(timeB);
+
+      if (hasTimeA && hasTimeB) {
+        return timeA - timeB;
       }
-      if (a.schedule_state === "SCHEDULED") return -1;
-      if (b.schedule_state === "SCHEDULED") return 1;
+      if (hasTimeA) return -1;
+      if (hasTimeB) return 1;
       return a.title.localeCompare(b.title);
     });
 

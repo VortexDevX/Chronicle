@@ -58,6 +58,9 @@ export async function POST(req: NextRequest) {
       title: existing?.title || media?.title.english || media?.title.romaji,
     });
     if (fallback) {
+      if (fallback.simklId) {
+        updates.simkl_id = fallback.simklId;
+      }
       updates.next_episode = fallback.nextEpisode;
       updates.next_episode_release_at = fallback.nextReleaseAt;
       if (!updates.custom_cover_url && fallback.posterUrl) {
