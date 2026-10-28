@@ -9,7 +9,7 @@ vi.mock("@/lib/rateLimit", () => ({
   getClientIp: vi.fn().mockReturnValue("127.0.0.1"),
 }));
 
-vi.mock("@/lib/sources/anilistAiring", () => ({
+vi.mock("@/lib/sources/anilist", () => ({
   searchAniListMedia: vi.fn().mockResolvedValue([
     {
       anilistId: 101,

@@ -32,19 +32,7 @@ const mediaSchema = new mongoose.Schema(
       default: null,
     },
     tracker_url: { type: String, default: null },
-    tracking_source: {
-      type: String,
-      enum: ["anilist", "simkl", "scraper"],
-      default: "anilist",
-    },
     anilist_id: { type: Number, default: null },
-    simkl_id: { type: Number, default: null },
-    schedule_source_url: { type: String, default: null },
-    next_episode: { type: Number, default: null },
-    next_episode_release_at: { type: Date, default: null },
-    previous_episode: { type: Number, default: null },
-    previous_episode_release_at: { type: Date, default: null },
-    release_platform: { type: String, default: null },
     last_attempted_at: { type: Date, default: null },
     last_checked_at: { type: Date, default: null },
     last_scrape_status: {
@@ -59,18 +47,6 @@ const mediaSchema = new mongoose.Schema(
     mangadex_id: { type: String, default: null },
     custom_cover_url: { type: String, default: null },
     linked_entries: [{ type: mongoose.Schema.Types.ObjectId, ref: "MediaItem" }],
-    numbering_mode: {
-      type: String,
-      enum: ["continuous", "seasonal", "unspecified", null],
-      default: "unspecified",
-    },
-    season_number: { type: Number, default: 1 },
-    episode_offset: { type: Number, default: null },
-    numbering_status: {
-      type: String,
-      enum: ["verified", "needs_review", null],
-      default: null,
-    },
     title_aliases: {
       english: { type: String, default: null },
       pinyin: { type: String, default: null },
@@ -93,7 +69,6 @@ mediaSchema.index({
   last_attempted_at: 1,
   last_checked_at: 1,
 });
-mediaSchema.index({ media_type: 1, status: 1, next_episode_release_at: 1 });
 mediaSchema.index(
   { user_id: 1, media_type: 1, dedupe_key: 1 },
   {
@@ -107,35 +82,10 @@ mediaSchema.pre("findOneAndUpdate", function (next) {
   next();
 });
 
-// Next.js keeps Mongoose models alive across dev hot reloads. Add newly introduced
-// fields to an already-cached model so updates are not silently stripped locally.
+// Next.js keeps Mongoose models alive across dev hot reloads.
 const existingMediaItem = mongoose.models.MediaItem;
-if (existingMediaItem && !existingMediaItem.schema.path("simkl_id")) {
-  existingMediaItem.schema.add({ simkl_id: { type: Number, default: null } });
-}
-if (existingMediaItem && !existingMediaItem.schema.path("tracking_source")) {
+if (existingMediaItem && !existingMediaItem.schema.path("watch_url")) {
   existingMediaItem.schema.add({
-    tracking_source: {
-      type: String,
-      enum: ["anilist", "simkl", "scraper"],
-      default: "anilist",
-    },
-  });
-}
-if (existingMediaItem && !existingMediaItem.schema.path("numbering_mode")) {
-  existingMediaItem.schema.add({
-    numbering_mode: {
-      type: String,
-      enum: ["continuous", "seasonal", "unspecified", null],
-      default: "unspecified",
-    },
-    season_number: { type: Number, default: 1 },
-    episode_offset: { type: Number, default: null },
-    numbering_status: {
-      type: String,
-      enum: ["verified", "needs_review", null],
-      default: null,
-    },
     title_aliases: {
       english: { type: String, default: null },
       pinyin: { type: String, default: null },

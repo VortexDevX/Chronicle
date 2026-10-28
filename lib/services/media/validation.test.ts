@@ -80,43 +80,9 @@ describe("media validation", () => {
     });
   });
 
-  it("accepts valid tracking_source values and rejects invalid ones", () => {
-    expect(
-      validateMediaPayload({ tracking_source: "simkl" }, true),
-    ).toEqual({
-      ok: true,
-      normalized: { tracking_source: "simkl" },
-    });
-
-    expect(
-      validateMediaPayload({ tracking_source: "scraper" }, true),
-    ).toEqual({
-      ok: true,
-      normalized: { tracking_source: "scraper" },
-    });
-
-    expect(
-      validateMediaPayload({ tracking_source: "anilist" }, true),
-    ).toEqual({
-      ok: true,
-      normalized: { tracking_source: "anilist" },
-    });
-
-    expect(
-      validateMediaPayload({ tracking_source: "invalid_source" as any }, true),
-    ).toEqual({
-      ok: false,
-      message: "tracking_source must be 'anilist', 'simkl', or 'scraper'",
-    });
-  });
-
-  it("validates numbering and alias fields properly", () => {
+  it("validates alias and watch url fields properly", () => {
     const valid = validateMediaPayload(
       {
-        numbering_mode: "seasonal",
-        season_number: 2,
-        episode_offset: 24,
-        numbering_status: "verified",
         watch_url: "https://watch.example/donghua/example",
         title_aliases: {
           english: "Soul Land 2",
@@ -131,10 +97,6 @@ describe("media validation", () => {
     expect(valid).toEqual({
       ok: true,
       normalized: {
-        numbering_mode: "seasonal",
-        season_number: 2,
-        episode_offset: 24,
-        numbering_status: "verified",
         watch_url: "https://watch.example/donghua/example",
         title_aliases: {
           english: "Soul Land 2",
@@ -143,27 +105,6 @@ describe("media validation", () => {
           custom: ["DL2"],
         },
       },
-    });
-
-    expect(
-      validateMediaPayload({ numbering_mode: "invalid_mode" as any }, true),
-    ).toEqual({
-      ok: false,
-      message: "numbering_mode must be 'continuous', 'seasonal', or 'unspecified'",
-    });
-
-    expect(
-      validateMediaPayload({ season_number: 0 }, true),
-    ).toEqual({
-      ok: false,
-      message: "season_number must be >= 1",
-    });
-
-    expect(
-      validateMediaPayload({ episode_offset: -1 }, true),
-    ).toEqual({
-      ok: false,
-      message: "episode_offset must be >= 0",
     });
   });
 });

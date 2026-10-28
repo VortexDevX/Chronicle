@@ -7,7 +7,6 @@ import {
   BookOpen,
   Home,
   Menu,
-  Sparkles,
 } from "lucide-react";
 
 export function MobileBottomNav({
@@ -21,7 +20,6 @@ export function MobileBottomNav({
     { path: "/home", label: "Home", icon: Home },
     { path: "/library", label: "Library", icon: BookOpen },
     { path: "/updates", label: "Updates", icon: BellRing },
-    { path: "/queue", label: "Radar", icon: Sparkles },
   ];
 
   return (

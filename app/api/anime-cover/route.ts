@@ -3,7 +3,7 @@ import { jsonOk, jsonError } from "@/lib/http";
 import { enforceRateLimit } from "@/lib/guards";
 import { getClientIp, isLocalhostDevelopmentRequest } from "@/lib/rateLimit";
 import { logInternalError } from "@/lib/log";
-import { fetchAniListMediaById, searchAniListMedia } from "@/lib/sources/anilistAiring";
+import { fetchAniListMediaById, searchAniListMedia } from "@/lib/sources/anilist";
 import { fetchMyAnimeListCoverByTitle } from "@/lib/sources/myAnimeListCover";
 
 function coverResponse(imageUrl: string | null) {

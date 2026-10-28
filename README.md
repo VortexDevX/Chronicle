@@ -239,10 +239,9 @@ Chronicle/
 | DELETE | `/api/media?id=`            | Yes                  | Delete entry                                   |
 | POST   | `/api/media?bulk_delete=1`  | Yes                  | Bulk delete                                    |
 | POST   | `/api/media/link`           | Yes                  | Link or unlink related entries                 |
-| POST   | `/api/media/test-tracker`   | Yes                  | Test a Manhwa tracker |
-| GET    | `/api/release-radar`        | Yes                  | Upcoming Anime and Donghua episodes from AniList |
+| POST   | `/api/media/test-tracker`   | Yes                  | Test a Manhwa or Donghua tracker |
 | GET    | `/api/search/unified`       | Yes                  | Omnisearch discovery for Anime, Donghua, and Manhwa |
-| GET    | `/api/cron/checkChapters`   | Bearer `CRON_SECRET` | Sync tracker progress/release schedules and send updates |
+| GET    | `/api/cron/checkChapters`   | Bearer `CRON_SECRET` | Sync tracker progress and send updates |
 | GET    | `/api/manga-cover`          | No                   | Fetch MangaDex cover URL                       |
 | GET    | `/api/anime-cover`          | No                   | Fetch Anime/Donghua covers from AniList, then MyAnimeList API |
 | GET    | `/api/image-proxy`          | No                   | Cache/proxy external cover images              |

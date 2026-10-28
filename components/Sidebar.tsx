@@ -14,7 +14,6 @@ import {
   LogOut,
   Settings,
   Smartphone,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useMediaStore } from "@/store/mediaStore";
@@ -28,7 +27,6 @@ export const NAV_GROUPS = [
       { path: "/home", label: "Home", icon: Home },
       { path: "/library", label: "Library", icon: BookOpen },
       { path: "/updates", label: "Updates", icon: BellRing },
-      { path: "/queue", label: "Release Radar", icon: Sparkles },
     ],
   },
   {

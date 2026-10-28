@@ -13,7 +13,6 @@ import {
   Info,
   Sliders,
   Layers,
-  Globe,
   ChevronDown,
   Bookmark,
   Sparkles,
@@ -37,14 +36,12 @@ type LinkSearchResult = {
 type MediaFormData = Partial<
   Omit<
     MediaItem,
-    "progress_current" | "progress_total" | "rating" | "season_number" | "episode_offset"
+    "progress_current" | "progress_total" | "rating"
   >
 > & {
   progress_current?: number | "";
   progress_total?: number | "";
   rating?: number | "";
-  season_number?: number | "";
-  episode_offset?: number | "";
   english_alias?: string;
   pinyin_alias?: string;
   hanzi_alias?: string;
@@ -54,8 +51,6 @@ const NUMBER_FIELDS = new Set([
   "progress_current",
   "progress_total",
   "rating",
-  "season_number",
-  "episode_offset",
 ]);
 
 function getShelfMediaIds(shelf: Shelf): string[] {
@@ -79,16 +74,6 @@ function normalizeNumericFormFields(data: MediaFormData): Partial<MediaItem> {
     progress_total:
       data.progress_total === "" ? 0 : Number(data.progress_total || 0),
     rating: data.rating === "" ? 0 : Number(data.rating || 0),
-    season_number:
-      data.season_number === "" || data.season_number === undefined
-        ? 1
-        : Math.max(1, Number(data.season_number)),
-    episode_offset:
-      data.episode_offset === "" ||
-      data.episode_offset === undefined ||
-      data.episode_offset === null
-        ? null
-        : Math.max(0, Number(data.episode_offset)),
     ...(Object.keys(aliases).length > 0 ? { title_aliases: aliases } : {}),
   };
 }
@@ -103,17 +88,12 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     progress_total: 0,
     rating: 0,
     notes: "",
-    tracking_source: "anilist",
     tracker_url: "",
     watch_url: "",
     mangadex_id: "",
     custom_cover_url: "",
     drop_reason: "",
     retry_flag: false,
-    numbering_mode: "unspecified",
-    season_number: 1,
-    episode_offset: "",
-    numbering_status: null,
     english_alias: "",
     pinyin_alias: "",
     hanzi_alias: "",
@@ -144,15 +124,11 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     if (media) {
       const initialData: MediaFormData = {
         ...media,
-        tracking_source: media.tracking_source || "anilist",
         tracker_url: media.tracker_url || "",
         watch_url: media.watch_url || media.tracker_url || "",
         english_alias: media.title_aliases?.english || "",
         pinyin_alias: media.title_aliases?.pinyin || "",
         hanzi_alias: media.title_aliases?.hanzi || "",
-        season_number: media.season_number ?? 1,
-        episode_offset: media.episode_offset ?? "",
-        numbering_mode: media.numbering_mode || "unspecified",
       };
       if (initialData.status === "Watching/Reading") {
         initialData.status = "Active";
@@ -163,9 +139,6 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       if (media.linked_entries_data) {
         setLinkedEntries(media.linked_entries_data);
       }
-      if (media.episode_offset !== null && media.episode_offset !== undefined) {
-        setShowAdvanced(true);
-      }
     } else {
       setFormData({
         title: "",
@@ -175,17 +148,12 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         progress_total: 0,
         rating: 0,
         notes: "",
-        tracking_source: "anilist",
         tracker_url: "",
         watch_url: "",
         mangadex_id: "",
         custom_cover_url: "",
         drop_reason: "",
         retry_flag: false,
-        numbering_mode: "unspecified",
-        season_number: 1,
-        episode_offset: "",
-        numbering_status: null,
         english_alias: "",
         pinyin_alias: "",
         hanzi_alias: "",
@@ -309,10 +277,6 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       anilist_id: s.anilistId || prev.anilist_id,
       mangadex_id: s.mangadexId || prev.mangadex_id,
       progress_total: s.totalEpisodes ?? prev.progress_total,
-      numbering_mode:
-        s.mediaType === "Anime" || s.mediaType === "Donghua"
-          ? "seasonal"
-          : "continuous",
       english_alias: s.title,
       pinyin_alias:
         s.mediaType === "Donghua" && s.subtitle ? s.subtitle : prev.pinyin_alias,
@@ -360,8 +324,6 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       setFormData((prev) => ({
         ...prev,
         media_type: value,
-        numbering_mode:
-          value === "Anime" || value === "Donghua" ? "seasonal" : "continuous",
       }));
     } else {
       setFormData((prev) => ({
@@ -455,7 +417,6 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       const cleanData: Record<string, unknown> = {
         ...normalizeNumericFormFields(formData),
       };
-      delete cleanData.schedule_source_url;
       delete cleanData.english_alias;
       delete cleanData.pinyin_alias;
       delete cleanData.hanzi_alias;
@@ -730,7 +691,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
 
             {/* Direct Watch / Reading Bookmark */}
             <div className="form-grid full">
-              {formData.media_type === "Manhwa" ? (
+              {formData.media_type === "Manhwa" || formData.media_type === "Donghua" ? (
                 <div className="form-group">
                   <label htmlFor="media-tracker-url">
                     <LinkIcon size={13} style={{ display: "inline", marginRight: 4 }} />
@@ -742,7 +703,11 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                     name="tracker_url"
                     value={formData.tracker_url || ""}
                     onChange={handleChange}
-                    placeholder="https://asuracomic.net/... or flamecomics.xyz/..."
+                    placeholder={
+                      formData.media_type === "Donghua"
+                        ? "https://animexin.dev/... or donghua episode url"
+                        : "https://asuracomic.net/... or flamecomics.xyz/..."
+                    }
                   />
                   <div className="tracker-test-row">
                     <button
@@ -840,7 +805,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Sliders size={15} />
-                <span>Advanced Settings & Numbering (Offsets, Aliases)</span>
+                <span>Advanced Settings & Aliases</span>
               </div>
               <ChevronDown
                 size={16}
@@ -853,69 +818,6 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
 
             {showAdvanced && (
               <div className="advanced-drawer-content">
-                {/* Numbering Normalization */}
-                <div className="modal-section-header">
-                  <Globe size={14} />
-                  <span>Episode Numbering & Offsets</span>
-                </div>
-
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label htmlFor="media-numbering-mode">Numbering Mode</label>
-                    <select
-                      id="media-numbering-mode"
-                      className="form-input"
-                      name="numbering_mode"
-                      value={formData.numbering_mode || "unspecified"}
-                      onChange={handleChange}
-                    >
-                      <option value="seasonal">Seasonal (S2 Ep 4)</option>
-                      <option value="continuous">Continuous (Ep 28)</option>
-                      <option value="unspecified">Unspecified (Legacy)</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="media-season-number">Season Number</label>
-                    <input
-                      id="media-season-number"
-                      type="number"
-                      min="1"
-                      className="form-input"
-                      name="season_number"
-                      value={numberInputValue(formData.season_number)}
-                      onChange={handleChange}
-                      placeholder="1"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="media-episode-offset">
-                      Episode Offset
-                      {formData.numbering_status === "verified" && (
-                        <span style={{ color: "var(--green)", marginLeft: 6, fontSize: "0.75rem" }}>
-                          ✓ Verified
-                        </span>
-                      )}
-                      {formData.numbering_status === "needs_review" && (
-                        <span style={{ color: "var(--warning)", marginLeft: 6, fontSize: "0.75rem" }}>
-                          ⚠ Review
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      id="media-episode-offset"
-                      type="number"
-                      min="0"
-                      className="form-input"
-                      name="episode_offset"
-                      value={numberInputValue(formData.episode_offset)}
-                      onChange={handleChange}
-                      placeholder="e.g. 24 (prior episodes)"
-                    />
-                  </div>
-                </div>
-
                 {/* Title Aliases for Donghua & Multi-language */}
                 <div className="modal-section-header">
                   <BookOpen size={14} />

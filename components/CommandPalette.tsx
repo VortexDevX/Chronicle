@@ -26,7 +26,6 @@ const ACTIONS = [
   { id: "home", label: "Open Home", hint: "Page", icon: Home, path: "/home" },
   { id: "library", label: "Open Library", hint: "Page", icon: BookOpen, path: "/library" },
   { id: "updates", label: "Open Updates", hint: "Page", icon: BellRing, path: "/updates" },
-  { id: "queue", label: "Open Release Radar", hint: "Page", icon: Sparkles, path: "/queue" },
   { id: "shelves", label: "Open Shelves", hint: "Page", icon: Layers3, path: "/shelves" },
   { id: "droppedyard", label: "Open Droppedyard", hint: "Page", icon: ArchiveX, path: "/droppedyard" },
   { id: "analytics", label: "Open Analytics", hint: "Page", icon: BarChart3, path: "/analytics" },
@@ -178,14 +177,6 @@ export function CommandPalette() {
       custom_cover_url: item.posterUrl || "",
       anilist_id: item.anilistId || null,
       mangadex_id: item.mangadexId || null,
-      tracking_source: item.source === "anilist" ? "anilist" : null,
-      numbering_mode:
-        item.mediaType === "Anime" || item.mediaType === "Donghua"
-          ? "seasonal"
-          : "continuous",
-      season_number: 1,
-      episode_offset: 0,
-      numbering_status: "verified",
       title_aliases: item.subtitle
         ? {
             english: item.title,

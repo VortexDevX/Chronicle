@@ -12,14 +12,7 @@ export interface MediaItem {
   last_updated: string;
   external_status?: "ongoing" | "completed" | "hiatus" | "cancelled" | null;
   tracker_url?: string | null;
-  tracking_source?: "anilist" | "simkl" | "scraper" | null;
   anilist_id?: number | null;
-  simkl_id?: number | null;
-  next_episode?: number | null;
-  next_episode_release_at?: string | null;
-  previous_episode?: number | null;
-  previous_episode_release_at?: string | null;
-  release_platform?: string | null;
   last_checked_at?: string | null;
   last_scrape_status?: "ok" | "error" | null;
   last_scrape_error?: string | null;
@@ -31,10 +24,6 @@ export interface MediaItem {
   retry_flag?: boolean;
   linked_entries?: string[];
   linked_entries_data?: { _id: string; title: string }[];
-  numbering_mode?: "continuous" | "seasonal" | "unspecified" | null;
-  season_number?: number | null;
-  episode_offset?: number | null;
-  numbering_status?: "verified" | "needs_review" | null;
   title_aliases?: {
     english?: string | null;
     pinyin?: string | null;
@@ -160,7 +149,7 @@ export interface CronHistoryItem {
     current: number;
     latest: number;
   }>;
-  tracker_errors: Array<{ title: string; message: string; media_type?: "Manhwa" }>;
+  tracker_errors: Array<{ title: string; message: string; media_type?: string }>;
 }
 
 export interface CronHistoryPayload {

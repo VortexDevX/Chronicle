@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import {
   collectChapterNumbers,
+  extractEpisodeNumberFromText,
   GENERIC_CHAPTER_SELECTORS,
   getRuleForHost,
 } from "@/lib/scraper";
@@ -23,7 +24,7 @@ const BROWSER_HEADERS: Record<string, string> = {
   Referer: "https://www.google.com/",
 };
 
-export type MediaTypeSupported = "Manhwa";
+export type MediaTypeSupported = "Manhwa" | "Donghua";
 
 export type ScrapeTrackerOptions = {
   signal?: AbortSignal;
@@ -222,12 +223,98 @@ async function scrapeManhwaTrackerUrl(
   return Math.max(...chapterNumbers);
 }
 
+async function scrapeDonghuaTrackerUrl(
+  trackerUrl: string,
+  options: ScrapeTrackerOptions,
+): Promise<number | null> {
+  const host = new URL(trackerUrl).host.toLowerCase().replace(/^www\./, "");
+  const isAnimexin = host.includes("animexin");
+
+  const res = await fetchWithRetry(
+    trackerUrl,
+    {
+      headers: {
+        ...BROWSER_HEADERS,
+        Referer: isAnimexin ? "https://animexin.dev/" : trackerUrl,
+      },
+      redirect: "follow",
+    },
+    isAnimexin ? FETCH_TIMEOUT_MS : SLOW_HOSTS.has(host) ? SLOW_HOST_TIMEOUT_MS : FETCH_TIMEOUT_MS,
+    options,
+  );
+
+  if (res.status === 403) {
+    if (isAnimexin) {
+      throw new Error(
+        "HTTP 403 Forbidden: animexin is Cloudflare protected.",
+      );
+    }
+    throw new Error(`HTTP 403 Forbidden on ${host}`);
+  }
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+
+  const html = await res.text();
+  const $ = cheerio.load(html);
+
+  const candidates: number[] = [];
+
+  $(".epcur.epcurlast").each((_i, el) => {
+    const text = $(el).text().trim();
+    const num = extractEpisodeNumberFromText(text);
+    if (num !== null) candidates.push(num);
+  });
+
+  const lastInepcx = $(".lastend .inepcx").last();
+  if (lastInepcx.length) {
+    const text =
+      lastInepcx.find(".epcur").last().text().trim() ||
+      lastInepcx.text().trim();
+    const num = extractEpisodeNumberFromText(text);
+    if (num !== null) candidates.push(num);
+  }
+
+  $("span.epcur").each((_i, el) => {
+    const text = $(el).text().trim();
+    const num = extractEpisodeNumberFromText(text);
+    if (num !== null) candidates.push(num);
+  });
+
+  const preferredSelectors =
+    getRuleForHost(host)?.selectors || GENERIC_CHAPTER_SELECTORS;
+  let numbers = collectChapterNumbers($, trackerUrl, preferredSelectors);
+  if (numbers.length === 0 && preferredSelectors !== GENERIC_CHAPTER_SELECTORS) {
+    numbers = collectChapterNumbers($, trackerUrl, GENERIC_CHAPTER_SELECTORS);
+  }
+  candidates.push(...numbers);
+
+  const episodeMatches = html.matchAll(/(?:Episode\s+(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:\[[^\]]+\]\s*)?Episode)/gi);
+  for (const match of episodeMatches) {
+    const raw = match[1] || match[2];
+    const num = parseFloat(raw);
+    if (Number.isFinite(num) && num > 0 && num < 10000) {
+      candidates.push(num);
+    }
+  }
+
+  if (candidates.length > 0) {
+    return Math.max(...candidates);
+  }
+
+  throw new Error("No episode numbers found on page");
+}
+
 export async function scrapeTrackerUrl(
   trackerUrl: string,
   mediaType: MediaTypeSupported,
   options: ScrapeTrackerOptions = {},
 ): Promise<number | null> {
   try {
+    if (mediaType === "Donghua") {
+      return await scrapeDonghuaTrackerUrl(trackerUrl, options);
+    }
     return await scrapeManhwaTrackerUrl(trackerUrl, options);
   } catch (error) {
     throw new Error(`Scraper failed [${mediaType}]: ${getErrorMessage(error)}`);

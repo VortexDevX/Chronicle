@@ -9,7 +9,6 @@ import {
   Link as LinkIcon,
   Play,
   Plus,
-  Sparkles,
   Star,
   Trash2,
 } from "lucide-react";
@@ -17,15 +16,11 @@ import { useState } from "react";
 import type { MediaItem } from "@/types/media";
 import {
   daysSince,
-  formatReleaseCountdown,
-  formatReleaseSchedule,
-  isFutureRelease,
   progressLabel,
   relativeTime,
 } from "@/utils/format";
 import { normalizePublicHttpUrl } from "@/lib/publicUrl";
 import { MediaArtwork } from "@/components/MediaArtwork";
-import { isCaughtUpToRelease } from "@/lib/services/media/progressBridge";
 
 function formatProgress(value: number) {
   return Number.isInteger(value)
@@ -66,12 +61,6 @@ export function MediaCard({
     : m.tracker_url
       ? normalizePublicHttpUrl(m.tracker_url)
       : null;
-  const isSeasonal = m.numbering_mode === "seasonal";
-  const seasonPrefix =
-    isSeasonal && m.season_number && m.season_number > 1
-      ? `S${m.season_number} `
-      : "";
-
   const pct =
     m.progress_total > 0
       ? Math.max(0, Math.min(100, (m.progress_current / m.progress_total) * 100))
@@ -84,28 +73,6 @@ export function MediaCard({
   const latestRemote = m.latest_remote_progress ?? m.progress_current;
   const unread = Math.max(0, latestRemote - m.progress_current);
   const hasMultipleUnread = unread > 1;
-
-  // Release schedule for anime/donghua (future releases only)
-  const nextReleaseTime = m.next_episode_release_at
-    ? new Date(m.next_episode_release_at).getTime()
-    : null;
-  const isCaughtUp = isCaughtUpToRelease({
-    progressCurrent: m.progress_current,
-    nextEpisode: m.next_episode ?? null,
-    numberingMode: m.numbering_mode,
-    episodeOffset: m.episode_offset,
-  });
-  const hasReleaseSchedule =
-    isScreenMedia &&
-    m.next_episode != null &&
-    isFutureRelease(m.next_episode_release_at) &&
-    !isCaughtUp;
-  const countdownText = hasReleaseSchedule
-    ? formatReleaseCountdown(m.next_episode_release_at!)
-    : null;
-  const scheduleText = hasReleaseSchedule
-    ? formatReleaseSchedule(m.next_episode_release_at!)
-    : null;
 
   const increment = async () => {
     if (!onIncrement || pendingAction) return;
@@ -178,11 +145,6 @@ export function MediaCard({
           </div>
           <p>
             {m.media_type} · Updated {relativeTime(m.last_updated)}
-            {scheduleText && (
-              <span className="schedule-inline" title={`Next release: ${scheduleText}`}>
-                <Clock3 size={11} /> {scheduleText}
-              </span>
-            )}
             {m.linked_entries_data?.length ? (
               <span title={m.linked_entries_data.map((item) => item.title).join(", ")}>
                 <LinkIcon size={11} /> {m.linked_entries_data.length} linked
@@ -191,7 +153,7 @@ export function MediaCard({
           </p>
         </div>
         <div className="media-list-progress">
-          <strong>{seasonPrefix}{formatProgress(m.progress_current)}</strong>
+          <strong>{formatProgress(m.progress_current)}</strong>
           <span>/ {total} {unit}</span>
           <div className="progress-track">
             <i style={{ width: `${pct}%` }} />
@@ -311,11 +273,6 @@ export function MediaCard({
               +{formatProgress(unread)} new
             </span>
           )}
-          {countdownText && (
-            <span className="schedule-badge" title={`Next episode: ${scheduleText}`}>
-              <Clock3 size={11} /> {countdownText}
-            </span>
-          )}
           {isStale && (
             <span className="stale-badge">
               <Clock3 size={11} /> Stale
@@ -369,21 +326,13 @@ export function MediaCard({
 
         <div className="media-card-progress-row">
           <span>
-            {seasonPrefix}{formatProgress(m.progress_current)} / {total}
+            {formatProgress(m.progress_current)} / {total}
           </span>
           <span className="progress-unit-label">{unit}</span>
         </div>
         <div className="progress-track" aria-label={`${Math.round(pct)}% complete`}>
           <i style={{ width: `${pct}%` }} />
         </div>
-
-        {/* Schedule preview line if present */}
-        {scheduleText && (
-          <div className="media-card-schedule" title={`Scheduled release: ${scheduleText}`}>
-            <Sparkles size={12} />
-            <span>Next: {scheduleText}</span>
-          </div>
-        )}
       </div>
     </article>
   );

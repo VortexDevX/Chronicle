@@ -11,12 +11,8 @@ export async function getUpdateFeed(
   const tracked = {
     user_id: userObjectId,
     status: { $in: activeStatuses },
-    // Manhwa needs a tracker URL. Anime/Donghua progress comes from AniList and
-    // must remain visible even when Watch URL is empty.
-    $or: [
-      { media_type: "Manhwa", tracker_url: { $exists: true, $nin: [null, ""] } },
-      { media_type: { $in: ["Anime", "Donghua"] } },
-    ],
+    media_type: { $in: ["Manhwa", "Donghua"] },
+    tracker_url: { $exists: true, $nin: [null, ""] },
   };
 
   const [unreadResult, trackerErrorsResult] = await Promise.allSettled([
@@ -34,7 +30,7 @@ export async function getUpdateFeed(
       .lean(),
     MediaItem.find({
       ...tracked,
-      media_type: "Manhwa",
+      media_type: { $in: ["Manhwa", "Donghua"] },
       last_scrape_status: "error",
     })
       .sort({ last_checked_at: -1 })

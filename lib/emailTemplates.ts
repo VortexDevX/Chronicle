@@ -46,7 +46,7 @@ export function renderVerificationEmail(options: VerificationEmailOptions): {
     : `Verify your email, <span style="color: #f43f5e;">${safeUsername}</span>`;
 
   const introText = isWelcome
-    ? "Thank you for creating an account on Chronicle! Confirm your email address to verify your account, secure your private library, and receive automatic release radar updates."
+    ? "Thank you for creating an account on Chronicle! Confirm your email address to verify your account, secure your private library, and receive automated tracker updates."
     : "You requested a verification link for your Chronicle account. Confirm your email address below to activate your account and keep tracking seamlessly.";
 
   const buttonText = isWelcome ? "Verify Email & Get Started" : "Verify Email Address";
@@ -189,7 +189,7 @@ export function renderVerificationEmail(options: VerificationEmailOptions): {
 </html>`;
 
   const text = isWelcome
-    ? `Welcome to Chronicle, ${username}!\n\nConfirm your email address to verify your account and activate automated release radar updates for Anime, Manhwa, Donghua, and Light Novels.\n\nVerify your email here:\n${verifyUrl}\n\nThis link expires in 24 hours.\nIf you did not register, please ignore this email.\n\n© ${currentYear} Chronicle X`
+    ? `Welcome to Chronicle, ${username}!\n\nConfirm your email address to verify your account and activate automated updates for Anime, Manhwa, Donghua, and Light Novels.\n\nVerify your email here:\n${verifyUrl}\n\nThis link expires in 24 hours.\nIf you did not register, please ignore this email.\n\n© ${currentYear} Chronicle X`
     : `Verify your Chronicle email, ${username}!\n\nClick the link below to verify your email address:\n${verifyUrl}\n\nThis link expires in 24 hours.\nIf you did not request this, please ignore this email.\n\n© ${currentYear} Chronicle X`;
 
   return { subject, html, text };

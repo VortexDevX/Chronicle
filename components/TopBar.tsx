@@ -15,7 +15,6 @@ import {
   PanelLeftOpen,
   Plus,
   Search,
-  Sparkles,
 } from "lucide-react";
 import { useMediaStore } from "@/store/mediaStore";
 
@@ -41,11 +40,6 @@ const ROUTE_CONFIG: Record<
     eyebrow: "Inbox & New Releases",
     title: "Updates",
     icon: BellRing,
-  },
-  "/queue": {
-    eyebrow: "Upcoming Schedules",
-    title: "Release Radar",
-    icon: Sparkles,
   },
   "/droppedyard": {
     eyebrow: "Paused & Dropped Stories",

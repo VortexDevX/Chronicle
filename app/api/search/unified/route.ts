@@ -4,7 +4,7 @@ import { enforceRateLimit } from "@/lib/guards";
 import { getClientIp } from "@/lib/rateLimit";
 import { logInternalError } from "@/lib/log";
 import { fetchWithTimeout } from "@/lib/externalFetch";
-import { searchAniListMedia } from "@/lib/sources/anilistAiring";
+import { searchAniListMedia } from "@/lib/sources/anilist";
 
 export type UnifiedSearchResult = {
   id: string;

@@ -15,13 +15,8 @@ const mocks = vi.hoisted(() => ({
   sendTelegramToChat: vi.fn(),
   isAndroidPushConfigured: vi.fn(),
   sendAndroidPush: vi.fn(),
-  fetchAniListMediaBatch: vi.fn(),
-  resolveAiringCalendarSchedule: vi.fn(),
 }));
 
-vi.mock("@/lib/sources/airingCalendar", () => ({
-  resolveAiringCalendarSchedule: mocks.resolveAiringCalendarSchedule,
-}));
 vi.mock("@/lib/db", () => ({ connectDB: mocks.connectDB }));
 vi.mock("@/lib/models", () => ({
   MediaItem: {
@@ -56,20 +51,6 @@ vi.mock("@/lib/log", () => ({
   logInfo: vi.fn(),
   logInternalError: vi.fn(),
 }));
-vi.mock("@/lib/sources/anilistAiring", () => ({
-  fetchAniListMediaBatch: mocks.fetchAniListMediaBatch,
-  formatAniListSchedule: (media: any) => ({
-    anilistId: media.id,
-    state: media.status === "FINISHED" ? "CONCLUDED" : (media.nextAiringEpisode ? "SCHEDULED" : "SCHEDULE_PENDING"),
-    nextEpisode: media.nextAiringEpisode?.episode ?? null,
-    nextReleaseAt: media.nextAiringEpisode?.airingAt ? new Date(media.nextAiringEpisode.airingAt * 1000) : null,
-    totalEpisodes: media.episodes,
-    status: media.status,
-    title: media.title?.english || "Test Title",
-    subtitle: null,
-    posterUrl: null,
-  }),
-}));
 
 import { GET } from "./route";
 
@@ -86,15 +67,9 @@ type Entry = {
   progress_current: number;
   tracker_url: string;
   anilist_id?: number | null;
-  simkl_id?: number | null;
-  tracking_source?: "anilist" | "simkl" | "scraper" | null;
   latest_remote_progress?: number | null;
   last_notified_progress?: number | null;
   last_push_notified_progress?: number | null;
-  numbering_mode?: "continuous" | "seasonal" | "unspecified" | null;
-  season_number?: number | null;
-  episode_offset?: number | null;
-  numbering_status?: "verified" | "needs_review" | null;
 };
 
 type User = {
@@ -190,7 +165,6 @@ beforeEach(() => {
   });
   mocks.pushDeviceDeleteMany.mockResolvedValue({ deletedCount: 0 });
   mocks.cronHistoryBulkWrite.mockResolvedValue({ acknowledged: true });
-  mocks.fetchAniListMediaBatch.mockResolvedValue(new Map());
 });
 
 afterEach(() => {
@@ -276,57 +250,34 @@ describe("cron chapter notification state", () => {
     );
   });
 
-  it("places Anime releases in their own Telegram section", async () => {
-    mockFindResults(
-      [makeEntry({ media_type: "Anime", title: "One Piece", tracker_url: "", anilist_id: 21, progress_current: 1175, latest_remote_progress: 1175 })],
-      [makeUser()],
-    );
-    mocks.fetchAniListMediaBatch.mockResolvedValue(
-      new Map([
-        [
-          21,
-          {
-            id: 21,
-            title: { english: "One Piece", romaji: "One Piece", native: "ONE PIECE" },
-            countryOfOrigin: "JP",
-            format: "TV",
-            status: "RELEASING",
-            episodes: null,
-            nextAiringEpisode: { episode: 1177, airingAt: Math.floor(Date.now() / 1000) + 86400, timeUntilAiring: 86400 },
-            coverImage: null,
-          },
-        ],
-      ]),
-    );
-
-    await GET(authorizedRequest());
-
-    const message = mocks.sendTelegramToChat.mock.calls[0][1];
-    expect(message).toContain("📺 <b>Anime</b> <i>(1)</i>");
-    expect(message).toContain("One Piece");
-    expect(message).toContain("Episode 1175 (+1)");
-    expect(message).not.toContain("🎬 <b>Donghua</b>");
-  });
-
-  it("never scrapes Donghua tracker URLs", async () => {
+  it("scrapes tracker URL for Donghua and notifies in Donghua section", async () => {
     mockFindResults(
       [
         makeEntry({
           media_type: "Donghua",
           title: "Battle Through the Heavens",
-          tracker_url: "https://watch.example/btth",
-          tracking_source: "scraper",
-          anilist_id: 202851,
+          tracker_url: "https://animexin.dev/btth",
           progress_current: 136,
           latest_remote_progress: 136,
         }),
       ],
       [makeUser()],
     );
+    mocks.scrapeTrackerUrl.mockResolvedValue(137);
+
     await GET(authorizedRequest());
 
-    expect(mocks.scrapeTrackerUrl).not.toHaveBeenCalled();
-    expect(mocks.fetchAniListMediaBatch).toHaveBeenCalledWith([202851]);
+    expect(mocks.scrapeTrackerUrl).toHaveBeenCalledWith(
+      "https://animexin.dev/btth",
+      "Donghua",
+      expect.objectContaining({ retryAttempts: expect.any(Number) }),
+    );
+
+    const message = mocks.sendTelegramToChat.mock.calls[0][1];
+    expect(message).toContain("🎬 <b>Donghua</b> <i>(1)</i>");
+    expect(message).toContain("Battle Through the Heavens");
+    expect(message).toContain("Episode 136 (+1)");
+    expect(message).toContain("https://animexin.dev/btth");
   });
 
   it("shows fractional unread chapter progress", async () => {
@@ -530,47 +481,6 @@ describe("cron chapter notification state", () => {
     ]);
     expect(body.data.push_users_notified).toBe(1);
   });
-  it("dispatches notifications for Donghua using Airing Calendar schedule", async () => {
-    mockFindResults(
-      [
-        makeEntry({
-          media_type: "Donghua",
-          tracking_source: "anilist",
-          anilist_id: 202851,
-          simkl_id: 3152178,
-          progress_current: 19,
-          latest_remote_progress: 19,
-          last_notified_progress: 19,
-        }),
-      ],
-      [makeUser()],
-    );
-    mocks.fetchAniListMediaBatch.mockResolvedValue(new Map());
-    mocks.resolveAiringCalendarSchedule.mockResolvedValue({
-      nextEpisode: 21,
-      nextReleaseAt: new Date(Date.now() + 86400000),
-      previousEpisode: 20,
-      previousReleaseAt: new Date(Date.now() - 86400000),
-      episodeTitle: "Episode 20",
-      posterUrl: null,
-      source: "calendar",
-    });
-
-    const res = await GET(authorizedRequest());
-    expect(res.status).toBe(200);
-    expect(mocks.sendTelegramToChat).toHaveBeenCalledOnce();
-    expect(mocks.mediaUpdateOne).toHaveBeenCalledWith(
-      { _id: "media-1" },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          latest_remote_progress: 20,
-          next_episode: 21,
-          previous_episode: 20,
-        }),
-      }),
-    );
-  });
-
 });
 
 describe("cron time budget", () => {

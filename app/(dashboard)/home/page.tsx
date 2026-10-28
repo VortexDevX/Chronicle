@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BellRing,
-  CalendarDays,
   Clock3,
   FastForward,
   MoreHorizontal,
@@ -22,8 +21,6 @@ import { useFeedback } from "@/components/FeedbackProvider";
 import { MediaArtwork } from "@/components/MediaArtwork";
 import { MediaCard } from "@/components/MediaCard";
 import {
-  formatReleaseCountdown,
-  formatReleaseSchedule,
   relativeTime,
 } from "@/utils/format";
 import { PageLoader } from "@/components/PageLoader";
@@ -154,36 +151,6 @@ export default function HomePage() {
     }
   };
 
-  // Next up rail items: upcoming scheduled releases within the next 3 days
-  const upcomingReleases = useMemo(() => {
-    const source = payload?.upcoming_releases ?? [];
-    if (!now) {
-      return [];
-    }
-    const threeDaysMs = 3 * 86_400_000;
-    const maxReleaseTime = now + threeDaysMs;
-
-    return source
-      .filter((item) => {
-        if (!item.next_episode_release_at || item.next_episode == null) return false;
-        const releaseTime = new Date(item.next_episode_release_at).getTime();
-        const isCaughtUp =
-          item.next_episode != null && item.progress_current >= item.next_episode;
-        return (
-          !isNaN(releaseTime) &&
-          releaseTime > now &&
-          !isCaughtUp &&
-          releaseTime <= maxReleaseTime
-        );
-      })
-      .sort((a, b) => {
-        const timeA = new Date(a.next_episode_release_at!).getTime();
-        const timeB = new Date(b.next_episode_release_at!).getTime();
-        return timeA - timeB;
-      })
-      .slice(0, 6);
-  }, [payload, now]);
-
   if (loading && !payload) {
     return <PageLoader label="Building your Home" detail="Finding what moved" compact />;
   }
@@ -227,25 +194,6 @@ export default function HomePage() {
       : 0;
 
   const isScreenMedia = featured.media_type === "Anime" || featured.media_type === "Donghua";
-  const heroReleaseTime = featured.next_episode_release_at
-    ? new Date(featured.next_episode_release_at).getTime()
-    : null;
-  const heroIsCaughtUp =
-    featured.next_episode != null && featured.progress_current >= featured.next_episode;
-  const heroHasSchedule =
-    isScreenMedia &&
-    featured.next_episode != null &&
-    heroReleaseTime !== null &&
-    !isNaN(heroReleaseTime) &&
-    now !== null &&
-    heroReleaseTime > now &&
-    !heroIsCaughtUp;
-  const heroScheduleText = heroHasSchedule
-    ? formatReleaseSchedule(featured.next_episode_release_at!, now)
-    : null;
-  const heroCountdownText = heroHasSchedule
-    ? formatReleaseCountdown(featured.next_episode_release_at!, now)
-    : null;
 
   return (
     <div className="home-view">
@@ -322,28 +270,14 @@ export default function HomePage() {
         </div>
 
         <div className="hero-release-card">
-          {heroHasSchedule ? (
-            <>
-              <span className="hero-card-kicker">Next episode</span>
-              <strong>Episode {featured.next_episode || "Next"}</strong>
-              <small>{heroScheduleText}</small>
-              <hr />
-              <p>
-                <Clock3 size={14} /> {heroCountdownText}
-              </p>
-            </>
-          ) : (
-            <>
-              <span className="hero-card-kicker">Latest available</span>
-              <strong>{formatProgress(latest)}</strong>
-              <small>{progressUnit(featured.media_type)}s</small>
-              <hr />
-              <p>
-                <BellRing size={14} />{" "}
-                {unread > 0 ? `+${formatProgress(unread)} new` : "Caught up"}
-              </p>
-            </>
-          )}
+          <span className="hero-card-kicker">Latest available</span>
+          <strong>{formatProgress(latest)}</strong>
+          <small>{progressUnit(featured.media_type)}s</small>
+          <hr />
+          <p>
+            <BellRing size={14} />{" "}
+            {unread > 0 ? `+${formatProgress(unread)} new` : "Caught up"}
+          </p>
         </div>
       </section>
 
@@ -357,10 +291,10 @@ export default function HomePage() {
           </div>
         </div>
         <div className="today-item">
-          <CalendarDays size={16} className="today-icon info" />
+          <Play size={16} className="today-icon info" />
           <div>
-            <strong>{upcomingReleases.length} upcoming</strong>
-            <span>next 3 days</span>
+            <strong>{payload?.continue_items.length || 0} active</strong>
+            <span>in progress</span>
           </div>
         </div>
         <div className="today-item">
@@ -373,48 +307,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Next Up Rail (if scheduled items exist) */}
-      {upcomingReleases.length > 0 && (
-        <section className="home-next-up">
-          <div className="section-heading compact">
-            <div>
-              <h2>Next up</h2>
-              <span>Next 3 days</span>
-            </div>
-            <Link href="/queue">
-              View Radar <ArrowRight size={14} />
-            </Link>
-          </div>
-          <div className="next-up-grid">
-            {upcomingReleases.map((item) => (
-              <div
-                key={item._id}
-                className="next-up-card"
-                onClick={() => openModal(item)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") openModal(item);
-                }}
-              >
-                <MediaArtwork media={item} className="next-up-art" />
-                <div className="next-up-info">
-                  <strong>{item.title}</strong>
-                  <span>
-                    Ep {item.next_episode} ·{" "}
-                    {formatReleaseSchedule(item.next_episode_release_at!)}
-                  </span>
-                </div>
-                <div className="next-up-when">
-                  <Clock3 size={12} />
-                  <span>{formatReleaseCountdown(item.next_episode_release_at!)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Continue Rail */}
       <section className="home-shelf">
