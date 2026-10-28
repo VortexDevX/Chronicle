@@ -14,7 +14,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-  Search,
 } from "lucide-react";
 import { useMediaStore } from "@/store/mediaStore";
 
@@ -63,11 +62,6 @@ const ROUTE_CONFIG: Record<
   },
 };
 
-function isInputElement(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return target.matches("input, textarea, select") || target.isContentEditable;
-}
-
 export function TopBar({
   setMobileOpen,
   sidebarCollapsed,
@@ -80,10 +74,6 @@ export function TopBar({
   const pathname = usePathname();
   const openModal = useMediaStore((state) => state.openModal);
   const openSettings = useMediaStore((state) => state.openSettings);
-  const setCommandOpen = useMediaStore((state) => state.setCommandOpen);
-  const commandOpen = useMediaStore((state) => state.commandOpen);
-  const modalOpen = useMediaStore((state) => state.modalOpen);
-  const settingsOpen = useMediaStore((state) => state.settingsOpen);
   const username = useMediaStore((state) => state.username);
 
   const routeInfo = ROUTE_CONFIG[pathname] || {
@@ -101,21 +91,10 @@ export function TopBar({
         onToggleSidebar?.();
         return;
       }
-
-      if (
-        e.key === "/" &&
-        !isInputElement(e.target) &&
-        !commandOpen &&
-        !modalOpen &&
-        !settingsOpen
-      ) {
-        e.preventDefault();
-        setCommandOpen(true);
-      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [commandOpen, modalOpen, setCommandOpen, settingsOpen, onToggleSidebar]);
+  }, [onToggleSidebar]);
 
   return (
     <header className="topbar app-topbar">
@@ -152,20 +131,6 @@ export function TopBar({
       </div>
 
       <div className="topbar-actions">
-        <button
-          className="topbar-search-bar"
-          onClick={() => setCommandOpen(true)}
-          aria-label="Search your library (Press / or ⌘K)"
-          title="Search your library (/ or ⌘K)"
-        >
-          <Search size={16} className="topbar-search-icon" />
-          <span className="topbar-search-text">Search your library…</span>
-          <div className="topbar-kbd-group">
-            <kbd className="topbar-kbd">⌘</kbd>
-            <kbd className="topbar-kbd">K</kbd>
-          </div>
-        </button>
-
         <button
           className="topbar-add-btn"
           onClick={() => openModal(null)}

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BellRing,
+  Check,
   Clock3,
   FastForward,
   MoreHorizontal,
@@ -51,6 +52,8 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
+  const [heroOptimisticProgress, setHeroOptimisticProgress] = useState<number | null>(null);
+  const [heroTicked, setHeroTicked] = useState(false);
 
   useEffect(() => {
     const update = () => setNow(Date.now());
@@ -78,15 +81,36 @@ export default function HomePage() {
     loadHome();
   }, [loadHome, setActiveRoute]);
 
+  useEffect(() => {
+    const feat = payload?.featured;
+    if (heroOptimisticProgress !== null && feat && feat.progress_current >= heroOptimisticProgress) {
+      setHeroOptimisticProgress(null);
+    }
+  }, [payload?.featured, heroOptimisticProgress]);
+
+  const triggerHeroTick = () => {
+    setHeroTicked(true);
+    window.setTimeout(() => setHeroTicked(false), 320);
+  };
+
   const logNext = async (media: MediaItem) => {
     if (pendingId) return;
+    const isFeatured = media._id === payload?.featured?._id;
+    const currentVal = isFeatured && heroOptimisticProgress !== null
+      ? heroOptimisticProgress
+      : media.progress_current;
     const nextProgress =
       media.progress_total > 0
-        ? Math.min(media.progress_total, media.progress_current + 1)
-        : media.progress_current + 1;
-    if (nextProgress === media.progress_current) {
+        ? Math.min(media.progress_total, currentVal + 1)
+        : currentVal + 1;
+    if (nextProgress === currentVal) {
       toast(`${media.title} is already complete`, "info");
       return;
+    }
+
+    if (isFeatured) {
+      setHeroOptimisticProgress(nextProgress);
+      triggerHeroTick();
     }
 
     setPendingId(media._id);
@@ -100,6 +124,7 @@ export default function HomePage() {
       refreshMedia();
       await loadHome();
     } catch (err) {
+      if (isFeatured) setHeroOptimisticProgress(null);
       toast(getErrorMessage(err, "Progress update failed"), "error");
     } finally {
       setPendingId(null);
@@ -115,6 +140,12 @@ export default function HomePage() {
     });
     if (!approved) return;
 
+    const isFeatured = media._id === payload?.featured?._id;
+    if (isFeatured) {
+      setHeroOptimisticProgress(targetProgress);
+      triggerHeroTick();
+    }
+
     setPendingId(media._id);
     try {
       await apiRequest(`/api/media?id=${media._id}`, {
@@ -126,6 +157,7 @@ export default function HomePage() {
       refreshMedia();
       await loadHome();
     } catch (err) {
+      if (isFeatured) setHeroOptimisticProgress(null);
       toast(getErrorMessage(err, "Catch up failed"), "error");
     } finally {
       setPendingId(null);
@@ -186,12 +218,15 @@ export default function HomePage() {
     );
   }
 
-  const latest = featured.latest_remote_progress ?? featured.progress_current;
-  const unread = Math.max(0, latest - featured.progress_current);
+  const currentHeroProgress = heroOptimisticProgress ?? featured.progress_current;
+  const latest = featured.latest_remote_progress ?? currentHeroProgress;
+  const unread = Math.max(0, latest - currentHeroProgress);
   const pct =
     featured.progress_total > 0
-      ? Math.min(100, (featured.progress_current / featured.progress_total) * 100)
-      : 0;
+      ? Math.min(100, (currentHeroProgress / featured.progress_total) * 100)
+      : latest > 0
+        ? Math.min(100, (currentHeroProgress / latest) * 100)
+        : 0;
 
   const isScreenMedia = featured.media_type === "Anime" || featured.media_type === "Donghua";
 
@@ -223,7 +258,9 @@ export default function HomePage() {
           <div className="hero-progress">
             <div className="hero-progress-labels">
               <span>
-                {formatProgress(featured.progress_current)} of{" "}
+                <strong className={`progress-current-val ${heroTicked ? "is-ticked" : ""}`}>
+                  {formatProgress(currentHeroProgress)}
+                </strong> of{" "}
                 {featured.progress_total ? formatProgress(featured.progress_total) : "—"}{" "}
                 {progressUnit(featured.media_type)}s
               </span>
@@ -237,7 +274,7 @@ export default function HomePage() {
           <div className="hero-actions">
             {unread > 1 ? (
               <button
-                className="hero-primary hero-catchup"
+                className={`hero-primary hero-catchup ${heroTicked ? "is-popping" : ""}`}
                 onClick={() => catchUp(featured, latest)}
                 disabled={pendingId === featured._id}
               >
@@ -250,7 +287,7 @@ export default function HomePage() {
               </button>
             ) : (
               <button
-                className="hero-primary"
+                className={`hero-primary ${heroTicked ? "is-popping" : ""}`}
                 onClick={() => logNext(featured)}
                 disabled={pendingId === featured._id}
               >
@@ -260,7 +297,7 @@ export default function HomePage() {
                   <Play size={17} fill="currentColor" />
                 )}
                 Log {shortUnit(featured.media_type)}{" "}
-                {formatProgress(featured.progress_current + 1)}
+                {formatProgress(currentHeroProgress + 1)}
               </button>
             )}
             <button className="hero-secondary" onClick={() => openModal(featured)}>

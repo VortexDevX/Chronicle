@@ -12,7 +12,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { MediaItem } from "@/types/media";
 import {
   daysSince,
@@ -52,6 +52,16 @@ export function MediaCard({
   onToggleSelect?: (id: string) => void;
 }) {
   const [pendingAction, setPendingAction] = useState<"increment" | "catchup" | "delete" | null>(null);
+  const [optimisticProgress, setOptimisticProgress] = useState<number | null>(null);
+  const [isTicked, setIsTicked] = useState(false);
+
+  useEffect(() => {
+    if (optimisticProgress !== null && m.progress_current >= optimisticProgress) {
+      setOptimisticProgress(null);
+    }
+  }, [m.progress_current, optimisticProgress]);
+
+  const currentProgress = optimisticProgress ?? m.progress_current;
   const normalizedStatus = m.status === "Watching/Reading" ? "Active" : m.status;
   const isActive = normalizedStatus === "Active";
   const canIncrement = isActive && Boolean(onIncrement);
@@ -61,24 +71,38 @@ export function MediaCard({
     : m.tracker_url
       ? normalizePublicHttpUrl(m.tracker_url)
       : null;
+  const latestRemote = m.latest_remote_progress ?? currentProgress;
+  const unread = Math.max(0, latestRemote - currentProgress);
+  const hasMultipleUnread = unread > 1;
+
   const pct =
     m.progress_total > 0
-      ? Math.max(0, Math.min(100, (m.progress_current / m.progress_total) * 100))
-      : 0;
+      ? Math.max(0, Math.min(100, (currentProgress / m.progress_total) * 100))
+      : latestRemote > 0
+        ? Math.max(0, Math.min(100, (currentProgress / latestRemote) * 100))
+        : 0;
   const total = m.progress_total > 0 ? formatProgress(m.progress_total) : "—";
   const isScreenMedia = m.media_type === "Anime" || m.media_type === "Donghua";
   const unit = isScreenMedia ? "episodes" : "chapters";
   const shortUnit = isScreenMedia ? "Ep" : "Ch";
 
-  const latestRemote = m.latest_remote_progress ?? m.progress_current;
-  const unread = Math.max(0, latestRemote - m.progress_current);
-  const hasMultipleUnread = unread > 1;
+  const triggerTick = () => {
+    setIsTicked(true);
+    window.setTimeout(() => setIsTicked(false), 320);
+  };
 
   const increment = async () => {
     if (!onIncrement || pendingAction) return;
+    const nextVal = m.progress_total > 0
+      ? Math.min(m.progress_total, currentProgress + 1)
+      : currentProgress + 1;
+    setOptimisticProgress(nextVal);
+    triggerTick();
     setPendingAction("increment");
     try {
       await onIncrement(m._id);
+    } catch {
+      setOptimisticProgress(null);
     } finally {
       setPendingAction(null);
     }
@@ -86,6 +110,8 @@ export function MediaCard({
 
   const catchUp = async () => {
     if ((!onCatchUp && !onIncrement) || pendingAction) return;
+    setOptimisticProgress(latestRemote);
+    triggerTick();
     setPendingAction("catchup");
     try {
       if (onCatchUp) {
@@ -93,6 +119,8 @@ export function MediaCard({
       } else if (onIncrement) {
         await onIncrement(m._id);
       }
+    } catch {
+      setOptimisticProgress(null);
     } finally {
       setPendingAction(null);
     }
@@ -153,7 +181,9 @@ export function MediaCard({
           </p>
         </div>
         <div className="media-list-progress">
-          <strong>{formatProgress(m.progress_current)}</strong>
+          <strong className={`progress-current-val ${isTicked ? "is-ticked" : ""}`}>
+            {formatProgress(currentProgress)}
+          </strong>
           <span>/ {total} {unit}</span>
           <div className="progress-track">
             <i style={{ width: `${pct}%` }} />
@@ -169,16 +199,25 @@ export function MediaCard({
               title={`Catch up to ${shortUnit} ${formatProgress(latestRemote)}`}
               className="action-catchup"
             >
-              {pendingAction === "catchup" ? <span className="spinner" /> : <FastForward size={15} />}
+              {pendingAction === "catchup" ? (
+                <span className="spinner" />
+              ) : (
+                <FastForward size={15} />
+              )}
             </button>
           ) : canIncrement ? (
             <button
               onClick={increment}
               disabled={Boolean(pendingAction)}
               aria-label={`Log next for ${m.title}`}
-              title={`Log ${shortUnit} ${formatProgress(m.progress_current + 1)}`}
+              title={`Log ${shortUnit} ${formatProgress(currentProgress + 1)}`}
+              className="media-list-inc-btn"
             >
-              {pendingAction === "increment" ? <span className="spinner" /> : <Plus size={16} />}
+              {pendingAction === "increment" ? (
+                <span className="spinner" />
+              ) : (
+                <Plus size={16} />
+              )}
             </button>
           ) : null}
           {onEdit && (
@@ -295,16 +334,18 @@ export function MediaCard({
             )}
             {canIncrement && (
               <button
-                className="poster-play"
+                className={`poster-play ${isTicked ? "is-ticked" : ""}`}
                 onClick={increment}
                 disabled={Boolean(pendingAction)}
                 aria-label={`Log next for ${m.title}`}
-                title={`Log ${shortUnit} ${formatProgress(m.progress_current + 1)}`}
+                title={`Log ${shortUnit} ${formatProgress(currentProgress + 1)}`}
               >
                 {pendingAction === "increment" ? (
                   <span className="spinner" />
-                ) : (
+                ) : isScreenMedia ? (
                   <Play size={15} fill="currentColor" />
+                ) : (
+                  <Plus size={16} strokeWidth={2.5} />
                 )}
               </button>
             )}
@@ -326,7 +367,10 @@ export function MediaCard({
 
         <div className="media-card-progress-row">
           <span>
-            {formatProgress(m.progress_current)} / {total}
+            <strong className={`progress-current-val ${isTicked ? "is-ticked" : ""}`}>
+              {formatProgress(currentProgress)}
+            </strong>{" "}
+            / {total}
           </span>
           <span className="progress-unit-label">{unit}</span>
         </div>

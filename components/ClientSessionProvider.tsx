@@ -11,7 +11,6 @@ import { MediaModal } from "./MediaModal";
 import { SettingsModal } from "./SettingsModal";
 import { PageLoader } from "./PageLoader";
 import { FeedbackProvider } from "./FeedbackProvider";
-import { CommandPalette } from "./CommandPalette";
 
 export default function ClientSessionProvider({ children }: { children: React.ReactNode }) {
   const { authStatus } = useAuth();
@@ -103,7 +102,6 @@ export default function ClientSessionProvider({ children }: { children: React.Re
           />
         )}
         {settingsOpen && <SettingsModal onClose={closeSettings} />}
-        <CommandPalette />
       </div>
     </FeedbackProvider>
   );

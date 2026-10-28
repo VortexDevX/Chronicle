@@ -81,6 +81,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
               >
                 <X size={15} />
               </button>
+              <div className="product-toast-progress" />
             </div>
           );
         })}

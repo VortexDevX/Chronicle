@@ -2208,7 +2208,9 @@ button:disabled {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.7);
-  transition: transform var(--transition-fast);
+  transition:
+    transform 340ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 340ms ease;
 }
 
 .shelf-cover-layer .media-artwork {
@@ -2232,15 +2234,18 @@ button:disabled {
 }
 
 .shelf-gallery-card:hover .shelf-cover-layer-1 {
-  transform: translateX(-34px) rotate(-15deg) scale(0.94);
+  transform: translateX(-38px) rotate(-16deg) translateY(-4px) scale(0.96);
+  box-shadow: -8px 14px 28px rgba(0, 0, 0, 0.85);
 }
 
 .shelf-gallery-card:hover .shelf-cover-layer-2 {
-  transform: translateX(34px) rotate(15deg) scale(0.94);
+  transform: translateX(38px) rotate(16deg) translateY(-4px) scale(0.96);
+  box-shadow: 8px 14px 28px rgba(0, 0, 0, 0.85);
 }
 
 .shelf-gallery-card:hover .shelf-cover-layer-3 {
-  transform: translateY(-4px) scale(1.04);
+  transform: translateY(-8px) scale(1.06);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.9);
 }
 
 .shelf-cover-empty {
@@ -4327,6 +4332,27 @@ textarea:focus-visible {
   color: #ff8177;
 }
 
+/* Tactile press feedback on interactive triggers */
+.btn-primary:active:not(:disabled),
+.btn-secondary:active:not(:disabled),
+.btn-ghost:active:not(:disabled),
+.btn-danger:active:not(:disabled),
+.topbar-add-btn:active,
+.topbar-user-chip:active,
+.topbar-sidebar-toggle:active,
+.media-card-hover-actions button:active,
+.media-card-poster-actions > button:active,
+.media-card-poster-actions > a:active,
+.mobile-nav-trigger:active,
+.filter-pill:active,
+.view-toggle button:active,
+.shelves-sort-chip:active,
+.shelf-card-action-btn:active,
+.hero-log-next-btn:active {
+  transform: scale(0.95);
+  transition-duration: 70ms;
+}
+
 .controls {
   border: 0;
   margin-bottom: 16px;
@@ -4589,12 +4615,14 @@ textarea:focus-visible {
   transform: translateZ(0);
   transition:
     transform var(--transition-smooth),
-    border-color var(--transition-smooth);
+    border-color var(--transition-smooth),
+    box-shadow var(--transition-smooth);
 }
 
 .media-card:hover .media-card-poster {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.28);
   transform: translateY(-5px);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.7);
 }
 
 .media-card-poster > .media-artwork {
@@ -4711,17 +4739,20 @@ textarea:focus-visible {
   border: 0;
   background: #f4f3ef;
   color: #111216;
-  opacity: 0.88;
-  transform: scale(0.92);
+  opacity: 0.95;
+  transform: scale(1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
   transition:
     opacity 180ms ease-out,
-    transform 180ms ease-out;
+    transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 180ms ease-out;
 }
 
 .media-card:hover .poster-play,
 .media-card:focus-within .poster-play {
   opacity: 1;
-  transform: scale(1);
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65);
 }
 
 .droppedyard-toolbar {
@@ -4772,6 +4803,21 @@ textarea:focus-visible {
   text-transform: uppercase;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
+}
+
+@keyframes unreadBadgePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.45);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 10px 2px rgba(244, 63, 94, 0.35);
+    transform: scale(1.02);
+  }
+}
+
+.release-badge {
+  animation: unreadBadgePulse 2.8s ease-in-out infinite;
 }
 
 
@@ -4839,12 +4885,33 @@ textarea:focus-visible {
 .media-card[data-status="On Hold"] .media-card-status { background: rgba(96, 165, 250, 0.12); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.25); }
 .media-card[data-status="Dropped"] .media-card-status { background: rgba(248, 113, 113, 0.12); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.25); }
 
-/* Card poster status border tint accent */
+/* Card poster status border tint accent & ambient backlight hover glow */
 .media-card[data-status="Active"] .media-card-poster { border: 1px solid rgba(34, 211, 238, 0.22); }
 .media-card[data-status="Completed"] .media-card-poster { border: 1px solid rgba(74, 222, 128, 0.22); }
 .media-card[data-status="Planned"] .media-card-poster { border: 1px solid rgba(251, 191, 36, 0.22); }
 .media-card[data-status="On Hold"] .media-card-poster { border: 1px solid rgba(96, 165, 250, 0.22); }
 .media-card[data-status="Dropped"] .media-card-poster { border: 1px solid rgba(248, 113, 113, 0.22); }
+
+.media-card[data-status="Active"]:hover .media-card-poster {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 18px 40px -8px rgba(34, 211, 238, 0.24), 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+.media-card[data-status="Completed"]:hover .media-card-poster {
+  border-color: rgba(74, 222, 128, 0.45);
+  box-shadow: 0 18px 40px -8px rgba(74, 222, 128, 0.24), 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+.media-card[data-status="Planned"]:hover .media-card-poster {
+  border-color: rgba(251, 191, 36, 0.45);
+  box-shadow: 0 18px 40px -8px rgba(251, 191, 36, 0.24), 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+.media-card[data-status="On Hold"]:hover .media-card-poster {
+  border-color: rgba(96, 165, 250, 0.45);
+  box-shadow: 0 18px 40px -8px rgba(96, 165, 250, 0.24), 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+.media-card[data-status="Dropped"]:hover .media-card-poster {
+  border-color: rgba(248, 113, 113, 0.45);
+  box-shadow: 0 18px 40px -8px rgba(248, 113, 113, 0.24), 0 4px 14px rgba(0, 0, 0, 0.6);
+}
 
 /* Status-aware progress bar */
 .media-card[data-status="Active"] .progress-track i { background: linear-gradient(90deg, #22d3ee, #67e8f9); }
@@ -4895,6 +4962,50 @@ textarea:focus-visible {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--accent), #ffa27b);
+  transition: width 280ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Progress counter subtle tick transition */
+.progress-current-val {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  transition: color 240ms ease;
+}
+
+.progress-current-val.is-ticked {
+  animation: numTick 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  color: #fff !important;
+}
+
+@keyframes numTick {
+  0% {
+    opacity: 0.35;
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Tactile button micro-response */
+.poster-play.is-ticked,
+.hero-primary.is-ticked,
+.media-list-inc-btn.is-ticked,
+.action-catchup.is-ticked {
+  animation: subtleClickFeedback 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes subtleClickFeedback {
+  0% {
+    transform: scale(0.92);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .library-media-list {
@@ -5651,6 +5762,7 @@ textarea:focus-visible {
 .update-delta strong {
   color: var(--accent);
   font-size: 1.35rem;
+  text-shadow: 0 0 16px rgba(244, 63, 94, 0.32);
 }
 
 .update-delta span {
@@ -5809,9 +5921,26 @@ textarea:focus-visible {
 
 /* Palette, feedback, confirmation */
 
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalSpringIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .modal-overlay {
   background: rgba(3, 4, 6, 0.74);
   backdrop-filter: blur(10px);
+  animation: overlayFadeIn 180ms ease-out both;
 }
 
 .palette-overlay {
@@ -5962,6 +6091,8 @@ textarea:focus-visible {
 }
 
 .product-toast {
+  position: relative;
+  overflow: hidden;
   display: grid;
   min-height: 50px;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -5975,8 +6106,38 @@ textarea:focus-visible {
   color: #ecebe7;
   font-size: 0.7rem;
   pointer-events: auto;
-  animation: toastIn 260ms ease-out both;
+  animation: toastIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
   backdrop-filter: blur(14px);
+}
+
+.product-toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  opacity: 0.65;
+  transform-origin: left center;
+  animation: toastProgress 4200ms linear forwards;
+}
+
+.product-toast[data-tone="success"] .product-toast-progress {
+  background: #72d9b3;
+}
+.product-toast[data-tone="error"] .product-toast-progress {
+  background: var(--accent);
+}
+.product-toast[data-tone="info"] .product-toast-progress {
+  background: #79bfe8;
+}
+
+@keyframes toastProgress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 .product-toast[data-tone="success"] > svg {
@@ -6039,6 +6200,15 @@ textarea:focus-visible {
 }
 
 /* Modals and settings */
+
+.modal,
+.entry-modal,
+.settings-modal,
+.shelf-titles-modal,
+.shelf-create-dialog,
+.product-confirm {
+  animation: modalSpringIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
 
 .modal {
   border: 1px solid var(--border-strong);
