@@ -137,19 +137,90 @@ async function fetchWithRetry(
   throw lastError || new Error("fetch_retry_failed");
 }
 
+async function fetchProxyContent(
+  url: string,
+  options: ScrapeTrackerOptions = {},
+): Promise<string | null> {
+  const proxyUrl = `https://r.jina.ai/${url}`;
+
+  try {
+    const res = await fetchWithTimeout(
+      proxyUrl,
+      {
+        headers: {
+          "x-return-format": "html",
+          Accept: "text/html,application/xhtml+xml,*/*;q=0.8",
+        },
+      },
+      FETCH_TIMEOUT_MS,
+      options.signal,
+    );
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 500 && !text.includes("window.location.hostname !==")) {
+        return text;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const mdRes = await fetchWithTimeout(
+      proxyUrl,
+      {
+        headers: {
+          Accept: "text/plain,*/*;q=0.8",
+        },
+      },
+      FETCH_TIMEOUT_MS,
+      options.signal,
+    );
+    if (mdRes.ok) {
+      const mdText = await mdRes.text();
+      if (mdText && mdText.length > 50) {
+        return mdText;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
 /** Shared HTML transport for source adapters. Keeps timeout, retry, abort behaviour central. */
 export async function fetchTrackerUrlHtml(
   url: string,
   options: ScrapeTrackerOptions = {},
 ): Promise<{ html: string; resolvedUrl: string }> {
-  const res = await fetchWithRetry(
-    url,
-    { headers: BROWSER_HEADERS, redirect: "follow" },
-    getFetchTimeoutMs(url),
-    options,
-  );
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return { html: await res.text(), resolvedUrl: res.url };
+  try {
+    const res = await fetchWithRetry(
+      url,
+      { headers: BROWSER_HEADERS, redirect: "follow" },
+      getFetchTimeoutMs(url),
+      options,
+    );
+    if (res.status === 403 || res.status === 503) {
+      const proxyHtml = await fetchProxyContent(url, options);
+      if (proxyHtml) {
+        return { html: proxyHtml, resolvedUrl: url };
+      }
+      const host = normalizeHost(new URL(url).host);
+      throw new Error(`HTTP 403 Forbidden on ${host}`);
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { html: await res.text(), resolvedUrl: res.url };
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (errMsg.includes("403") || errMsg.includes("Forbidden") || errMsg.includes("fetch_error")) {
+      const proxyHtml = await fetchProxyContent(url, options);
+      if (proxyHtml) {
+        return { html: proxyHtml, resolvedUrl: url };
+      }
+    }
+    throw err;
+  }
 }
 
 async function fetchManhuafastChapters(
@@ -177,25 +248,51 @@ async function scrapeManhwaTrackerUrl(
   trackerUrl: string,
   options: ScrapeTrackerOptions,
 ): Promise<number | null> {
-  const initialRes = await fetchWithRetry(
-    trackerUrl,
-    {
-      headers: BROWSER_HEADERS,
-      redirect: "follow",
-    },
-    getFetchTimeoutMs(trackerUrl),
-    options,
-  );
-  if (!initialRes.ok) {
-    throw new Error(`HTTP ${initialRes.status}: ${initialRes.statusText}`);
-  }
+  const host = new URL(trackerUrl).host;
+  let resolvedUrl = trackerUrl;
+  let html: string;
 
-  const resolvedUrl = initialRes.url;
-  const host = new URL(resolvedUrl).host;
-  const html =
-    host === "manhuafast.com" || host === "www.manhuafast.com"
-      ? await fetchManhuafastChapters(resolvedUrl, options)
-      : await initialRes.text();
+  if (host === "manhuafast.com" || host === "www.manhuafast.com") {
+    html = await fetchManhuafastChapters(resolvedUrl, options);
+  } else {
+    try {
+      const initialRes = await fetchWithRetry(
+        trackerUrl,
+        {
+          headers: BROWSER_HEADERS,
+          redirect: "follow",
+        },
+        getFetchTimeoutMs(trackerUrl),
+        options,
+      );
+
+      if (initialRes.status === 403 || initialRes.status === 503) {
+        const proxyHtml = await fetchProxyContent(trackerUrl, options);
+        if (proxyHtml) {
+          html = proxyHtml;
+        } else {
+          throw new Error(`HTTP 403 Forbidden on ${host}`);
+        }
+      } else if (!initialRes.ok) {
+        throw new Error(`HTTP ${initialRes.status}: ${initialRes.statusText}`);
+      } else {
+        resolvedUrl = initialRes.url || trackerUrl;
+        html = await initialRes.text();
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes("403") || errMsg.includes("Forbidden") || errMsg.includes("fetch_error")) {
+        const proxyHtml = await fetchProxyContent(trackerUrl, options);
+        if (proxyHtml) {
+          html = proxyHtml;
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
+  }
 
   const $ = cheerio.load(html);
   const preferredSelectors =
@@ -229,34 +326,54 @@ async function scrapeDonghuaTrackerUrl(
 ): Promise<number | null> {
   const host = new URL(trackerUrl).host.toLowerCase().replace(/^www\./, "");
   const isAnimexin = host.includes("animexin");
+  let html: string;
 
-  const res = await fetchWithRetry(
-    trackerUrl,
-    {
-      headers: {
-        ...BROWSER_HEADERS,
-        Referer: isAnimexin ? "https://animexin.dev/" : trackerUrl,
+  try {
+    const res = await fetchWithRetry(
+      trackerUrl,
+      {
+        headers: {
+          ...BROWSER_HEADERS,
+          Referer: isAnimexin ? "https://animexin.dev/" : trackerUrl,
+        },
+        redirect: "follow",
       },
-      redirect: "follow",
-    },
-    isAnimexin ? FETCH_TIMEOUT_MS : SLOW_HOSTS.has(host) ? SLOW_HOST_TIMEOUT_MS : FETCH_TIMEOUT_MS,
-    options,
-  );
+      isAnimexin ? FETCH_TIMEOUT_MS : SLOW_HOSTS.has(host) ? SLOW_HOST_TIMEOUT_MS : FETCH_TIMEOUT_MS,
+      options,
+    );
 
-  if (res.status === 403) {
-    if (isAnimexin) {
-      throw new Error(
-        "HTTP 403 Forbidden: animexin is Cloudflare protected.",
-      );
+    if (res.status === 403 || res.status === 503) {
+      const proxyContent = await fetchProxyContent(trackerUrl, options);
+      if (proxyContent) {
+        html = proxyContent;
+      } else {
+        if (isAnimexin) {
+          throw new Error("HTTP 403 Forbidden: animexin is Cloudflare protected.");
+        }
+        throw new Error(`HTTP 403 Forbidden on ${host}`);
+      }
+    } else if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    } else {
+      html = await res.text();
     }
-    throw new Error(`HTTP 403 Forbidden on ${host}`);
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (errMsg.includes("403") || errMsg.includes("Forbidden") || errMsg.includes("fetch_error")) {
+      const proxyContent = await fetchProxyContent(trackerUrl, options);
+      if (proxyContent) {
+        html = proxyContent;
+      } else {
+        if (isAnimexin) {
+          throw new Error("HTTP 403 Forbidden: animexin is Cloudflare protected.");
+        }
+        throw err;
+      }
+    } else {
+      throw err;
+    }
   }
 
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  }
-
-  const html = await res.text();
   const $ = cheerio.load(html);
 
   const candidates: number[] = [];
@@ -294,6 +411,14 @@ async function scrapeDonghuaTrackerUrl(
   for (const match of episodeMatches) {
     const raw = match[1] || match[2];
     const num = parseFloat(raw);
+    if (Number.isFinite(num) && num > 0 && num < 10000) {
+      candidates.push(num);
+    }
+  }
+
+  const urlEpisodeMatch = trackerUrl.match(/episode-(\d+(?:\.\d+)?)/i);
+  if (urlEpisodeMatch) {
+    const num = parseFloat(urlEpisodeMatch[1]);
     if (Number.isFinite(num) && num > 0 && num < 10000) {
       candidates.push(num);
     }

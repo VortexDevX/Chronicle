@@ -56,7 +56,36 @@ describe("scheduled tracker scraping controls", () => {
     expect(latest).toBe(137);
   });
 
-  it("handles animexin 403 with actionable error message", async () => {
+  it("falls back to proxy reader when direct fetch returns 403", async () => {
+    const html = `
+      <html>
+        <body>
+          <div class="lastend">
+            <div class="inepcx"><span class="epcur">Episode 164</span></div>
+          </div>
+        </body>
+      </html>
+    `;
+    const fetchMock = vi.fn().mockImplementation((input: string | URL) => {
+      const urlStr = String(input);
+      if (urlStr.includes("r.jina.ai")) {
+        return Promise.resolve(
+          new Response(html, { status: 200, headers: { "Content-Type": "text/html" } }),
+        );
+      }
+      return Promise.resolve(
+        new Response("Forbidden", { status: 403, statusText: "Forbidden" }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const latest = await scrapeTrackerUrl("https://animexin.dev/btth", "Donghua", {
+      retryAttempts: 0,
+    });
+    expect(latest).toBe(164);
+  });
+
+  it("handles animexin 403 when fallback also fails with actionable error message", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response("Forbidden", { status: 403, statusText: "Forbidden" }),
     );
