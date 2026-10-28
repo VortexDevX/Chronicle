@@ -46,7 +46,7 @@ function normalizeSearch(val: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
 }
@@ -119,6 +119,7 @@ export async function resolveAiringCalendarSchedule(params: {
   anilist_id?: number | string | null;
   simkl_id?: number | string | null;
   title?: string | null;
+  titles?: Array<string | null | undefined> | null;
   now?: Date;
 }): Promise<ResolvedSchedule | null> {
   const { calendar, metadata } = await fetchAiringCalendar();
@@ -140,20 +141,61 @@ export async function resolveAiringCalendarSchedule(params: {
     }
   }
 
-  // 2. If still missing, match by normalized title
-  if ((!targetSimklId || targetSimklId <= 0) && params.title) {
-    const queryNorm = normalizeSearch(params.title);
-    if (queryNorm.length >= 3) {
+  // 2. If still missing, match by candidate titles
+  if (!targetSimklId || targetSimklId <= 0) {
+    const rawQueries = [
+      params.title,
+      ...(Array.isArray(params.titles) ? params.titles : []),
+    ].filter((q): q is string => Boolean(q && typeof q === "string" && q.trim().length > 0));
+
+    const normalizedQueries = Array.from(
+      new Set(rawQueries.map((q) => normalizeSearch(q)).filter((q) => q.length >= 2)),
+    );
+
+    // Pass 1: Exact normalized match
+    for (const queryNorm of normalizedQueries) {
       for (const [idStr, show] of Object.entries(metadata)) {
         const names = [
           show.title,
           show.title_romaji || "",
           ...(show.alt_titles || []).map((a) => a.name || ""),
-        ];
-        if (names.some((n) => normalizeSearch(n) === queryNorm)) {
+        ]
+          .map((n) => normalizeSearch(n))
+          .filter(Boolean);
+
+        if (names.some((n) => n === queryNorm)) {
           targetSimklId = Number(idStr);
           break;
         }
+      }
+      if (targetSimklId && targetSimklId > 0) break;
+    }
+
+    // Pass 2: Fuzzy / prefix / contains match for sufficiently long queries (>= 4 chars or CJK)
+    if (!targetSimklId || targetSimklId <= 0) {
+      for (const queryNorm of normalizedQueries) {
+        if (queryNorm.length < 4) continue;
+        for (const [idStr, show] of Object.entries(metadata)) {
+          const names = [
+            show.title,
+            show.title_romaji || "",
+            ...(show.alt_titles || []).map((a) => a.name || ""),
+          ]
+            .map((n) => normalizeSearch(n))
+            .filter(Boolean);
+
+          if (
+            names.some(
+              (n) =>
+                n.length >= 4 &&
+                (n.includes(queryNorm) || queryNorm.includes(n)),
+            )
+          ) {
+            targetSimklId = Number(idStr);
+            break;
+          }
+        }
+        if (targetSimklId && targetSimklId > 0) break;
       }
     }
   }

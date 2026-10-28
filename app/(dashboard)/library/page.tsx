@@ -2,7 +2,7 @@
 
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
-import { Search, Plus, Book, Grid2X2, List, RefreshCw, ImageOff, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Plus, Book, Grid2X2, List, RefreshCw, ImageOff, ChevronDown, ChevronUp, CheckSquare, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadCoverCache } from "@/store/coverCache";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
@@ -32,6 +32,9 @@ export default function LibraryPage() {
   const [sortBy, setSortBy] = useState("last_updated");
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [missingMangaDex, setMissingMangaDex] = useState<{
     items: MissingMangaDexEntry[];
     total: number;
@@ -45,6 +48,15 @@ export default function LibraryPage() {
     return params.toString();
   }, [debouncedSearch, filterStatus, filterType, sortBy]);
   const { fetchMedia, loadError } = useMediaList(query, "Library could not load");
+
+  const uniqueMedia = useMemo(() => {
+    const seen = new Set<string>();
+    return media.filter((m) => {
+      if (!m || !m._id || seen.has(m._id)) return false;
+      seen.add(m._id);
+      return true;
+    });
+  }, [media]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -144,6 +156,60 @@ export default function LibraryPage() {
         next.delete(id);
         return next;
       });
+    }
+  };
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [query]);
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllToggle = () => {
+    if (selectedIds.size === uniqueMedia.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(uniqueMedia.map((m) => m._id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selectedIds.size;
+    if (count === 0 || isDeletingBulk) return;
+
+    const approved = await confirm({
+      title: `Delete ${count} ${count === 1 ? "entry" : "entries"}?`,
+      message: `${count} ${count === 1 ? "entry" : "entries"} and their seven-day activity will be permanently removed.`,
+      confirmLabel: `Delete ${count}`,
+      danger: true,
+    });
+    if (!approved) return;
+
+    setIsDeletingBulk(true);
+    try {
+      const res = await apiRequest<{ deleted: number }>("/api/media?bulk_delete=1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      toast(`Deleted ${res.deleted ?? count} ${res.deleted === 1 ? "entry" : "entries"}`, "success");
+      setIsSelectMode(false);
+      setSelectedIds(new Set());
+      fetchMedia(1, true);
+    } catch (err) {
+      toast(getErrorMessage(err, "Bulk delete failed"), "error");
+    } finally {
+      setIsDeletingBulk(false);
     }
   };
 
@@ -250,9 +316,71 @@ export default function LibraryPage() {
                 <List size={17} />
               </button>
             </div>
+            {media.length > 0 && (
+              <button
+                type="button"
+                className={`library-select-toggle ${isSelectMode ? "is-active" : ""}`}
+                onClick={() => {
+                  setIsSelectMode((prev) => !prev);
+                  setSelectedIds(new Set());
+                }}
+                aria-label={isSelectMode ? "Cancel selection" : "Select multiple entries"}
+                aria-pressed={isSelectMode}
+                title={isSelectMode ? "Cancel selection" : "Select multiple entries to delete"}
+              >
+                <CheckSquare size={16} />
+                <span className="library-select-text">{isSelectMode ? "Cancel" : "Select"}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {isSelectMode && uniqueMedia.length > 0 && (
+        <div className="library-bulk-bar" role="toolbar" aria-label="Bulk actions">
+          <div className="library-bulk-info">
+            <span className="library-bulk-count">
+              <strong>{selectedIds.size}</strong> of {uniqueMedia.length} selected
+            </span>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={handleSelectAllToggle}
+            >
+              {selectedIds.size === uniqueMedia.length ? "Deselect all" : "Select all"}
+            </button>
+          </div>
+          <div className="library-bulk-actions">
+            <button
+              type="button"
+              className="btn-danger btn-sm"
+              disabled={selectedIds.size === 0 || isDeletingBulk}
+              onClick={handleBulkDelete}
+            >
+              {isDeletingBulk ? (
+                <>
+                  <span className="spinner" /> Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 size={15} /> Delete {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() => {
+                setIsSelectMode(false);
+                setSelectedIds(new Set());
+              }}
+              disabled={isDeletingBulk}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {isRefining && (
         <div className="results-loading-strip">
@@ -296,8 +424,19 @@ export default function LibraryPage() {
         </div>
       ) : (
         <div className={viewMode === "grid" ? "grid media-grid" : "library-media-list"}>
-          {media.map((m, index) => (
-            <MediaCard key={m._id} m={m} mode={viewMode} priority={index < 8} onEdit={openModal} onIncrement={handleIncrement} onDelete={handleDelete} />
+          {uniqueMedia.map((m, index) => (
+            <MediaCard
+              key={m._id}
+              m={m}
+              mode={viewMode}
+              priority={index < 8}
+              onEdit={openModal}
+              onIncrement={handleIncrement}
+              onDelete={handleDelete}
+              selectable={isSelectMode}
+              selected={selectedIds.has(m._id)}
+              onToggleSelect={handleToggleSelect}
+            />
           ))}
         </div>
       )}

@@ -11,8 +11,7 @@
     "test": "vitest run --passWithNoTests",
     "test:e2e": "playwright test",
     "test:watch": "vitest",
-    "cron:check": "tsx --env-file=.env scripts/checkCron.ts",
-    "media:dedupe:backfill": "tsx --env-file=.env scripts/backfillMediaDedupeKeys.ts"
+    "cron:check": "tsx --env-file=.env scripts/checkCron.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

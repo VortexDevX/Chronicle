@@ -31,6 +31,7 @@ vi.mock("@/lib/email", () => ({
 }));
 
 vi.mock("@/lib/log", () => ({
+  logInfo: vi.fn(),
   logInternalError: vi.fn(),
 }));
 

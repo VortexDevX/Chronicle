@@ -45,17 +45,31 @@ export async function POST(req: NextRequest) {
   // If AniList did not have an upcoming episode date, check fallback calendar (e.g. Donghua)
   if (!updates.next_episode) {
     const existing = (await MediaItem.findById(id)
-      .select("simkl_id title next_episode next_episode_release_at")
+      .select("simkl_id title title_aliases next_episode next_episode_release_at")
       .lean()) as {
       simkl_id?: number;
       title?: string;
+      title_aliases?: { english?: string; romaji?: string; hanzi?: string; pinyin?: string };
       next_episode?: number | null;
       next_episode_release_at?: Date | string | null;
     } | null;
+    const calendarTitles = [
+      existing?.title,
+      existing?.title_aliases?.english,
+      existing?.title_aliases?.romaji,
+      existing?.title_aliases?.hanzi,
+      existing?.title_aliases?.pinyin,
+      media?.title.english,
+      media?.title.romaji,
+      media?.title.native,
+      ...(media?.synonyms || []),
+    ].filter((t): t is string => Boolean(t && typeof t === "string" && t.trim().length > 0));
+
     const fallback = await resolveAiringCalendarSchedule({
       anilist_id: anilistId,
       simkl_id: existing?.simkl_id,
       title: existing?.title || media?.title.english || media?.title.romaji,
+      titles: calendarTitles,
     });
     if (fallback) {
       if (fallback.simklId) {

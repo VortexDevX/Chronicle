@@ -19,6 +19,7 @@ export type AniListMedia = {
   format: string | null; // "TV", "TV_SHORT", "MOVIE", "SPECIAL", "OVA", "ONA", "NOVEL", "MANGA"
   status: "FINISHED" | "RELEASING" | "NOT_YET_RELEASED" | "CANCELLED" | "HIATUS";
   episodes: number | null;
+  synonyms?: string[];
   nextAiringEpisode: {
     episode: number;
     airingAt: number; // Unix epoch seconds
@@ -47,6 +48,7 @@ export type AniListScheduleResult = {
   nextEpisode: number | null;
   nextReleaseAt: Date | null;
   totalEpisodes: number | null;
+  synonyms?: string[];
   status: AniListMedia["status"];
   title: string;
   subtitle: string | null;
@@ -277,6 +279,7 @@ query GetAiringBatch($ids: [Int]) {
       format
       status
       episodes
+      synonyms
       nextAiringEpisode {
         episode
         airingAt
@@ -369,6 +372,7 @@ query SearchMedia($query: String!, $country: CountryCode, $limit: Int) {
       format
       status
       episodes
+      synonyms
       nextAiringEpisode {
         episode
         airingAt
@@ -436,6 +440,7 @@ export function formatAniListSchedule(media: AniListMedia): AniListScheduleResul
     nextEpisode: media.nextAiringEpisode?.episode ?? null,
     nextReleaseAt,
     totalEpisodes: media.episodes,
+    synonyms: media.synonyms || [],
     status: media.status,
     title: main,
     subtitle: sub,

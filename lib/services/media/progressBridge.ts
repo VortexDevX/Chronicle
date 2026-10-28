@@ -130,11 +130,18 @@ export function compareProgress(input: ProgressComparisonInput): ProgressCompari
   } else if (mode === "continuous" && !remoteIsContinuous && offset !== null) {
     // Remote gives seasonal episode, user tracks continuous
     remoteInUserUnits = toContinuousEpisode(latestRemote, offset);
+  } else if ((mode === "unspecified" || !mode) && offset !== null && offset > 0) {
+    // If mode is unspecified, infer from progress: user tracking >= offset or high continuous vs low seasonal
+    if (!remoteIsContinuous && (current >= offset || (current >= 50 && latestRemote <= 26))) {
+      remoteInUserUnits = toContinuousEpisode(latestRemote, offset);
+    } else if (remoteIsContinuous && current < offset) {
+      remoteInUserUnits = toSeasonalEpisode(latestRemote, offset);
+    }
   }
 
   const hasNewContent = remoteInUserUnits > current;
   const delta = hasNewContent ? remoteInUserUnits - current : 0;
-  const suspectedMismatch = detectNumberingMismatch(current, latestRemote, mode);
+  const suspectedMismatch = detectNumberingMismatch(current, remoteInUserUnits, mode);
 
   let suggestedAction: "notify" | "needs_review" | "none" = "none";
   if (suspectedMismatch) {

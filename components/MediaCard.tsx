@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Check,
   Clock3,
   Edit3,
   ExternalLink,
@@ -40,6 +41,9 @@ export function MediaCard({
   onIncrement,
   onCatchUp,
   onDelete,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }: {
   m: MediaItem;
   mode?: "grid" | "list";
@@ -48,6 +52,9 @@ export function MediaCard({
   onIncrement?: (id: string) => void | Promise<void>;
   onCatchUp?: (id: string, targetProgress: number) => void | Promise<void>;
   onDelete?: (id: string) => void | Promise<void>;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const [pendingAction, setPendingAction] = useState<"increment" | "catchup" | "delete" | null>(null);
   const normalizedStatus = m.status === "Watching/Reading" ? "Active" : m.status;
@@ -136,7 +143,31 @@ export function MediaCard({
 
   if (mode === "list") {
     return (
-      <article className="media-list-row" data-id={m._id} data-status={normalizedStatus}>
+      <article
+        className={`media-list-row ${selected ? "is-selected" : ""}`}
+        data-id={m._id}
+        data-status={normalizedStatus}
+        onClick={(event) => {
+          if (selectable && onToggleSelect) {
+            if (event.target instanceof Element && event.target.closest("a, button:not(.media-list-select-btn)")) return;
+            onToggleSelect(m._id);
+          }
+        }}
+      >
+        {selectable && (
+          <button
+            type="button"
+            className={`media-list-select-btn ${selected ? "is-selected" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.(m._id);
+            }}
+            aria-label={selected ? `Deselect ${m.title}` : `Select ${m.title}`}
+            aria-pressed={selected}
+          >
+            {selected ? <Check size={13} strokeWidth={3} /> : null}
+          </button>
+        )}
         <MediaArtwork media={m} className="media-list-art" priority={priority} />
         <div className="media-list-main">
           <div>
@@ -225,17 +256,36 @@ export function MediaCard({
 
   return (
     <article
-      className={`media-card ${priority ? "is-priority" : ""}`}
+      className={`media-card ${priority ? "is-priority" : ""} ${selected ? "is-selected" : ""}`}
       data-id={m._id}
       data-status={normalizedStatus}
       tabIndex={-1}
       onClick={(event) => {
+        if (selectable && onToggleSelect) {
+          if (event.target instanceof Element && event.target.closest("a, button:not(.media-card-select-btn)")) return;
+          onToggleSelect(m._id);
+          return;
+        }
         if (!window.matchMedia("(max-width: 640px)").matches) return;
         if (event.target instanceof Element && event.target.closest("a, button")) return;
         event.currentTarget.focus({ preventScroll: true });
       }}
     >
       <div className="media-card-poster">
+        {selectable && (
+          <button
+            type="button"
+            className={`media-card-select-btn ${selected ? "is-selected" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.(m._id);
+            }}
+            aria-label={selected ? `Deselect ${m.title}` : `Select ${m.title}`}
+            aria-pressed={selected}
+          >
+            {selected ? <Check size={14} strokeWidth={3} /> : null}
+          </button>
+        )}
         <MediaArtwork media={m} priority={priority} />
         <div className="media-card-hover-actions">
           {onEdit && (

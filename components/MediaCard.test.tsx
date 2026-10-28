@@ -149,4 +149,32 @@ describe("MediaCard release schedule and countdown visibility", () => {
     expect(markup).not.toContain('class="schedule-badge"');
     expect(markup).not.toContain('class="media-card-schedule"');
   });
+
+  it("renders selection checkbox when selectable is true", () => {
+    const markup = renderToStaticMarkup(
+      <MediaCard
+        m={baseMedia}
+        selectable={true}
+        selected={true}
+      />,
+    );
+
+    expect(markup).toContain("media-card-select-btn");
+    expect(markup).toContain("is-selected");
+    expect(markup).toContain('aria-pressed="true"');
+  });
+
+  it("renders selection checkbox in list view when selectable is true", () => {
+    const markup = renderToStaticMarkup(
+      <MediaCard
+        m={baseMedia}
+        mode="list"
+        selectable={true}
+        selected={false}
+      />,
+    );
+
+    expect(markup).toContain("media-list-select-btn");
+    expect(markup).toContain('aria-pressed="false"');
+  });
 });

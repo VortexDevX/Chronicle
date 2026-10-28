@@ -38,10 +38,16 @@ vi.mock("@/lib/log", () => ({
   logInternalError: vi.fn(),
 }));
 
+vi.mock("@/lib/verification", () => ({
+  createAndSendVerificationEmail: vi.fn().mockResolvedValue(true),
+}));
+
 import { User } from "@/lib/models";
+import { createAndSendVerificationEmail } from "@/lib/verification";
 
 const findOneMock = User.findOne as unknown as ReturnType<typeof vi.fn>;
 const createMock = User.create as unknown as ReturnType<typeof vi.fn>;
+const createAndSendMock = createAndSendVerificationEmail as unknown as ReturnType<typeof vi.fn>;
 
 describe("auth API route", () => {
   beforeEach(() => {
@@ -72,6 +78,13 @@ describe("auth API route", () => {
       expect.objectContaining({
         email: "reader@example.com",
         email_verified_at: null,
+      }),
+    );
+    expect(createAndSendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "reader@example.com",
+        username: "reader",
+        isWelcome: true,
       }),
     );
     const cookie = res.cookies.get("auth_token");

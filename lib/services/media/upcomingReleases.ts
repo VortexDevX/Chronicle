@@ -24,7 +24,7 @@ export async function getUpcomingReleases(
         { media_type: "Donghua" },
       ],
     })
-      .select("title media_type status progress_current progress_total tracker_url custom_cover_url anilist_id simkl_id next_episode next_episode_release_at numbering_mode season_number episode_offset")
+      .select("title title_aliases media_type status progress_current progress_total tracker_url custom_cover_url anilist_id simkl_id next_episode next_episode_release_at numbering_mode season_number episode_offset")
       .sort({ last_updated: -1 })
       .limit(300)
       .lean();
@@ -56,10 +56,23 @@ export async function getUpcomingReleases(
       }
 
       if (!nextEpisode || !nextReleaseAtStr) {
+        const calendarTitles = [
+          entry.title,
+          (entry as { title_aliases?: { english?: string; romaji?: string; hanzi?: string; pinyin?: string } }).title_aliases?.english,
+          (entry as { title_aliases?: { english?: string; romaji?: string; hanzi?: string; pinyin?: string } }).title_aliases?.romaji,
+          (entry as { title_aliases?: { english?: string; romaji?: string; hanzi?: string; pinyin?: string } }).title_aliases?.hanzi,
+          (entry as { title_aliases?: { english?: string; romaji?: string; hanzi?: string; pinyin?: string } }).title_aliases?.pinyin,
+          media?.title?.english,
+          media?.title?.romaji,
+          media?.title?.native,
+          ...(media?.synonyms || []),
+        ].filter((t): t is string => Boolean(t && typeof t === "string" && t.trim().length > 0));
+
         const fallback = await resolveAiringCalendarSchedule({
           anilist_id: entry.anilist_id,
           simkl_id: (entry as { simkl_id?: number }).simkl_id,
           title: entry.title,
+          titles: calendarTitles,
         });
         if (fallback && fallback.nextEpisode && fallback.nextReleaseAt) {
           nextEpisode = fallback.nextEpisode;

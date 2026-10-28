@@ -8,6 +8,7 @@ import { logInternalError } from "@/lib/log";
 import { jsonOk, jsonError } from "@/lib/http";
 import { getRequiredEnv } from "@/lib/config";
 import { getAuthTokenClaims, signAuthToken } from "@/lib/auth";
+import { createAndSendVerificationEmail } from "@/lib/verification";
 
 const MAX_USERNAME = 30;
 const MIN_USERNAME = 3;
@@ -107,6 +108,16 @@ export async function POST(req: NextRequest) {
         email_verified_at: null,
         password_hash,
       });
+
+      if (normalizedEmail) {
+        await createAndSendVerificationEmail({
+          userId: user._id,
+          email: normalizedEmail,
+          username: normalizedUsername,
+          originFallback: req.nextUrl.origin,
+          isWelcome: true,
+        });
+      }
 
       try {
         getRequiredEnv("JWT_SECRET");

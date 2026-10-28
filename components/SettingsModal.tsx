@@ -406,9 +406,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                           sendingVerification ||
                           saving
                         }
+                        title="Resend verification email if not received"
                       >
                         {sendingVerification ? <span className="spinner" /> : <Send size={13} />}
-                        Send link
+                        Resend link
                       </button>
                     </div>
                   </div>

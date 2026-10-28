@@ -88,11 +88,33 @@ export const useMediaStore = create<AppState>((set, get) => ({
     set({ authStatus: status, username: username || "" });
   },
 
-  setMedia: (media, total, hasMore, replace = false) => set((state) => ({
-    media: replace ? media : [...state.media, ...media],
-    total,
-    hasMore,
-  })),
+  setMedia: (media, total, hasMore, replace = false) => set((state) => {
+    if (replace) {
+      const seen = new Set<string>();
+      const deduped: MediaItem[] = [];
+      for (const item of media) {
+        if (item && item._id && !seen.has(item._id)) {
+          seen.add(item._id);
+          deduped.push(item);
+        }
+      }
+      return { media: deduped, total, hasMore };
+    }
+
+    const seen = new Set<string>(state.media.map((m) => m._id));
+    const dedupedNew: MediaItem[] = [];
+    for (const item of media) {
+      if (item && item._id && !seen.has(item._id)) {
+        seen.add(item._id);
+        dedupedNew.push(item);
+      }
+    }
+    return {
+      media: [...state.media, ...dedupedNew],
+      total,
+      hasMore,
+    };
+  }),
 
   updateFilters: (updates) => set((state) => {
     const changed = Object.entries(updates).some(

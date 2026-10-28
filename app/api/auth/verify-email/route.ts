@@ -1,19 +1,15 @@
-import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { EmailVerificationToken, User } from "@/lib/models";
-import { sendEmail } from "@/lib/email";
 import { jsonError, jsonOk } from "@/lib/http";
 import { requireAuthUserId, enforceRateLimit } from "@/lib/guards";
 import { getClientIp } from "@/lib/rateLimit";
 import { getPrimaryAppOrigin } from "@/lib/origin";
 import { logInternalError } from "@/lib/log";
-
-const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
-
-function hashVerificationToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
+import {
+  createAndSendVerificationEmail,
+  hashVerificationToken,
+} from "@/lib/verification";
 
 function getVerifyOrigin(req: NextRequest): string {
   if (process.env.VERCEL_URL) {
@@ -60,37 +56,21 @@ export async function POST(req: NextRequest) {
       return jsonOk({ message: "Email already verified" });
     }
 
-    await EmailVerificationToken.updateMany(
-      { user_id: user._id, used_at: null },
-      { $set: { used_at: new Date() } },
-    );
-
-    const token = crypto.randomBytes(32).toString("hex");
-    const tokenHash = hashVerificationToken(token);
-    const expiresAt = new Date(Date.now() + VERIFY_TOKEN_TTL_MS);
-
-    await EmailVerificationToken.create({
-      user_id: user._id,
+    const sent = await createAndSendVerificationEmail({
+      userId: user._id,
       email: user.email,
-      token_hash: tokenHash,
-      expires_at: expiresAt,
+      username: user.username,
+      originFallback: req.nextUrl.origin,
+      isWelcome: false,
     });
 
-    const verifyUrl = `${getVerifyOrigin(req)}/api/auth/verify-email?token=${token}`;
-    await sendEmail({
-      to: [{ email: user.email, name: user.username }],
-      subject: "Verify your Chronicle email",
-      htmlContent: [
-        "<p>Verify this email address for your Chronicle account.</p>",
-        `<p><a href="${verifyUrl}">Verify email</a></p>`,
-        "<p>This link expires in 24 hours. If you did not request it, ignore this email.</p>",
-      ].join(""),
-      textContent: [
-        "Verify this email address for your Chronicle account.",
-        `Verify email: ${verifyUrl}`,
-        "This link expires in 24 hours. If you did not request it, ignore this email.",
-      ].join("\n\n"),
-    });
+    if (!sent) {
+      return jsonError(
+        "VERIFY_EMAIL_INTERNAL_ERROR",
+        "Could not send verification email",
+        500,
+      );
+    }
 
     return jsonOk({ message: "Verification email sent" });
   } catch (err) {

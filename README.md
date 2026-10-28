@@ -155,13 +155,6 @@ npm run test         # Run Vitest suite
 npm run build        # Production Next.js build
 ```
 
-After a production build is running on port `3100`, the optional browser SEO smoke test checks public titles, canonicals, JSON-LD, private-route `noindex`, sitemap coverage, crawler rules, mobile overflow, and browser errors:
-
-```bash
-npm run start -- -p 3100
-python scripts/verifySeoUi.py
-```
-
 No CI workflow is tracked in this checkout. Run the checks above before pushing or opening a pull request.
 
 ### Production Notes
@@ -203,17 +196,6 @@ and confirm an HTTP `200` JSON response before enabling the four-hour schedule.
 cron-job.org stops requests after 30 seconds. Chronicle therefore uses a bounded
 24-second run, aborts in-flight Manhwa tracker requests when its scan budget ends, returns partial
 progress instead of timing out, and retries deferred trackers on the next run.
-
-### Maintenance
-
-After upgrading an existing database to the duplicate-protected media model, run:
-
-```bash
-npm run media:dedupe:backfill
-```
-
-The command fills normalized title keys for existing media rows where safe. Existing duplicate groups are reported and left for manual review.
-
 
 ## 📁 Project Structure
 

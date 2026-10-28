@@ -37,12 +37,12 @@ export const maxDuration = 60;
 
 const MAX_USERS = 50;
 const MAX_ENTRIES_PER_RUN = 200;
-const DEFAULT_CRON_CONCURRENCY = 4;
+const DEFAULT_CRON_CONCURRENCY = 6;
 const MAX_CRON_CONCURRENCY = 8;
-const DEFAULT_CRON_TIME_BUDGET_MS = 24_000;
+const DEFAULT_CRON_TIME_BUDGET_MS = 50_000;
 const MIN_CRON_TIME_BUDGET_MS = 10_000;
-const MAX_CRON_TIME_BUDGET_MS = 25_000;
-const NOTIFICATION_RESERVE_MS = 8_000;
+const MAX_CRON_TIME_BUDGET_MS = 55_000;
+const NOTIFICATION_RESERVE_MS = 6_000;
 const DEFAULT_CRON_SCRAPE_RETRIES = 2;
 const MAX_CRON_SCRAPE_RETRIES = 2;
 const CRON_DB_QUERY_TIMEOUT_MS = 5_000;
@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
       ],
     })
       .select(
-        "title progress_current tracker_url simkl_id anilist_id user_id media_type tracking_source last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress numbering_mode season_number episode_offset numbering_status",
+        "title title_aliases progress_current tracker_url simkl_id anilist_id user_id media_type tracking_source last_attempted_at last_checked_at latest_remote_progress last_notified_progress last_push_notified_progress numbering_mode season_number episode_offset numbering_status",
       )
       .sort({ last_attempted_at: 1, last_checked_at: 1, _id: 1 })
       .limit(MAX_ENTRIES_PER_RUN)
@@ -356,9 +356,9 @@ export async function GET(req: NextRequest) {
             : null;
           let numberingStatusUpdate = entryWithNumbering.numbering_status || null;
 
-          if (anilistMedia && entryWithNumbering.numbering_mode === "seasonal" && resolvedOffset === null) {
+          if (anilistMedia && resolvedOffset === null) {
             const offsetResult = calculateOffsetFromAniListRelations(anilistMedia.relations);
-            if (offsetResult.isReliable && offsetResult.offset !== null) {
+            if (offsetResult.isReliable && offsetResult.offset !== null && offsetResult.offset > 0) {
               resolvedOffset = offsetResult.offset;
               numberingStatusUpdate = "verified";
             }
@@ -384,10 +384,23 @@ export async function GET(req: NextRequest) {
 
             // 2. Airing Calendar fallback (especially for Donghua where AniList lacks weekly airings)
             if (rawLatest === null || !scheduleNextEpisode) {
+              const calendarTitles = [
+                entry.title as string,
+                (entry as { title_aliases?: { english?: string; romaji?: string; hanzi?: string; pinyin?: string } }).title_aliases?.english,
+                (entry as { title_aliases?: { english?: string; romaji?: string; hanzi?: string; pinyin?: string } }).title_aliases?.romaji,
+                (entry as { title_aliases?: { english?: string; romaji?: string; hanzi?: string; pinyin?: string } }).title_aliases?.hanzi,
+                (entry as { title_aliases?: { english?: string; romaji?: string; hanzi?: string; pinyin?: string } }).title_aliases?.pinyin,
+                anilistMedia?.title?.english,
+                anilistMedia?.title?.romaji,
+                anilistMedia?.title?.native,
+                ...(anilistMedia?.synonyms || []),
+              ].filter((t): t is string => Boolean(t && typeof t === "string" && t.trim().length > 0));
+
               const calendarSchedule = await resolveAiringCalendarSchedule({
                 anilist_id: entry.anilist_id,
                 simkl_id: (entry as { simkl_id?: number }).simkl_id,
-                title: (entry.title as string) || anilistMedia?.title.english || anilistMedia?.title.romaji,
+                title: (entry.title as string) || anilistMedia?.title?.english || anilistMedia?.title?.romaji,
+                titles: calendarTitles,
               });
 
               if (calendarSchedule) {
@@ -405,20 +418,32 @@ export async function GET(req: NextRequest) {
 
                 if (calendarSchedule.previousEpisode) {
                   rawLatest = calendarSchedule.previousEpisode;
-                  remoteIsContinuous = mediaType === "Donghua";
+                  remoteIsContinuous = false;
                 } else if (calendarSchedule.nextEpisode) {
                   rawLatest = calendarSchedule.nextReleaseAt && calendarSchedule.nextReleaseAt.getTime() <= Date.now()
                     ? calendarSchedule.nextEpisode
                     : calendarSchedule.nextEpisode - 1;
-                  remoteIsContinuous = mediaType === "Donghua";
+                  remoteIsContinuous = false;
                 }
               }
             }
 
-            // 3. Concluded series from AniList
-            if (rawLatest === null && schedule?.state === "CONCLUDED" && schedule.totalEpisodes) {
-              rawLatest = schedule.totalEpisodes;
-              remoteIsContinuous = false;
+            // 3. Known episode count from AniList (concluded or ongoing fallback)
+            if (
+              anilistMedia &&
+              (mediaType === "Anime" || mediaType === "Donghua") &&
+              typeof anilistMedia.episodes === "number" &&
+              anilistMedia.episodes > 0
+            ) {
+              if (rawLatest === null) {
+                if (schedule?.state === "CONCLUDED" || anilistMedia.status === "FINISHED" || anilistMedia.status === "RELEASING") {
+                  rawLatest = anilistMedia.episodes;
+                  remoteIsContinuous = false;
+                }
+              } else if (rawLatest < current && anilistMedia.episodes > current) {
+                rawLatest = anilistMedia.episodes;
+                remoteIsContinuous = false;
+              }
             }
           }
 
@@ -432,8 +457,9 @@ export async function GET(req: NextRequest) {
           }
 
           let latest: number | null = rawLatest;
+          let comparison: ReturnType<typeof compareProgress> | null = null;
           if (rawLatest !== null) {
-            const comparison = compareProgress({
+            comparison = compareProgress({
               current,
               latestRemote: rawLatest,
               numberingMode: entryWithNumbering.numbering_mode,
@@ -459,7 +485,9 @@ export async function GET(req: NextRequest) {
                   last_scrape_status: "ok",
                   last_scrape_error: null,
                 } : {}),
-                ...(latest !== null ? { latest_remote_progress: latest } : {}),
+                ...(latest !== null && (!comparison?.suspectedMismatch || latest >= current)
+                  ? { latest_remote_progress: latest }
+                  : {}),
                 ...(resolvedOffset !== (entryWithNumbering.episode_offset ?? null) ? { episode_offset: resolvedOffset } : {}),
                 ...(numberingStatusUpdate !== (entryWithNumbering.numbering_status ?? null) ? { numbering_status: numberingStatusUpdate } : {}),
                 ...(matchedSimklId && !(entry as { simkl_id?: number }).simkl_id ? { simkl_id: matchedSimklId } : {}),

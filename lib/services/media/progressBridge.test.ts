@@ -167,6 +167,21 @@ describe("progressBridge", () => {
       expect(result.suspectedMismatch).toBe(true);
       expect(result.suggestedAction).toBe("needs_review");
     });
+
+    it("infers continuous progress when mode is unspecified with offset and high current progress", () => {
+      const result = compareProgress({
+        current: 50,
+        latestRemote: 21,
+        episodeOffset: 52,
+        remoteIsContinuous: false,
+      });
+
+      expect(result.remoteInUserUnits).toBe(73); // 21 + 52
+      expect(result.hasNewContent).toBe(true);
+      expect(result.delta).toBe(23);
+      expect(result.suspectedMismatch).toBe(false);
+      expect(result.suggestedAction).toBe("notify");
+    });
   });
 
   describe("formatEpisodeDisplay", () => {
