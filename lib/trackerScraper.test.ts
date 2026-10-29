@@ -4,6 +4,7 @@ import { scrapeTrackerUrl } from "@/lib/trackerScraper";
 describe("scheduled tracker scraping controls", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("can skip same-run retries so later trackers get a turn", async () => {
@@ -96,5 +97,82 @@ describe("scheduled tracker scraping controls", () => {
         retryAttempts: 0,
       }),
     ).rejects.toThrow("animexin is Cloudflare protected");
+  });
+
+  it("uses VPS micro-proxy when direct fetch returns 403", async () => {
+    vi.stubEnv("CHRONICLE_SCRAPER_PROXY_URL", "http://80.225.237.162/chronicle-proxy/scrape");
+    vi.stubEnv("CHRONICLE_SCRAPER_PROXY_KEY", "mock-proxy-key");
+
+    const html = `
+      <html>
+        <body>
+          <div class="lastend">
+            <div class="inepcx"><span class="epcur">Episode 188</span></div>
+          </div>
+        </body>
+      </html>
+    `;
+    const fetchMock = vi.fn().mockImplementation((input: string | URL) => {
+      const urlStr = String(input);
+      if (urlStr.includes("chronicle-proxy")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ok: true,
+              status: 200,
+              resolvedUrl: "https://animexin.dev/btth",
+              body: html,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response("Forbidden", { status: 403, statusText: "Forbidden" }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const latest = await scrapeTrackerUrl("https://animexin.dev/btth", "Donghua", {
+      retryAttempts: 0,
+    });
+    expect(latest).toBe(188);
+  });
+
+  it("falls back from VPS micro-proxy failure to Jina reader", async () => {
+    vi.stubEnv("CHRONICLE_SCRAPER_PROXY_URL", "http://80.225.237.162/chronicle-proxy/scrape");
+    vi.stubEnv("CHRONICLE_SCRAPER_PROXY_KEY", "mock-proxy-key");
+
+    const html = `
+      <html>
+        <body>
+          <div class="lastend">
+            <div class="inepcx"><span class="epcur">Episode 190</span></div>
+          </div>
+        </body>
+      </html>
+    `;
+    const fetchMock = vi.fn().mockImplementation((input: string | URL) => {
+      const urlStr = String(input);
+      if (urlStr.includes("chronicle-proxy")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "network_err" }), { status: 502 }),
+        );
+      }
+      if (urlStr.includes("r.jina.ai")) {
+        return Promise.resolve(
+          new Response(html, { status: 200, headers: { "Content-Type": "text/html" } }),
+        );
+      }
+      return Promise.resolve(
+        new Response("Forbidden", { status: 403, statusText: "Forbidden" }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const latest = await scrapeTrackerUrl("https://animexin.dev/btth", "Donghua", {
+      retryAttempts: 0,
+    });
+    expect(latest).toBe(190);
   });
 });

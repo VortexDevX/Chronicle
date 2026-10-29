@@ -137,10 +137,73 @@ async function fetchWithRetry(
   throw lastError || new Error("fetch_retry_failed");
 }
 
+type ProxyResult = {
+  html: string;
+  resolvedUrl: string;
+};
+
+async function fetchViaVpsProxy(
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string },
+  options: ScrapeTrackerOptions = {},
+): Promise<ProxyResult | null> {
+  const proxyEndpoint = process.env.CHRONICLE_SCRAPER_PROXY_URL;
+  const proxyKey = process.env.CHRONICLE_SCRAPER_PROXY_KEY;
+
+  if (!proxyEndpoint || !proxyKey) {
+    return null;
+  }
+
+  try {
+    const res = await fetchWithTimeout(
+      proxyEndpoint,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-chronicle-proxy-key": proxyKey,
+        },
+        body: JSON.stringify({
+          url,
+          method: init?.method || "GET",
+          headers: init?.headers,
+          body: init?.body,
+        }),
+      },
+      FETCH_TIMEOUT_MS,
+      options.signal,
+    );
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        ok?: boolean;
+        status?: number;
+        resolvedUrl?: string;
+        body?: string;
+      };
+      if (data.ok && typeof data.body === "string" && data.body.length > 50) {
+        return {
+          html: data.body,
+          resolvedUrl: data.resolvedUrl || url,
+        };
+      }
+    }
+  } catch {
+    // continue to next proxy fallback
+  }
+
+  return null;
+}
+
 async function fetchProxyContent(
   url: string,
   options: ScrapeTrackerOptions = {},
 ): Promise<string | null> {
+  const vpsResult = await fetchViaVpsProxy(url, undefined, options);
+  if (vpsResult) {
+    return vpsResult.html;
+  }
+
   const proxyUrl = `https://r.jina.ai/${url}`;
 
   try {
@@ -202,6 +265,10 @@ export async function fetchTrackerUrlHtml(
       options,
     );
     if (res.status === 403 || res.status === 503) {
+      const vpsResult = await fetchViaVpsProxy(url, undefined, options);
+      if (vpsResult) {
+        return vpsResult;
+      }
       const proxyHtml = await fetchProxyContent(url, options);
       if (proxyHtml) {
         return { html: proxyHtml, resolvedUrl: url };
@@ -214,6 +281,10 @@ export async function fetchTrackerUrlHtml(
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
     if (errMsg.includes("403") || errMsg.includes("Forbidden") || errMsg.includes("fetch_error")) {
+      const vpsResult = await fetchViaVpsProxy(url, undefined, options);
+      if (vpsResult) {
+        return vpsResult;
+      }
       const proxyHtml = await fetchProxyContent(url, options);
       if (proxyHtml) {
         return { html: proxyHtml, resolvedUrl: url };
@@ -228,20 +299,38 @@ async function fetchManhuafastChapters(
   options: ScrapeTrackerOptions,
 ): Promise<string> {
   const ajaxUrl = new URL("ajax/chapters/", trackerUrl).toString();
-  const res = await fetchWithRetry(
-    ajaxUrl,
-    {
-      method: "POST",
-      headers: BROWSER_HEADERS,
-      redirect: "follow",
-    },
-    FETCH_TIMEOUT_MS,
-    options,
-  );
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  try {
+    const res = await fetchWithRetry(
+      ajaxUrl,
+      {
+        method: "POST",
+        headers: BROWSER_HEADERS,
+        redirect: "follow",
+      },
+      FETCH_TIMEOUT_MS,
+      options,
+    );
+    if (!res.ok) {
+      if (res.status === 403 || res.status === 503) {
+        const vpsResult = await fetchViaVpsProxy(
+          ajaxUrl,
+          { method: "POST", headers: BROWSER_HEADERS },
+          options,
+        );
+        if (vpsResult) return vpsResult.html;
+      }
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    return await res.text();
+  } catch (err) {
+    const vpsResult = await fetchViaVpsProxy(
+      ajaxUrl,
+      { method: "POST", headers: BROWSER_HEADERS },
+      options,
+    );
+    if (vpsResult) return vpsResult.html;
+    throw err;
   }
-  return res.text();
 }
 
 async function scrapeManhwaTrackerUrl(
