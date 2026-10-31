@@ -7198,8 +7198,7 @@ textarea:focus-visible {
     grid-template-columns: 1fr 1fr;
   }
 
-  .controls-filters select:nth-child(3),
-  .view-toggle {
+  .controls-filters select:nth-child(3) {
     grid-column: span 2;
   }
 
