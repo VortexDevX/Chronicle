@@ -39,6 +39,8 @@ button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,s
 .main { background: var(--bg-root); }
 .page-content { max-width: 1600px; padding: 28px 34px 60px; }
 .sidebar.app-rail { background: var(--bg-root); border-right: 1px solid var(--border-strong); box-shadow: none; padding-inline: 12px; }
+.sidebar.app-rail.is-collapsed .rail-nav,
+.sidebar.app-rail.is-collapsed .rail-footer { padding-inline: 0; }
 .rail-brand { min-height: 100px; padding: 20px 0; border-bottom: 1px solid var(--border-strong); }
 .rail-brand-link { gap: 0; }
 .rail-nav { gap: 16px; padding-top: 22px; }
