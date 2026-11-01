@@ -21,12 +21,7 @@ import { MediaArtwork } from "@/components/MediaArtwork";
 import { relativeTime } from "@/utils/format";
 import { normalizePublicHttpUrl } from "@/lib/publicUrl";
 import { PageLoader } from "@/components/PageLoader";
-
-function formatProgress(value: number) {
-  return Number.isInteger(value)
-    ? String(value)
-    : value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
-}
+import { formatProgress, progressSummary } from "@/utils/progress";
 
 function progressUnit(mediaType: string) {
   return mediaType === "Anime" || mediaType === "Donghua"
@@ -150,7 +145,8 @@ export default function UpdatesPage() {
           }
         }
       }
-      toast(`Caught up ${successCount} titles`, "success");
+      const failedCount = items.length - successCount;
+      toast(failedCount ? `Saved ${successCount} titles. ${failedCount} could not be saved; refresh and retry.` : `Caught up ${successCount} titles`, failedCount ? "error" : "success");
       refreshMedia();
       await loadUpdates();
     } finally {
@@ -210,7 +206,7 @@ export default function UpdatesPage() {
             </h2>
             <p>
               {breakdown ? `${breakdown} · ` : ""}
-              Manual progress stays authoritative.
+              You choose when to update your progress.
             </p>
           </div>
         </div>
@@ -250,7 +246,8 @@ export default function UpdatesPage() {
               const isScreenMedia = item.media_type === "Anime" || item.media_type === "Donghua";
               const trackerUrl = item.tracker_url ? normalizePublicHttpUrl(item.tracker_url) : null;
               const latestRemote = item.latest_remote_progress ?? item.progress_current;
-              const hasMultiple = item.unread_delta > 1;
+              const unread = progressSummary(item).unread;
+              const hasMultiple = unread > 1;
 
               return (
                 <article className="update-row" key={item._id}>
@@ -324,14 +321,15 @@ export default function UpdatesPage() {
                           rel="noreferrer"
                           title={isScreenMedia ? "Open watch link" : "Open tracker"}
                         >
-                          <ExternalLink size={14} /> {isScreenMedia ? "Watch" : "Tracker"}
+                          <ExternalLink size={14} /> Open source
                         </a>
                       )}
                     </div>
+                    <details className="update-delivery-info"><summary>Delivery details</summary><p>{telegram.label}. Last tracker check: {item.last_checked_at ? relativeTime(item.last_checked_at) : "not recorded"}.</p></details>
                   </div>
 
                   <div className="update-delta">
-                    <strong>+{formatProgress(item.unread_delta)}</strong>
+                    <strong>+{formatProgress(unread)}</strong>
                     <span>{progressUnit(item.media_type)}</span>
                   </div>
                 </article>
@@ -341,7 +339,7 @@ export default function UpdatesPage() {
             <div className="state-panel state-compact">
               <Check size={24} />
               <h2>Inbox zero.</h2>
-              <p>No stored tracker result is ahead of your manual progress. You are caught up!</p>
+              <p>You’re caught up to your latest known releases. New chapters and episodes will appear here.</p>
             </div>
           )}
         </section>
@@ -353,7 +351,7 @@ export default function UpdatesPage() {
               ? `${errors.length} ${errors.length === 1 ? "tracker needs" : "trackers need"} review`
               : "All trackers healthy"}
           </h3>
-          <p>Manhwa tracker issues never affect your manual progress.</p>
+          <p>Your logged progress stays safe, even when a tracker needs attention.</p>
           <div>
             {errors.length ? (
               errors.map((item) => (

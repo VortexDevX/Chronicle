@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookHeart } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Brand } from "@/components/Brand";
 import { useMediaStore } from "@/store/mediaStore";
 
 type ChronicleNativeBridge = {
@@ -20,6 +22,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [error, setError] = useState("");
@@ -117,121 +120,46 @@ export default function LoginPage() {
 
   return (
     <div className="auth-bg">
+      <div className="auth-story">
+        <Link href="/" aria-label="Chronicle home"><Brand /></Link>
+        <span className="section-eyebrow">Your private story journal</span>
+        <h2>Every story<br />leaves <em>a mark.</em></h2>
+        <p>Keep your place in every world.<br />Anime, manhwa, donghua, and novels—together.</p>
+      </div>
       <div className="auth-container">
-        <div className="auth-brand">
-          <BookHeart size={32} className="auth-brand-logo" style={{ color: "var(--accent)" }} />
-          <div className="auth-brand-name">CHRONICLE</div>
+        <Link className="auth-mobile-brand" href="/" aria-label="Chronicle home"><Brand /></Link>
+        <div className="auth-card-heading">
+          <span className="section-eyebrow">{isForgotPassword ? "Account recovery" : isRegister ? "A new chapter" : "Your collection awaits"}</span>
+          <h1>{isForgotPassword ? "Find your way back." : isRegister ? "Start your chronicle." : "Welcome back."}</h1>
+          <p>{isForgotPassword ? "We’ll email you a link to reset your password." : isRegister ? "A private place for the stories you watch and read." : "Pick up right where you left off."}</p>
         </div>
-        <div className="auth-subtitle">Media Tracker</div>
-
         <form className="auth-form-inner" onSubmit={handleSubmit}>
-          {!isForgotPassword ? (
-            <div className="auth-form-group">
-              <label>Username</label>
-              <div className="auth-input-wrap">
-                <input
-                  type="text"
-                  placeholder="Enter username"
-                  maxLength={30}
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
-              </div>
+          {!isForgotPassword && <div className="auth-form-group">
+            <label htmlFor="auth-username">Username</label>
+            <div className="auth-input-wrap"><input id="auth-username" name="username" autoComplete="username" type="text" placeholder="Your username" maxLength={30} minLength={isRegister ? 3 : undefined} required value={username} onChange={(e) => setUsername(e.target.value)} /></div>
+          </div>}
+          {(isRegister || isForgotPassword) && <div className="auth-form-group">
+            <label htmlFor="auth-email">Email</label>
+            <div className="auth-input-wrap"><input id="auth-email" name="email" autoComplete="email" type="email" placeholder="you@example.com" maxLength={254} required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          </div>}
+          {!isForgotPassword && <div className="auth-form-group">
+            <label htmlFor="auth-password">Password</label>
+            <div className="auth-input-wrap auth-password-wrap">
+              <input id="auth-password" name="password" autoComplete={isRegister ? "new-password" : "current-password"} type={showPassword ? "text" : "password"} placeholder={isRegister ? "At least 6 characters" : "Your password"} minLength={isRegister ? 6 : undefined} maxLength={128} required value={password} onChange={(e) => setPassword(e.target.value)} />
+              <button type="button" className="password-visibility" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
             </div>
-          ) : null}
-
-          {(isRegister || isForgotPassword) && (
-            <div className="auth-form-group">
-              <label>Email</label>
-              <div className="auth-input-wrap">
-                <input
-                  type="email"
-                  placeholder="Enter email"
-                  maxLength={254}
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-
-          {!isForgotPassword ? (
-            <div className="auth-form-group">
-              <label>Password</label>
-              <div className="auth-input-wrap">
-                <input
-                  type="password"
-                  placeholder="Enter password"
-                  maxLength={128}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {error && <div className="auth-error">{error}</div>}
-          {success && <div className="auth-success">{success}</div>}
-
-          {isForgotPassword ? (
-            <div className="auth-actions">
-              <button
-                type="button"
-                className="auth-btn btn-ghost"
-                onClick={() => {
-                  setIsForgotPassword(false);
-                  setError("");
-                  setSuccess("");
-                }}
-                disabled={loading}
-              >
-                Back
-              </button>
-              <button type="submit" className="auth-btn btn-primary" disabled={loading}>
-                {loading ? <span className="spinner" /> : null}
-                Send reset link
-              </button>
-            </div>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="auth-link"
-                onClick={() => {
-                  setIsForgotPassword(true);
-                  setIsRegister(false);
-                  setError("");
-                  setSuccess("");
-                }}
-              >
-                Forgot password?
-              </button>
-              <div className="auth-actions">
-                <button
-                  type={!isRegister ? "submit" : "button"}
-                  className={`auth-btn ${!isRegister ? "btn-primary" : "btn-ghost"}`}
-                  onClick={isRegister ? () => setIsRegister(false) : undefined}
-                  disabled={loading}
-                >
-                  {loading && !isRegister ? <span className="spinner" /> : null}
-                  Login
-                </button>
-                <button
-                  type={isRegister ? "submit" : "button"}
-                  className={`auth-btn ${isRegister ? "btn-primary" : "btn-ghost"}`}
-                  onClick={!isRegister ? () => setIsRegister(true) : undefined}
-                  disabled={loading}
-                >
-                  {loading && isRegister ? <span className="spinner" /> : null}
-                  Register
-                </button>
-              </div>
-            </>
-          )}
+          </div>}
+          {error && <div className="auth-error" role="alert">{error}</div>}
+          {success && <div className="auth-success" role="status">{success}</div>}
+          <button type="submit" className="auth-btn btn-primary auth-submit" disabled={loading}>{loading && <span className="spinner" />}{isForgotPassword ? "Send reset link" : isRegister ? "Create your library" : "Open your library"}<ArrowRight size={16} /></button>
+          {!isRegister && !isForgotPassword && <button type="button" className="auth-link" onClick={() => { setIsForgotPassword(true); setError(""); setSuccess(""); }}>Forgot password?</button>}
         </form>
+        <div className="auth-mode-switch">
+          {isForgotPassword ? <button type="button" onClick={() => { setIsForgotPassword(false); setError(""); setSuccess(""); }}>Back to sign in</button> : <>
+            <span>{isRegister ? "Already have a chronicle?" : "New here?"}</span>
+            <button type="button" disabled={loading} onClick={() => { setIsRegister((mode) => !mode); setError(""); setSuccess(""); }}>{isRegister ? "Sign in" : "Create a library"}</button>
+          </>}
+        </div>
       </div>
     </div>
   );

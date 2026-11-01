@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { Brand } from "@/components/Brand";
 import Link from "next/link";
 import { ArrowRight, Smartphone } from "lucide-react";
 
@@ -82,16 +82,7 @@ export function MarketingHeader({ isAuthenticated }: { isAuthenticated: boolean 
     <header className="marketing-header">
       <div className="marketing-container marketing-header-inner">
         <Link className="marketing-brand" href="/" aria-label="Chronicle X home">
-          <Image
-            src="/favicon.png"
-            alt=""
-            width={36}
-            height={36}
-            priority
-          />
-          <span>
-            Chronicle <strong>X</strong>
-          </span>
+          <Brand />
         </Link>
 
         <nav className="marketing-nav" aria-label="Public navigation">
@@ -117,7 +108,7 @@ export function MarketingFooter() {
     <footer className="marketing-footer simple-footer">
       <div className="marketing-container simple-footer-inner">
         <Link className="marketing-brand" href="/">
-          Chronicle <strong>X</strong>
+          <Brand />
         </Link>
         <p>Track what you watch and read. Chronicle never hosts the media itself.</p>
         <div className="simple-footer-links">

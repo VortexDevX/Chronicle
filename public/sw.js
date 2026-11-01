@@ -1,12 +1,15 @@
 // Chronicle X – Service Worker
 // Network-first for pages and code, cache-first for images and fonts
 
-const CACHE_NAME = "chronicle-v3";
+const CACHE_NAME = "chronicle-v4-catalogue";
 
 // App shell assets to pre-cache on install
 const APP_SHELL = [
   "/icon.png",
   "/favicon.png",
+  "/brand/chronicle-mark.png",
+  "/icon-maskable.png",
+  "/apple-touch-icon.png",
 ];
 
 // ── Install: pre-cache app shell ──────────────────────────

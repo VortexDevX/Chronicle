@@ -2,7 +2,7 @@
 
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
-import { ArchiveX, Plus } from "lucide-react";
+import { ArchiveX } from "lucide-react";
 import { useEffect, useCallback, useState } from "react";
 import { loadCoverCache } from "@/store/coverCache";
 import { MediaItem } from "@/types/media";
@@ -105,6 +105,7 @@ export default function DroppedyardPage() {
 
   return (
     <>
+      <div className="page-intro"><div><span className="section-eyebrow">The droppedyard</span><h2>Some stories can wait.</h2></div><p>Put it down. Keep your place.<br />Come back when you’re ready.</p></div>
       <div className="controls" style={{ marginBottom: "24px" }}>
         <div className="droppedyard-toolbar">
           <div style={{ display: "flex", gap: "12px" }}>
@@ -149,9 +150,6 @@ export default function DroppedyardPage() {
         </div>
       )}
 
-      <button className="btn-fab" aria-label="Add Entry" onClick={() => openModal(null)}>
-        <Plus size={28} strokeWidth={3} />
-      </button>
     </>
   );
 }

@@ -19,6 +19,7 @@ type AnalyticsData = {
   avgRating: number;
   ratedCount: number;
   totalProgress: number;
+  progressByType: Record<string, number>;
   completionRate: number;
   recentItems: MediaItem[];
   topRated: MediaItem[];
@@ -114,7 +115,7 @@ export default function AnalyticsPage() {
       <div className="analytics-page-header">
         <div>
           <span className="analytics-eyebrow">Collection pulse</span>
-          <h2>Analytics</h2>
+          <h2>Your collection, in perspective.</h2>
         </div>
         <span className="analytics-page-summary">
           {data.total} entries · {data.ratedCount} rated · {data.completionRate.toFixed(0)}% complete
@@ -159,8 +160,9 @@ export default function AnalyticsPage() {
             </div>
             <span className="analytics-hero-kicker">Progress</span>
           </div>
-          <span className="analytics-hero-value">{data.totalProgress.toLocaleString()}</span>
-          <span className="analytics-hero-label">Total Episodes / Chapters</span>
+          <span className="analytics-hero-value analytics-progress-value">{((data.progressByType?.Anime || 0) + (data.progressByType?.Donghua || 0)).toLocaleString(undefined, { maximumFractionDigits: 10 })}</span>
+          <span className="analytics-hero-label">Episodes logged</span>
+          <span className="analytics-hero-label analytics-reading-total">{((data.progressByType?.Manhwa || 0) + (data.progressByType?.["Light Novel"] || 0)).toLocaleString(undefined, { maximumFractionDigits: 10 })} chapters logged</span>
         </div>
       </div>
 

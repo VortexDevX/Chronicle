@@ -79,15 +79,17 @@ function CronRunCard({ item }: { item: CronHistoryItem }) {
       </div>
 
       {item.updates.length > 0 && (
-        <div className={styles.details}>
-          <span>Updates found</span>
+        <details className={styles.runDetails}>
+          <summary>View {item.updates.length} release {item.updates.length === 1 ? "update" : "updates"}</summary>
+          <div className={styles.details}>
           {item.updates.map((update) => (
             <div key={`${item._id}-${update.media_id}`}>
               <strong title={update.title}>{update.title}</strong>
               <small>{update.media_type} · {update.current} → {update.latest}</small>
             </div>
           ))}
-        </div>
+          </div>
+        </details>
       )}
 
       {item.tracker_errors.length > 0 && (
@@ -153,7 +155,7 @@ export default function CronHistoryPage() {
         <div className={styles.heroIcon}><History size={21} /></div>
         <div>
           <span>Automation health</span>
-          <h2>Recent cron runs</h2>
+          <h2>Behind your updates.</h2>
           <p>Only your tracker results appear here. Logs expire after {payload?.retention_days || 30} days.</p>
         </div>
         <button onClick={() => { setLoading(true); loadHistory(); }} disabled={loading}>

@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { AlertTriangle, Check, Info, X } from "lucide-react";
+import { Dialog } from "@/components/Dialog";
 
 type ToastTone = "success" | "error" | "info";
 type Toast = { id: number; message: string; tone: ToastTone };
@@ -35,7 +36,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   const toast = useCallback((message: string, tone: ToastTone = "info") => {
     const id = nextId.current++;
     setToasts((current) => [...current, { id, message, tone }].slice(-4));
-    window.setTimeout(
+    if (tone !== "error") window.setTimeout(
       () => setToasts((current) => current.filter((item) => item.id !== id)),
       4200,
     );
@@ -87,16 +88,9 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
         })}
       </div>
       {confirmation && (
-        <div
-          className="modal-overlay product-confirm-backdrop"
-          onMouseDown={() => closeConfirmation(false)}
-        >
+        <Dialog labelledBy="confirm-title" onClose={() => closeConfirmation(false)} className="product-confirm-dialog" role="alertdialog">
           <section
             className="product-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="confirm-title"
-            onMouseDown={(event) => event.stopPropagation()}
           >
             <span className="product-confirm-icon">
               <AlertTriangle size={21} />
@@ -104,19 +98,18 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
             <h2 id="confirm-title">{confirmation.title}</h2>
             <p>{confirmation.message}</p>
             <div>
-              <button className="btn-ghost" onClick={() => closeConfirmation(false)}>
+              <button className="btn-ghost" data-dialog-close>
                 Cancel
               </button>
               <button
                 className={confirmation.danger ? "btn-danger" : "btn-primary"}
                 onClick={() => closeConfirmation(true)}
-                autoFocus
               >
                 {confirmation.confirmLabel || "Confirm"}
               </button>
             </div>
           </section>
-        </div>
+        </Dialog>
       )}
     </FeedbackContext.Provider>
   );

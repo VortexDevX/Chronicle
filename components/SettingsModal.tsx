@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Dialog } from "@/components/Dialog";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -91,6 +92,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const { toast, confirm } = useFeedback();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAdvancedPush, setShowAdvancedPush] = useState(false);
+  const [activeSection, setActiveSection] = useState("account");
+  const [dirty, setDirty] = useState(false);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -130,6 +133,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setDirty(true);
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     if (name === "push_notifications_enabled" && checked) {
@@ -176,6 +180,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         }));
       }
       setSuccess("Settings saved successfully!");
+      setDirty(false);
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -317,33 +322,15 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     }
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !saving) {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [saving, onClose]);
-
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !saving) {
-      onClose();
-    }
-  };
-
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick} role="presentation">
+    <Dialog labelledBy="settings-modal-title" onClose={onClose} busy={saving || Boolean(dataAction)}
+      beforeClose={() => !dirty || confirm({ title: "Leave without saving?", message: "Your settings changes have not been saved.", confirmLabel: "Discard changes", danger: true })}>
       <div
         className="modal settings-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-modal-title"
       >
         <button
           className="modal-close"
-          onClick={onClose}
+          data-dialog-close
           aria-label="Close settings"
           title="Close (Esc)"
         >
@@ -368,9 +355,17 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </div>
         ) : (
           <form className="modal-form" onSubmit={handleSubmit}>
+            <div className="settings-tabs" role="tablist" aria-label="Settings sections" onKeyDown={(event) => {
+              const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+              const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
+              const next = event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+              if (next >= 0) { event.preventDefault(); tabs[next].focus(); tabs[next].click(); }
+            }}>
+              {[["account", "Account"], ["notifications", "Notifications"], ["devices", "Devices"], ["data", "Data"]].map(([id, title]) => <button key={id} id={`settings-tab-${id}`} type="button" role="tab" aria-selected={activeSection === id} aria-controls={`settings-panel-${id}`} tabIndex={activeSection === id ? 0 : -1} onClick={() => setActiveSection(id)}>{title}</button>)}
+            </div>
             <div className="modal-scroll settings-modal-body">
               {/* Account Section */}
-              <div className="settings-section">
+              <div className="settings-section" hidden={activeSection !== "account"} id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account">
                 <div className="modal-section-header">
                   <User size={15} />
                   <span>Account &amp; Security</span>
@@ -417,7 +412,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               </div>
 
               {/* Notifications Section */}
-              <div className="settings-section">
+              <div className="settings-section" hidden={activeSection !== "notifications"} id="settings-panel-notifications" role="tabpanel" aria-labelledby="settings-tab-notifications">
                 <div className="modal-section-header">
                   <Bell size={15} />
                   <span>Notifications &amp; Alerts</span>
@@ -494,7 +489,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               </div>
 
               {/* Mobile App Section */}
-              <div className="settings-section">
+              <div className="settings-section" hidden={activeSection !== "devices"} id="settings-panel-devices" role="tabpanel" aria-labelledby="settings-tab-devices">
                 <div className="modal-section-header">
                   <Smartphone size={15} />
                   <span>Mobile App</span>
@@ -525,7 +520,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               </div>
 
               {/* Data & Backup Section */}
-              <div className="settings-section">
+              <div className="settings-section" hidden={activeSection !== "data"} id="settings-panel-data" role="tabpanel" aria-labelledby="settings-tab-data">
                 <div className="modal-section-header">
                   <Database size={15} />
                   <span>Data &amp; Backup</span>
@@ -591,7 +586,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <button
                 type="button"
                 className="btn-ghost settings-cancel-btn"
-                onClick={onClose}
+                data-dialog-close
                 disabled={saving}
               >
                 Close
@@ -603,7 +598,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </form>
         )}
       </div>
-    </div>
+    </Dialog>
   );
 }
 

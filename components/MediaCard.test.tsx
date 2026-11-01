@@ -26,8 +26,8 @@ describe("MediaCard tracker actions", () => {
       />,
     );
 
-    expect(markup).toContain('tabindex="-1"');
-    expect(markup).toContain('class="media-card-poster-actions"');
+    expect(markup).toContain(`aria-label="View details for ${baseMedia.title}"`);
+    expect(markup).toContain('class="story-actions"');
     expect(markup).toContain('href="https://tracker.example.com/series/estate"');
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain('rel="noreferrer"');

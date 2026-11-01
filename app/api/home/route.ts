@@ -21,22 +21,21 @@ export async function GET(request: NextRequest) {
       status: { $in: ["Active", "Watching/Reading"] },
     };
 
-    const [activeItems, featuredItems, optionalResults] = await Promise.all([
-      MediaItem.find(activeFilter).sort({ last_updated: -1 }).limit(6).lean(),
-      MediaItem.aggregate([
-        { $match: activeFilter },
-        { $sample: { size: 1 } },
-      ]),
+    const [activeItems, optionalResults] = await Promise.all([
+      MediaItem.find(activeFilter).sort({ last_updated: -1, _id: 1 }).limit(6).lean(),
       Promise.allSettled([
         getUpdateFeed(userObjectId, 4),
         getActivitySnapshot(userObjectId, 6),
+        MediaItem.aggregate([{ $match: activeFilter }, { $sample: { size: 12 } }]),
       ]),
     ]);
 
-    const [updatesResult, activityResult] = optionalResults;
+    const [updatesResult, activityResult, featuredResult] = optionalResults;
     const continueItems = activeItems;
+    const featuredItems = featuredResult.status === "fulfilled" ? featuredResult.value : [];
     const featured = featuredItems[0] ?? continueItems[0] ?? null;
     const partialFailures: string[] = [];
+    if (featuredResult.status === "rejected") partialFailures.push("featured rotation");
 
     const updates =
       updatesResult.status === "fulfilled"
@@ -49,6 +48,7 @@ export async function GET(request: NextRequest) {
 
     return jsonOk({
       featured,
+      featured_items: featuredItems,
       continue_items: continueItems,
       upcoming_releases: [],
       updates: updates.items,

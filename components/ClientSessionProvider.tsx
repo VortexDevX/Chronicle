@@ -11,6 +11,8 @@ import { MediaModal } from "./MediaModal";
 import { SettingsModal } from "./SettingsModal";
 import { PageLoader } from "./PageLoader";
 import { FeedbackProvider } from "./FeedbackProvider";
+import { MediaDetails } from "./MediaDetails";
+import { Dialog } from "./Dialog";
 
 export default function ClientSessionProvider({ children }: { children: React.ReactNode }) {
   const { authStatus } = useAuth();
@@ -24,6 +26,8 @@ export default function ClientSessionProvider({ children }: { children: React.Re
   const refreshMedia = useMediaStore((state) => state.refreshMedia);
   const settingsOpen = useMediaStore((state) => state.settingsOpen);
   const closeSettings = useMediaStore((state) => state.closeSettings);
+  const detailsMedia = useMediaStore((state) => state.detailsMedia);
+  const closeDetails = useMediaStore((state) => state.closeDetails);
 
   useEffect(() => {
     try {
@@ -69,21 +73,13 @@ export default function ClientSessionProvider({ children }: { children: React.Re
 
   return (
     <FeedbackProvider>
+      <a className="skip-to-content" href="#main-content">Skip to content</a>
       <div className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-        {mobileOpen && (
-          <div
-            id="sidebar-overlay"
-            className="sidebar-overlay active"
-            onClick={() => setMobileOpen(false)}
-          />
-        )}
-        <Sidebar
-          mobileOpen={mobileOpen}
-          setMobileOpen={setMobileOpen}
-          collapsed={sidebarCollapsed}
-        />
+        {mobileOpen ? <Dialog labelledBy="navigation-title" onClose={() => setMobileOpen(false)} className="navigation-dialog">
+          <Sidebar mobileOpen setMobileOpen={setMobileOpen} collapsed={false} />
+        </Dialog> : <Sidebar mobileOpen={false} setMobileOpen={setMobileOpen} collapsed={sidebarCollapsed} />}
 
-        <main className="main">
+        <main className="main" id="main-content" tabIndex={-1}>
           <TopBar
             setMobileOpen={setMobileOpen}
             sidebarCollapsed={sidebarCollapsed}
@@ -102,6 +98,7 @@ export default function ClientSessionProvider({ children }: { children: React.Re
           />
         )}
         {settingsOpen && <SettingsModal onClose={closeSettings} />}
+        {detailsMedia && <MediaDetails key={detailsMedia._id} media={detailsMedia} onClose={closeDetails} />}
       </div>
     </FeedbackProvider>
   );

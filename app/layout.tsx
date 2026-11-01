@@ -1,10 +1,17 @@
 import "./globals.css";
 import "./marketing.css";
-import type { Metadata } from "next";
+import "./catalogue.css";
+import { Barlow_Condensed, IBM_Plex_Sans } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import { absoluteUrl, siteConfig } from "@/lib/site";
 
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
 const bingVerification = process.env.BING_SITE_VERIFICATION?.trim();
+
+const interfaceFont = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-interface", display: "swap" });
+const displayFont = Barlow_Condensed({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-catalogue", display: "swap" });
+
+export const viewport: Viewport = { themeColor: "#0d141a", colorScheme: "dark" };
 
 export const metadata: Metadata = {
     metadataBase: new URL(siteConfig.url),
@@ -20,8 +27,8 @@ export const metadata: Metadata = {
     category: "media tracking",
     icons: {
       icon: "/icon.png",
-      shortcut: "/favicon.png",
-      apple: "/icon.png",
+      shortcut: "/favicon.ico",
+      apple: "/apple-touch-icon.png",
     },
     openGraph: {
       type: "website",
@@ -84,6 +91,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      className={`${interfaceFont.variable} ${displayFont.variable}`}
       suppressHydrationWarning
     >
       <body>

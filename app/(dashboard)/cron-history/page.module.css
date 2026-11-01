@@ -8,21 +8,28 @@
   overflow-x: clip;
 }
 
+.runDetails { margin-top: 14px; border-top: 1px solid var(--border); }
+.runDetails summary { display: flex; align-items: center; min-height: 44px; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+.runDetails summary::after { content: "+"; margin-left: auto; color: var(--accent); }
+.runDetails[open] summary::after { content: "−"; }
+.runDetails .details { border: 0; margin-top: 0; padding-top: 0; }
+
 .hero {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   border: 1px solid var(--border);
-  border-radius: 17px;
-  padding: 20px;
-  background: linear-gradient(135deg, rgba(244, 63, 94, 0.08), #111318 55%);
+  border-radius: 0;
+  border-width: 0 0 1px;
+  padding: 0 0 28px;
+  background: transparent;
   min-width: 0;
   max-width: 100%;
 }
 
 .heroIcon {
-  display: flex;
+  display: none;
   width: 42px;
   height: 42px;
   align-items: center;
@@ -39,8 +46,8 @@
 
 .hero > div:nth-child(2) > span,
 .details > span {
-  color: #747b88;
-  font-size: 0.58rem;
+  color: var(--text-muted);
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -48,14 +55,14 @@
 
 .hero h2 {
   margin-top: 2px;
-  font-size: 1.1rem;
+  font-size: clamp(36px, 3.4vw, 48px);
   word-break: break-word;
 }
 
 .hero p {
   margin-top: 4px;
   color: var(--text-secondary);
-  font-size: 0.68rem;
+  font-size: 13px;
   word-break: break-word;
 }
 
@@ -66,18 +73,18 @@
   justify-content: center;
   gap: 7px;
   border: 1px solid var(--border-strong);
-  border-radius: 10px;
+  border-radius: 4px;
   padding: 0 14px;
-  background: #171a20;
-  color: #eae9e5;
+  background: transparent;
+  color: var(--text-primary);
   cursor: pointer;
   flex-shrink: 0;
   transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .hero > button:hover:not(:disabled) {
-  background: #21252d;
-  border-color: rgba(244, 63, 94, 0.4);
+  background: var(--bg-raised);
+  border-color: var(--accent);
 }
 
 .runList {
@@ -89,17 +96,17 @@
 
 .runCard {
   border: 1px solid var(--border);
-  border-left: 3px solid #72d9b3;
-  border-radius: 14px;
+  border-left: 2px solid var(--green);
+  border-radius: 4px;
   padding: 16px 18px;
-  background: #111318;
+  background: transparent;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
 }
 
 .runCard[data-status="partial"] {
-  border-left-color: #f2b866;
+  border-left-color: var(--amber);
 }
 
 .runCard > header {
@@ -121,19 +128,19 @@
 }
 
 .runStatus {
-  color: #72d9b3;
+  color: var(--green);
   font-size: 0.69rem;
   font-weight: 750;
   flex-shrink: 0;
 }
 
 .runCard[data-status="partial"] .runStatus {
-  color: #f2b866;
+  color: var(--amber);
 }
 
 .runCard time {
-  color: #747b88;
-  font-size: 0.61rem;
+  color: var(--text-muted);
+  font-size: 12px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -153,9 +160,9 @@
   min-width: 0;
   flex-direction: column;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 3px;
   padding: 9px 11px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--bg-raised);
   overflow: hidden;
 }
 
@@ -167,8 +174,8 @@
 }
 
 .metrics small {
-  color: #747b88;
-  font-size: 0.57rem;
+  color: var(--text-muted);
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -185,11 +192,11 @@
 .delivery {
   min-height: 30px;
   max-width: 100%;
-  border-radius: 999px;
+  border-radius: 3px;
   padding: 0 10px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #8c939f;
-  font-size: 0.58rem;
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -197,14 +204,14 @@
 
 .delivery[data-state="sent"] {
   background: rgba(114, 217, 179, 0.08);
-  color: #72d9b3;
+  color: var(--green);
 }
 
 .delivery[data-state="failed"],
 .delivery[data-state="partial"],
 .delivery[data-state="deferred"] {
   background: rgba(242, 184, 102, 0.08);
-  color: #f2b866;
+  color: var(--amber);
 }
 
 .details {
@@ -224,7 +231,7 @@
   gap: 12px;
   border-radius: 8px;
   padding: 7px 9px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--bg-base);
   min-width: 0;
   max-width: 100%;
 }
@@ -233,7 +240,7 @@
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  font-size: 0.65rem;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -241,8 +248,8 @@
 .details small {
   flex-shrink: 0;
   min-width: 0;
-  color: #747b88;
-  font-size: 0.58rem;
+  color: var(--text-muted);
+  font-size: 12px;
   text-align: right;
   overflow-wrap: anywhere;
 }
@@ -254,7 +261,7 @@
 .errors small {
   max-width: 65%;
   flex-shrink: 1;
-  color: #d59386;
+  color: var(--red);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -305,7 +312,7 @@
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: break-word;
-    font-size: 0.68rem;
+    font-size: 13px;
     line-height: 1.35;
   }
 
@@ -316,7 +323,7 @@
     text-align: left;
     overflow-wrap: anywhere;
     word-break: break-word;
-    font-size: 0.60rem;
+    font-size: 12px;
     line-height: 1.35;
   }
 }
@@ -327,11 +334,11 @@
   }
 
   .hero h2 {
-    font-size: 1rem;
+    font-size: 34px;
   }
 
   .hero p {
-    font-size: 0.64rem;
+    font-size: 13px;
   }
 
   .runCard {

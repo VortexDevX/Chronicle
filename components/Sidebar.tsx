@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { Brand } from "./Brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -90,16 +90,10 @@ export function Sidebar({
       aria-label="Sidebar navigation"
     >
       <div className="rail-brand">
-        <Link href="/home" className="rail-brand-link" onClick={() => setMobileOpen(false)}>
-          <Image
-            src="/favicon.png"
-            alt="Chronicle"
-            width={28}
-            height={28}
-            priority
-          />
-          <span className="rail-brand-text">Chronicle</span>
+        <Link href="/home" className="rail-brand-link" aria-label="Chronicle home" onClick={() => setMobileOpen(false)}>
+          <Brand compact={collapsed && !mobileOpen} />
         </Link>
+        <span id="navigation-title" className="sr-only">Your Chronicle navigation</span>
 
         <button
           className="rail-close mobile-only"

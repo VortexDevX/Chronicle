@@ -6,6 +6,7 @@ import {
   BellRing,
   BookOpen,
   Home,
+  Layers3,
   Menu,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ export function MobileBottomNav({
     { path: "/home", label: "Home", icon: Home },
     { path: "/library", label: "Library", icon: BookOpen },
     { path: "/updates", label: "Updates", icon: BellRing },
+    { path: "/shelves", label: "Shelves", icon: Layers3 },
   ];
 
   return (

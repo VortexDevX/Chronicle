@@ -26,6 +26,7 @@ export type AnalyticsAggregationResult = {
   }[];
   byStatus?: CountBucket[];
   byType?: CountBucket[];
+  progressByType?: { _id: string; progress: number }[];
   recentItems?: AnalyticsItem[];
   topRated?: AnalyticsItem[];
 };
@@ -57,6 +58,7 @@ export function buildAnalyticsPipeline(
         ],
         byStatus: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
         byType: [{ $group: { _id: "$media_type", count: { $sum: 1 } } }],
+        progressByType: [{ $group: { _id: "$media_type", progress: { $sum: { $ifNull: ["$progress_current", 0] } } } }],
         recentItems: [
           { $sort: { last_updated: -1 } },
           { $limit: 5 },
@@ -116,6 +118,7 @@ export function normalizeAnalyticsResult(result: AnalyticsAggregationResult) {
     avgRating: totals.avgRating || 0,
     ratedCount: totals.ratedCount || 0,
     totalProgress: totals.totalProgress || 0,
+    progressByType: Object.fromEntries((result.progressByType || []).map((bucket) => [bucket._id, bucket.progress])),
     completionRate: total > 0 ? (completed / total) * 100 : 0,
     recentItems: result.recentItems || [],
     topRated: result.topRated || [],

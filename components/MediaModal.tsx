@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Dialog } from "@/components/Dialog";
 import { MediaItem, Shelf } from "@/types/media";
 import type { UnifiedSearchResult } from "@/app/api/search/unified/route";
 import {
@@ -79,14 +80,15 @@ function normalizeNumericFormFields(data: MediaFormData): Partial<MediaItem> {
 }
 
 export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
+  const [dirty, setDirty] = useState(false);
   const [formData, setFormData] = useState<MediaFormData>({
     title: "",
     media_type: "Anime",
     status: "Active",
     progress_current: 0,
     progress_total: 0,
-    rating: 0,
+    rating: "",
     notes: "",
     tracker_url: "",
     watch_url: "",
@@ -146,7 +148,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         status: "Active",
         progress_current: 0,
         progress_total: 0,
-        rating: 0,
+        rating: "",
         notes: "",
         tracker_url: "",
         watch_url: "",
@@ -269,6 +271,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
   };
 
   const applySuggestion = (s: UnifiedSearchResult) => {
+    setDirty(true);
     setFormData((prev) => ({
       ...prev,
       title: s.title,
@@ -305,6 +308,8 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
       const selected = titleSuggestions[selectedSuggestionIndex];
       if (selected) applySuggestion(selected);
     } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
       setShowTitleDropdown(false);
     }
   };
@@ -470,35 +475,17 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
     }
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !loading) {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [loading, onClose]);
-
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !loading) {
-      onClose();
-    }
-  };
-
   const isExisting = Boolean(media && media._id);
 
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick} role="presentation">
+    <Dialog labelledBy="entry-modal-title" onClose={onClose} busy={loading || testingTracker}
+      beforeClose={() => !dirty || confirm({ title: "Leave without saving?", message: "Your entry edits have not been saved.", confirmLabel: "Discard edits", danger: true })}>
       <div
         className="modal entry-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="entry-modal-title"
       >
         <button
           className="modal-close"
-          onClick={onClose}
+          data-dialog-close
           aria-label="Close entry form"
           title="Close (esc)"
         >
@@ -508,7 +495,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
           {isExisting ? "Edit Entry" : "Add Entry"}
         </div>
 
-        <form className="modal-form" onSubmit={handleSubmit}>
+        <form className="modal-form" onSubmit={handleSubmit} onChange={() => setDirty(true)}>
           <div className="modal-scroll">
             {/* Essentials Section */}
             <div className="modal-section-header">
@@ -669,11 +656,11 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                   name="progress_total"
                   value={numberInputValue(formData.progress_total)}
                   onChange={handleChange}
-                  placeholder="0 if ongoing"
+                  placeholder="Leave at 0 if not known"
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="media-rating">Rating (0-10)</label>
+                <label htmlFor="media-rating">Rating (optional, 0–10)</label>
                 <input
                   id="media-rating"
                   type="number"
@@ -684,7 +671,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                   name="rating"
                   value={numberInputValue(formData.rating)}
                   onChange={handleChange}
-                  placeholder="0"
+                  placeholder="Unrated"
                 />
               </div>
             </div>
@@ -695,7 +682,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
                 <div className="form-group">
                   <label htmlFor="media-tracker-url">
                     <LinkIcon size={13} style={{ display: "inline", marginRight: 4 }} />
-                    Tracker URL (Supported Scrapers)
+                    Release tracker URL
                   </label>
                   <input
                     id="media-tracker-url"
@@ -973,7 +960,7 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
             <button
               type="button"
               className="btn-ghost"
-              onClick={onClose}
+              data-dialog-close
               disabled={loading}
             >
               Cancel
@@ -984,6 +971,6 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
           </div>
         </form>
       </div>
-    </div>
+    </Dialog>
   );
 }

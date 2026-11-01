@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "icons:export": "node scripts/export-brand-icons.mjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -33,6 +34,7 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.4",
+    "sharp": "^0.35.4",
     "tsx": "^4.21.0",
     "typescript": "^5.4.5",
     "vitest": "^4.1.5"

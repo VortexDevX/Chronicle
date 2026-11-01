@@ -23,6 +23,7 @@ import { useFeedback } from "@/components/FeedbackProvider";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
 import { MediaViewMode, MediaViewToggle } from "@/components/MediaViewToggle";
 import { MediaArtwork } from "@/components/MediaArtwork";
+import { Dialog } from "@/components/Dialog";
 
 const SHELF_VIEW_KEY = "chronicle:shelf-view:v1";
 
@@ -391,7 +392,7 @@ export default function ShelvesPage() {
               <Search size={15} className="shelf-search-icon" />
               <input
                 type="text"
-                placeholder="Filter titles in shelf…"
+                placeholder="Filter titles in shelf…" aria-label="Filter titles in this shelf"
                 value={shelfSearch}
                 onChange={(e) => setShelfSearch(e.target.value)}
                 className="shelf-search-input"
@@ -478,17 +479,14 @@ export default function ShelvesPage() {
 
         {/* Quick Add Titles Modal */}
         {showAddTitlesModal && (
-          <div
-            className="modal-overlay"
-            onClick={() => setShowAddTitlesModal(false)}
-          >
+          <Dialog labelledBy="shelf-titles-title" onClose={() => setShowAddTitlesModal(false)} busy={savingTitles}>
             <div
               className="modal shelf-titles-modal"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="shelf-modal-header">
                 <div>
-                  <h3 className="shelf-modal-title">
+                  <h3 className="shelf-modal-title" id="shelf-titles-title">
                     Manage Titles in &ldquo;{activeShelf.name}&rdquo;
                   </h3>
                   <p className="shelf-modal-subtitle">
@@ -497,7 +495,7 @@ export default function ShelvesPage() {
                 </div>
                 <button
                   className="modal-close-btn"
-                  onClick={() => setShowAddTitlesModal(false)}
+                  data-dialog-close
                 >
                   <X size={18} />
                 </button>
@@ -507,7 +505,7 @@ export default function ShelvesPage() {
                 <Search size={15} />
                 <input
                   type="text"
-                  placeholder="Search library titles…"
+                  placeholder="Search library titles…" aria-label="Search library titles"
                   value={librarySearch}
                   onChange={(e) => setLibrarySearch(e.target.value)}
                   autoFocus
@@ -523,8 +521,9 @@ export default function ShelvesPage() {
                   filteredLibraryItems.map((item) => {
                     const isSelected = selectedShelfMediaIds.has(item._id);
                     return (
-                      <div
+                      <button type="button"
                         key={item._id}
+                        aria-pressed={isSelected}
                         className={`shelf-picker-item ${isSelected ? "is-selected" : ""}`}
                         onClick={() => toggleTitleSelection(item._id)}
                       >
@@ -540,7 +539,7 @@ export default function ShelvesPage() {
                         <div className="shelf-picker-checkbox">
                           {isSelected ? <Check size={14} strokeWidth={3} /> : null}
                         </div>
-                      </div>
+                      </button>
                     );
                   })
                 )}
@@ -554,7 +553,7 @@ export default function ShelvesPage() {
                   <button
                     type="button"
                     className="btn-ghost"
-                    onClick={() => setShowAddTitlesModal(false)}
+                    data-dialog-close
                   >
                     Cancel
                   </button>
@@ -569,7 +568,7 @@ export default function ShelvesPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </Dialog>
         )}
       </div>
     );
@@ -586,7 +585,7 @@ export default function ShelvesPage() {
           <div className="shelves-eyebrow">
             <Sparkles size={15} /> Curated Collections
           </div>
-          <h1 className="shelves-hero-title">Your Custom Shelves</h1>
+          <h1 className="shelves-hero-title">Stories, collected.</h1>
           <p className="shelves-hero-subtitle">
             Organize stories into custom collections, mood-based playlists, and
             thematic watchlists.
@@ -621,7 +620,7 @@ export default function ShelvesPage() {
           <Search size={16} />
           <input
             type="text"
-            placeholder="Search shelves…"
+            placeholder="Search shelves…" aria-label="Search shelves"
             value={overviewSearch}
             onChange={(e) => setOverviewSearch(e.target.value)}
           />
@@ -656,8 +655,7 @@ export default function ShelvesPage() {
           <FolderPlus size={58} strokeWidth={1.2} color="var(--accent)" />
           <h2>No shelves created yet</h2>
           <p>
-            Create bespoke collections to categorize your favorite anime, manhwa,
-            and manga.
+            Bring your anime, manhwa, donghua, and novels together in collections.
           </p>
           <button
             className="btn-primary"
@@ -685,7 +683,7 @@ export default function ShelvesPage() {
                 className="shelf-gallery-card"
                 onClick={() => setActiveShelf(shelf)}
               >
-                {/* 3D Stacked Cover Artwork Showcase */}
+                {/* Actual titles from this collection. */}
                 <div className="shelf-artwork-stage">
                   {previews.length > 0 ? (
                     <div className="shelf-cover-stack">
@@ -753,9 +751,9 @@ export default function ShelvesPage() {
                   </p>
 
                   <div className="shelf-gallery-footer">
-                    <span className="shelf-explore-link">
-                      Open Collection &rarr;
-                    </span>
+                    <button className="shelf-explore-link" onClick={() => setActiveShelf(shelf)} aria-label={`Open collection ${shelf.name}`}>
+                      Open collection &rarr;
+                    </button>
                   </div>
                 </div>
               </div>
@@ -766,17 +764,14 @@ export default function ShelvesPage() {
 
       {/* Create / Edit Shelf Modal */}
       {showCreateModal && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowCreateModal(false)}
-        >
+        <Dialog labelledBy="shelf-create-title" onClose={() => setShowCreateModal(false)} busy={formSubmitting}>
           <div
             className="modal shelf-create-dialog"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="shelf-modal-header">
               <div>
-                <h3 className="shelf-modal-title">
+                <h3 className="shelf-modal-title" id="shelf-create-title">
                   {editingShelf ? "Edit Shelf" : "Create New Shelf"}
                 </h3>
                 <p className="shelf-modal-subtitle">
@@ -787,7 +782,7 @@ export default function ShelvesPage() {
               </div>
               <button
                 className="modal-close-btn"
-                onClick={() => setShowCreateModal(false)}
+                data-dialog-close
               >
                 <X size={18} />
               </button>
@@ -824,7 +819,7 @@ export default function ShelvesPage() {
                 <button
                   type="button"
                   className="btn-ghost"
-                  onClick={() => setShowCreateModal(false)}
+                  data-dialog-close
                 >
                   Cancel
                 </button>
@@ -844,7 +839,7 @@ export default function ShelvesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

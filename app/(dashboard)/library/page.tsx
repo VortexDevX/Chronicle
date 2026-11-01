@@ -2,7 +2,7 @@
 
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
-import { Search, Plus, Book, Grid2X2, List, RefreshCw, ImageOff, ChevronDown, ChevronUp, CheckSquare, Trash2 } from "lucide-react";
+import { Search, Book, Grid2X2, List, RefreshCw, ImageOff, ChevronDown, ChevronUp, CheckSquare, Trash2, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadCoverCache } from "@/store/coverCache";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
@@ -15,6 +15,7 @@ type MissingMangaDexEntry = { _id: string; title: string };
 
 export default function LibraryPage() {
   const media = useMediaStore((state) => state.media);
+  const total = useMediaStore((state) => state.total);
   const loading = useMediaStore((state) => state.loading);
   const loadingMore = useMediaStore((state) => state.loadingMore);
   const hasMore = useMediaStore((state) => state.hasMore);
@@ -102,7 +103,7 @@ export default function LibraryPage() {
 
   const handleIncrement = async (id: string) => {
     const item = media.find((m) => m._id === id);
-    if (!item || pendingIds.has(id)) return;
+    if (!item || pendingIds.has(id)) throw new Error("This entry cannot be updated yet. Try again.");
     setPendingIds(prev => new Set(prev).add(id));
     try {
       const nextProgress = item.progress_total > 0
@@ -117,10 +118,10 @@ export default function LibraryPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ progress_current: nextProgress }),
       });
-      toast(`${item.title} progress updated`, "success");
       fetchMedia(1, true);
     } catch (err) {
       toast(getErrorMessage(err, "Progress update failed"), "error");
+      throw err;
     }
     finally {
       setPendingIds(prev => {
@@ -219,9 +220,12 @@ export default function LibraryPage() {
 
   const searchPending = search !== debouncedSearch;
   const isRefining = (loading && media.length > 0 && !loadingMore) || searchPending;
+  const hasFilters = Boolean(search || filterType || filterStatus);
+  const resetFilters = () => { setSearch(""); setDebouncedSearch(""); setFilterType(""); setFilterStatus(""); };
 
   return (
     <>
+      <div className="page-intro library-intro"><div><span className="section-eyebrow">Your personal collection</span><h2>Library<span className="title-stop">.</span></h2></div><p>Watch. Read. Keep your place.</p></div>
       {missingMangaDex.total > 0 && (
         <aside className="cover-audit-notice" role="status">
           <div className="cover-audit-copy">
@@ -268,70 +272,46 @@ export default function LibraryPage() {
           )}
         </aside>
       )}
-      <div className="controls">
-        <div className="controls-toolbar">
+      <div className="library-toolbar">
+        <div className="catalogue-formats" role="group" aria-label="Browse by format">
+          {["", "Anime", "Manhwa", "Donghua", "Light Novel"].map((format) => <button key={format} aria-pressed={filterType === format} onClick={() => setFilterType(format)}>{format || "All formats"}</button>)}
+        </div>
+        <div className="library-search-row">
           <div className="search-wrapper" data-loading={searchPending ? "true" : "false"}>
-            <Search size={16} className="search-icon" />
-            <input type="text" placeholder="Search entries..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Search size={18} className="search-icon" />
+            <input type="search" aria-label="Search your library" placeholder="Find your next chapter…" value={search} onChange={(e) => setSearch(e.target.value)} />
             {searchPending && <span className="search-loading-dot" aria-hidden="true" />}
           </div>
-          
-          <div className="controls-filters">
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-              <option value="">All Types</option>
-              <option value="Anime">Anime</option>
-              <option value="Manhwa">Manhwa</option>
-              <option value="Donghua">Donghua</option>
-              <option value="Light Novel">Light Novel</option>
-            </select>
-            
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-              <option value="">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Planned">Planned</option>
-              <option value="On Hold">On Hold</option>
-              <option value="Completed">Completed</option>
-              <option value="Dropped">Dropped</option>
-            </select>
-            
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="last_updated">Recent Activity</option>
-              <option value="title">Alphabetical (A-Z)</option>
-              <option value="rating">Top Rated</option>
-              <option value="progress">Highest Progress</option>
-            </select>
-            <div className="view-toggle" aria-label="Library view">
-              <button
-                className={viewMode === "grid" ? "is-active" : ""}
-                onClick={() => updateViewMode("grid")}
-                aria-label="Grid view"
-              >
-                <Grid2X2 size={16} />
-              </button>
-              <button
-                className={viewMode === "list" ? "is-active" : ""}
-                onClick={() => updateViewMode("list")}
-                aria-label="List view"
-              >
-                <List size={17} />
-              </button>
+          <details className="library-filter-disclosure">
+            <summary><SlidersHorizontal size={17} /> Filters{(filterType || filterStatus) && <span className="filter-active-dot" />}</summary>
+            <div className="library-filter-panel">
+              <label>Format<select aria-label="Format" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                <option value="">All formats</option><option>Anime</option><option>Manhwa</option><option>Donghua</option><option>Light Novel</option>
+              </select></label>
+              <label>Status<select aria-label="Status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="">All statuses</option><option>Active</option><option>Planned</option><option>On Hold</option><option>Completed</option><option>Dropped</option>
+              </select></label>
+              <label>Sort by<select aria-label="Sort by" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="last_updated">Recent activity</option><option value="title">Alphabetical</option><option value="rating">Top rated</option><option value="progress">Highest progress</option>
+              </select></label>
             </div>
-            {media.length > 0 && (
-              <button
-                type="button"
-                className={`library-select-toggle ${isSelectMode ? "is-active" : ""}`}
-                onClick={() => {
-                  setIsSelectMode((prev) => !prev);
-                  setSelectedIds(new Set());
-                }}
-                aria-label={isSelectMode ? "Cancel selection" : "Select multiple entries"}
-                aria-pressed={isSelectMode}
-                title={isSelectMode ? "Cancel selection" : "Select multiple entries to delete"}
-              >
-                <CheckSquare size={16} />
-                <span className="library-select-text">{isSelectMode ? "Cancel" : "Select"}</span>
-              </button>
-            )}
+          </details>
+        </div>
+        {(filterType || filterStatus) && <div className="active-filter-chips">
+          {filterType && <button onClick={() => setFilterType("")}>{filterType}<X size={13} /><span className="sr-only">Remove format filter</span></button>}
+          {filterStatus && <button onClick={() => setFilterStatus("")}>{filterStatus}<X size={13} /><span className="sr-only">Remove status filter</span></button>}
+        </div>}
+        <div className="library-action-row">
+          <span className="collection-count" role="status">{loading && !media.length ? "Opening your collection…" : `${total} ${total === 1 ? "story" : "stories"}${hasFilters ? " found" : " in your library"}`}</span>
+          <div className="library-view-actions">
+            <div className="view-toggle" role="group" aria-label="Library view">
+              <button className={viewMode === "grid" ? "is-active" : ""} onClick={() => updateViewMode("grid")} aria-label="Grid view" aria-pressed={viewMode === "grid"}><Grid2X2 size={18} /></button>
+              <button className={viewMode === "list" ? "is-active" : ""} onClick={() => updateViewMode("list")} aria-label="List view" aria-pressed={viewMode === "list"}><List size={18} /></button>
+            </div>
+            {media.length > 0 && <button type="button" className={`library-select-toggle ${isSelectMode ? "is-active" : ""}`} onClick={() => { setIsSelectMode((prev) => !prev); setSelectedIds(new Set()); }}
+              aria-label={isSelectMode ? "Cancel selection" : "Select multiple entries"} aria-pressed={isSelectMode}>
+              <CheckSquare size={16} /><span>{isSelectMode ? "Cancel" : "Select"}</span>
+            </button>}
           </div>
         </div>
       </div>
@@ -340,14 +320,14 @@ export default function LibraryPage() {
         <div className="library-bulk-bar" role="toolbar" aria-label="Bulk actions">
           <div className="library-bulk-info">
             <span className="library-bulk-count">
-              <strong>{selectedIds.size}</strong> of {uniqueMedia.length} selected
+              <strong>{selectedIds.size}</strong> of {uniqueMedia.length} shown selected
             </span>
             <button
               type="button"
               className="btn-ghost btn-sm"
               onClick={handleSelectAllToggle}
             >
-              {selectedIds.size === uniqueMedia.length ? "Deselect all" : "Select all"}
+              {selectedIds.size === uniqueMedia.length ? "Deselect shown" : "Select shown"}
             </button>
           </div>
           <div className="library-bulk-actions">
@@ -383,10 +363,11 @@ export default function LibraryPage() {
       )}
 
       {isRefining && (
-        <div className="results-loading-strip">
+        <div className="results-loading-strip" role="status">
           <span className="spinner" /> Updating results...
         </div>
       )}
+      {loadError && media.length > 0 && <div className="partial-notice" role="alert"><span>{loadError}. Showing previous results.</span><button onClick={() => fetchMedia(1, true)}>Retry</button></div>}
 
       {loadError && media.length === 0 ? (
         <div className="state-panel state-error">
@@ -418,9 +399,9 @@ export default function LibraryPage() {
       ) : media.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><Book size={48} style={{ color: "var(--text-secondary)", opacity: 0.5 }} /></div>
-          <h3>Your chronicle is empty</h3>
-          <p>Start tracking your first anime, manhwa, or light novel.</p>
-          <button className="btn-primary" onClick={() => openModal(null)}>+ Add Your First Entry</button>
+          <h3>{hasFilters ? "No matching stories" : "Your first chapter starts here."}</h3>
+          <p>{hasFilters ? "Try another title or clear your filters." : "Add an anime, manhwa, donghua, or novel to start your collection."}</p>
+          <button className="btn-primary" onClick={hasFilters ? resetFilters : () => openModal(null)}>{hasFilters ? "Clear search & filters" : "Add your first story"}</button>
         </div>
       ) : (
         <div className={viewMode === "grid" ? "grid media-grid" : "library-media-list"}>
@@ -430,6 +411,7 @@ export default function LibraryPage() {
               m={m}
               mode={viewMode}
               priority={index < 8}
+              position={index + 1}
               onEdit={openModal}
               onIncrement={handleIncrement}
               onDelete={handleDelete}
@@ -448,9 +430,6 @@ export default function LibraryPage() {
         </div>
       )}
       
-      <button className="btn-fab" aria-label="Add Entry" onClick={() => openModal(null)}>
-        <Plus size={28} strokeWidth={3} />
-      </button>
     </>
   );
 }

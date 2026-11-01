@@ -117,7 +117,7 @@ export default async function LandingPage() {
           <div className="marketing-container simple-hero-grid">
             <div className="simple-hero-copy">
               <span className="simple-kicker">Watch. Read. Remember.</span>
-              <h1>One place for everything you watch and read.</h1>
+              <h1>Every story.<br /><em>Your place in it.</em></h1>
               <p>
                 Chronicle keeps anime, manhwa, donghua, and light novels in one
                 private list—with progress, shelves, notes, and updates when you
@@ -130,8 +130,8 @@ export default async function LandingPage() {
             <div className="simple-capability-panel" aria-label="Current Chronicle product capabilities">
               <header>
                 <div>
-                  <span>Current product</span>
-                  <strong>What Chronicle handles</strong>
+                  <span>A private collection</span>
+                  <strong>One home for your stories.</strong>
                 </div>
                 <small>Built in</small>
               </header>
@@ -158,7 +158,7 @@ export default async function LandingPage() {
                 </div>
               </dl>
               <footer>
-                <Check size={14} aria-hidden="true" /> Real capabilities from current Chronicle build
+                <Check size={14} aria-hidden="true" /> Your progress stays in your hands.
               </footer>
             </div>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   ArchiveX,
@@ -120,6 +121,7 @@ export function TopBar({
         )}
 
         <div className="topbar-context-badge">
+          <Image className="topbar-brand-mark" src="/brand/chronicle-mark.png" width={28} height={28} alt="" unoptimized />
           <div className="topbar-route-icon-box">
             <RouteIcon size={18} />
           </div>
@@ -135,10 +137,10 @@ export function TopBar({
           className="topbar-add-btn"
           onClick={() => openModal(null)}
           aria-label="Add new entry"
-          title="Add entry (N)"
+          title="Add a story"
         >
           <Plus size={18} strokeWidth={2.5} />
-          <span className="topbar-add-label">Add Entry</span>
+          <span className="topbar-add-label">Add a story</span>
         </button>
 
         <button

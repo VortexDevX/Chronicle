@@ -36,6 +36,7 @@ export interface AppState {
   modalOpen: boolean;
   modalMedia: MediaItem | null;
   settingsOpen: boolean;
+  detailsMedia: MediaItem | null;
   
   // Actions
   setAuth: (status: "loading" | "authenticated" | "unauthenticated", username?: string) => void;
@@ -54,6 +55,8 @@ export interface AppState {
   refreshMedia: () => void;
   openSettings: () => void;
   closeSettings: () => void;
+  openDetails: (media: MediaItem) => void;
+  closeDetails: () => void;
 }
 
 export const useMediaStore = create<AppState>((set, get) => ({
@@ -80,9 +83,13 @@ export const useMediaStore = create<AppState>((set, get) => ({
   modalOpen: false,
   modalMedia: null,
   settingsOpen: false,
+  detailsMedia: null,
 
   setAuth: (status, username) => {
-    set({ authStatus: status, username: username || "" });
+    set({ authStatus: status, username: username || "", ...(status === "unauthenticated" ? {
+      media: [], total: 0, hasMore: false, detailsMedia: null,
+      modalOpen: false, modalMedia: null, settingsOpen: false, selectedIds: new Set<string>(),
+    } : {}) });
   },
 
   setMedia: (media, total, hasMore, replace = false) => set((state) => {
@@ -168,4 +175,6 @@ export const useMediaStore = create<AppState>((set, get) => ({
   openSettings: () => set({ settingsOpen: true }),
   
   closeSettings: () => set({ settingsOpen: false }),
+  openDetails: (detailsMedia) => set({ detailsMedia }),
+  closeDetails: () => set({ detailsMedia: null }),
 }));

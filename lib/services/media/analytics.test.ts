@@ -19,6 +19,7 @@ describe("analytics normalization", () => {
         { _id: "Completed", count: 1 },
       ],
       byType: [{ _id: "Anime", count: 2 }],
+      progressByType: [{ _id: "Anime", progress: 12 }, { _id: "Manhwa", progress: 30.5 }],
       recentItems: [],
       topRated: [],
     });
@@ -33,5 +34,6 @@ describe("analytics normalization", () => {
       Manhwa: 0,
     });
     expect(result.completionRate).toBe(25);
+    expect(result.progressByType).toEqual({ Anime: 12, Manhwa: 30.5 });
   });
 });

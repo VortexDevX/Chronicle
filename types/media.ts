@@ -112,6 +112,7 @@ export interface UpdatesPayload {
 
 export interface HomePayload {
   featured: MediaItem | null;
+  featured_items?: MediaItem[];
   continue_items: MediaItem[];
   upcoming_releases?: MediaItem[];
   updates: UpdateFeedItem[];

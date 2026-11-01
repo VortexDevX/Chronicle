@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookHeart } from "lucide-react";
+import Link from "next/link";
+import { Brand } from "./Brand";
 
 export default function ResetPasswordForm({ token }: { token: string }) {
   const [password, setPassword] = useState("");
@@ -51,17 +52,20 @@ export default function ResetPasswordForm({ token }: { token: string }) {
     <div className="auth-bg">
       <div className="auth-container">
         <div className="auth-brand">
-          <BookHeart size={32} className="auth-brand-logo" style={{ color: "var(--accent)" }} />
-          <div className="auth-brand-name">CHRONICLE</div>
+          <Link href="/" aria-label="Chronicle home"><Brand /></Link>
         </div>
-        <div className="auth-subtitle">Reset password</div>
+        <div className="auth-card-heading"><h1>A fresh start.</h1><p>Choose a new password for your chronicle.</p></div>
+        {!token && <p className="auth-error" role="alert">This reset link is missing or expired. Return to sign in and request a new link.</p>}
 
         <form className="auth-form-inner" onSubmit={handleSubmit}>
           <div className="auth-form-group">
-            <label>New password</label>
+            <label htmlFor="new-password">New password</label>
             <div className="auth-input-wrap">
               <input
                 type="password"
+                id="new-password"
+                autoComplete="new-password"
+                minLength={6}
                 placeholder="Enter new password"
                 maxLength={128}
                 required
@@ -72,11 +76,13 @@ export default function ResetPasswordForm({ token }: { token: string }) {
           </div>
 
           <div className="auth-form-group">
-            <label>Confirm password</label>
+            <label htmlFor="confirm-password">Confirm password</label>
             <div className="auth-input-wrap">
               <input
                 type="password"
                 placeholder="Confirm new password"
+                id="confirm-password"
+                autoComplete="new-password"
                 maxLength={128}
                 required
                 value={confirmPassword}
@@ -85,8 +91,8 @@ export default function ResetPasswordForm({ token }: { token: string }) {
             </div>
           </div>
 
-          {error && <div className="auth-error">{error}</div>}
-          {success && <div className="auth-success">{success}</div>}
+          {error && <div className="auth-error" role="alert">{error}</div>}
+          {success && <div className="auth-success" role="status">{success}</div>}
 
           <div className="auth-actions">
             <button type="button" className="auth-btn btn-ghost" onClick={() => router.push("/login")}>

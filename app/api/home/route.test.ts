@@ -54,6 +54,7 @@ describe("home API", () => {
     expect(response.status).toBe(200);
     expect(body.data).toEqual({
       featured: null,
+      featured_items: [],
       continue_items: [],
       upcoming_releases: [],
       updates: [],
@@ -79,24 +80,32 @@ describe("home API", () => {
     expect(body.data.updates).toEqual([]);
   });
 
-  it("uses a sampled active entry for the hero instead of the most recently updated item", async () => {
+  it("samples the signed-in user's active library separately from the recent queue", async () => {
     mockActiveItems([
       { _id: "recent", title: "Recent", status: "Active", progress_current: 3, progress_total: 12 },
-      { _id: "sampled", title: "Sampled", status: "Active", progress_current: 8, progress_total: 12 },
+      { _id: "older", title: "Older", status: "Active", progress_current: 8, progress_total: 12 },
     ]);
-    mocks.mediaAggregate.mockResolvedValue([
-      { _id: "sampled", title: "Sampled", status: "Active", progress_current: 8, progress_total: 12 },
-    ]);
-
+    mocks.mediaAggregate.mockResolvedValue([{ _id: "sampled", title: "Sampled story", status: "Active", progress_current: 18.5 }]);
     const response = await GET(new NextRequest("https://chronicle.test/api/home"));
     const body = await response.json();
-
-    expect(body.data.featured.title).toBe("Sampled");
+    expect(body.data.featured.title).toBe("Sampled story");
+    expect(body.data.featured_items[0].progress_current).toBe(18.5);
     expect(body.data.continue_items[0].title).toBe("Recent");
-    expect(mocks.mediaAggregate).toHaveBeenCalledWith([
-      expect.objectContaining({ $match: expect.any(Object) }),
-      { $sample: { size: 1 } },
-    ]);
+    const pipeline = mocks.mediaAggregate.mock.calls[0][0];
+    expect(String(pipeline[0].$match.user_id)).toBe("507f1f77bcf86cd799439011");
+    expect(pipeline[0].$match.status).toEqual({ $in: ["Active", "Watching/Reading"] });
+    expect(pipeline[1]).toEqual({ $sample: { size: 12 } });
+  });
+
+  it("falls back to recent active stories if featured sampling fails", async () => {
+    mockActiveItems([{ _id: "recent", title: "Recent", status: "Active", progress_current: 3 }]);
+    mocks.mediaAggregate.mockRejectedValue(new Error("sample unavailable"));
+    const response = await GET(new NextRequest("https://chronicle.test/api/home"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.data.featured.title).toBe("Recent");
+    expect(body.data.featured_items).toEqual([]);
+    expect(body.data.partial_failures).toEqual(["featured rotation"]);
   });
 
   it("keeps Home usable when seven-day activity is temporarily unavailable", async () => {
@@ -128,5 +137,6 @@ describe("home API", () => {
     const response = await GET(new NextRequest("https://chronicle.test/api/home"));
     expect(response.status).toBe(401);
     expect(mocks.mediaFind).not.toHaveBeenCalled();
+    expect(mocks.mediaAggregate).not.toHaveBeenCalled();
   });
 });

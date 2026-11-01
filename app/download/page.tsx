@@ -14,9 +14,9 @@ export const metadata: Metadata = {
 };
 
 const appDetails = {
-  version: "1.0.4",
-  versionCode: 5,
-  size: "850 KB",
+  version: "1.0.5",
+  versionCode: 6,
+  size: "807 KB",
   minAndroid: "Android 8.0+ (Oreo or higher)",
   package: "com.vortexdevx.chronicle",
   filename: "chronicle.apk",
@@ -45,9 +45,8 @@ export default async function DownloadPage() {
                   height={56}
                   priority
                   style={{
-                    borderRadius: "14px",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                    boxShadow: "0 8px 24px rgba(242, 90, 82, 0.22)",
+                    borderRadius: "0",
+                    border: "1px solid var(--border)",
                   }}
                 />
                 <span className="simple-kicker">Native Android Experience</span>
@@ -88,7 +87,7 @@ export default async function DownloadPage() {
                     alt="Chronicle Icon"
                     width={40}
                     height={40}
-                    style={{ borderRadius: "10px" }}
+                    style={{ borderRadius: "0" }}
                   />
                   <div>
                     <span>Official Release</span>
