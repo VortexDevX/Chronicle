@@ -106,38 +106,47 @@ test("home jacket and recent queue preserve progress when saves fail", async ({ 
   await expect(page.getByText("Simulated save failure").first()).toBeVisible();
 });
 
-test("featured stories rotate every five seconds, loop, and keep the recent queue stable", async ({ page }) => {
+test("featured media draws fresh random stories every 30 seconds without cycling a capped pool", async ({ page }) => {
   const now = new Date("2026-10-31T12:00:00Z");
   await page.clock.install({ time: now });
   await page.clock.pauseAt(now);
   const second = { ...story, _id: "second", title: "Second featured story", progress_current: 18.5 };
   const third = { ...story, _id: "third", title: "Third featured story", progress_current: 7 };
   let requests = 0;
+  let draws = 0;
+  const exclusions: (string | null)[] = [];
   await page.route("**/api/home", (route) => {
     requests++;
-    return route.fulfill({ json: { ok: true, data: { featured: story, featured_items: [story, second, third], continue_items: [third, story], updates: [], activity: [], rhythm: [] } } });
+    return route.fulfill({ json: { ok: true, data: { featured: story, continue_items: [third, second], updates: [], activity: [], rhythm: [] } } });
+  });
+  await page.route("**/api/home/featured?*", (route) => {
+    exclusions.push(new URL(route.request().url()).searchParams.get("exclude"));
+    draws++;
+    return route.fulfill({ json: { ok: true, data: { featured: { ...story, _id: `random-${draws}`, title: `Fresh random story ${draws}`, progress_current: draws + .5 } } } });
   });
   await page.goto("/home");
   const heading = page.locator(".current-volume-copy h2");
   const queue = page.locator(".queue-copy h3");
   await expect(heading).toHaveText(story.title);
-  await page.clock.runFor(4999);
+  await page.clock.runFor(29999);
   await expect(heading).toHaveText(story.title);
+  expect(draws).toBe(0);
   await page.clock.runFor(1);
-  await expect(heading).toHaveText(second.title);
-  await expect(page.locator(".hero-progress > strong")).toHaveText("Ch. 18.5");
-  await page.clock.runFor(5000);
-  await expect(heading).toHaveText(third.title);
-  await page.clock.runFor(5000);
-  await expect(heading).toHaveText(story.title);
-  await expect(queue).toHaveText([third.title, story.title]);
+  await expect(heading).toHaveText("Fresh random story 1");
+  await expect(page.locator(".hero-progress > strong")).toHaveText("Ch. 1.5");
+  for (let index = 2; index <= 15; index++) {
+    await page.clock.runFor(30000);
+    await expect(heading).toHaveText(`Fresh random story ${index}`);
+  }
+  expect(exclusions).toEqual([story._id, ...Array.from({ length: 14 }, (_, index) => `random-${index + 1}`)]);
+  await expect(queue).toHaveText([third.title, second.title]);
   expect(requests).toBe(1);
   await page.getByRole("button", { name: "Pause featured rotation" }).click();
-  await page.clock.runFor(15000);
-  await expect(heading).toHaveText(story.title);
+  await page.clock.runFor(90000);
+  expect(draws).toBe(15);
   await page.getByRole("button", { name: "Resume featured rotation" }).click();
-  await page.clock.runFor(5000);
-  await expect(heading).toHaveText(second.title);
+  await page.clock.runFor(30000);
+  await expect(heading).toHaveText("Fresh random story 16");
 });
 
 test("rotated story saves target the visible title and retain its progress after failure", async ({ page }) => {
@@ -146,8 +155,10 @@ test("rotated story saves target the visible title and retain its progress after
   await page.clock.pauseAt(now);
   const second = { ...story, _id: "second", title: "Second featured story", progress_current: 18.5 };
   await page.route("**/api/home", (route) => route.fulfill({ json: { ok: true, data: {
-    featured: story, featured_items: [story, second], continue_items: [story], updates: [], activity: [], rhythm: [],
+    featured: story, continue_items: [story], updates: [], activity: [], rhythm: [],
   } } }));
+  let draws = 0;
+  await page.route("**/api/home/featured?*", (route) => route.fulfill({ json: { ok: true, data: { featured: ++draws === 1 ? second : story } } }));
   let releaseSave!: () => void;
   const pendingSave = new Promise<void>((resolve) => { releaseSave = resolve; });
   let savedRequest: { id: string | null; progress: number } | undefined;
@@ -158,18 +169,62 @@ test("rotated story saves target the visible title and retain its progress after
   });
   await page.goto("/home");
   await expect(page.locator(".current-volume-copy h2")).toHaveText(story.title);
-  await page.clock.runFor(5000);
+  await page.clock.runFor(30000);
   await expect(page.locator(".current-volume-copy h2")).toHaveText(second.title);
   await page.getByRole("button", { name: "Log Ch 19.5", exact: true }).click();
   await expect.poll(() => savedRequest).toEqual({ id: "second", progress: 19.5 });
-  await page.clock.runFor(15000);
+  await page.clock.runFor(90000);
   await expect(page.locator(".current-volume-copy h2")).toHaveText(second.title);
   releaseSave();
   await expect(page.locator(".hero-progress > strong")).toHaveText("Ch. 18.5");
   await page.getByRole("button", { name: "Resume featured rotation" }).click();
-  await page.clock.runFor(5000);
+  await page.clock.runFor(30000);
   await expect(page.locator(".current-volume-copy h2")).toHaveText(story.title);
   await expect(page.locator(".hero-progress > strong")).toHaveText("Ch. 42.5");
+});
+
+test("failed random draws preserve the visible story and manual shuffle works while paused", async ({ page }) => {
+  await page.route("**/api/home", (route) => route.fulfill({ json: { ok: true, data: { featured: story, continue_items: [], updates: [], activity: [], rhythm: [] } } }));
+  let attempts = 0;
+  await page.route("**/api/home/featured?*", (route) => ++attempts === 1
+    ? route.fulfill({ status: 503, json: { error: { message: "Could not load another story. Try again." } } })
+    : route.fulfill({ json: { ok: true, data: { featured: { ...story, _id: "new-random", title: "Another random story" } } } }));
+  await page.goto("/home");
+  await expect(page.locator(".current-volume-copy h2")).toHaveText(story.title);
+  await page.getByRole("button", { name: "Pause featured rotation" }).click();
+  await page.getByRole("button", { name: "Another random story", exact: true }).click();
+  await expect(page.getByText("Could not load another story. Try again.", { exact: true })).toBeVisible();
+  await expect(page.locator(".current-volume-copy h2")).toHaveText(story.title);
+  await expect(page.locator(".hero-progress > strong")).toHaveText("Ch. 42.5");
+  await page.getByRole("button", { name: "Another random story", exact: true }).click();
+  await expect(page.locator(".current-volume-copy h2")).toHaveText("Another random story");
+});
+
+test("Android test push waits for fresh registration of the current installation", async ({ page }, testInfo) => {
+  await page.evaluate(() => Object.assign(window, { ChronicleNative: { requestNotificationPermission() {}, syncPushRegistration() {} } }));
+  await page.route("**/api/profile", (route) => route.fulfill({ json: { ok: true, data: { email: "reader@example.test", push_notifications_enabled: true } } }));
+  let reads = 0;
+  let testSentAtRead = 0;
+  await page.route("**/api/push/devices", (route) => {
+    reads++;
+    return route.fulfill({ json: { ok: true, data: { registered: true, deviceCount: 2, currentRegistration: {
+      registered: reads !== 3, lastSeenAt: reads >= 4 ? "2026-11-01T12:00:30Z" : "2026-11-01T12:00:00Z",
+    } } } });
+  });
+  await page.route("**/api/push/test", (route) => {
+    testSentAtRead = reads;
+    return route.fulfill({ json: { ok: true, data: { sent: 1, failed: 0, devices: 1 } } });
+  });
+  if (testInfo.project.name === "mobile") {
+    await page.getByRole("button", { name: "Open menu for shelves, graveyard, and settings" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+  } else await page.getByRole("button", { name: "Open profile settings" }).click();
+  const dialog = page.getByRole("dialog", { name: "Settings" });
+  await dialog.getByRole("tab", { name: "Notifications", exact: true }).click();
+  await dialog.getByRole("button", { name: "Android Push Diagnostics" }).click();
+  await dialog.getByRole("button", { name: "Send Test Push", exact: true }).click();
+  await expect(dialog.getByText("Test notification sent to 1 device.", { exact: true })).toBeVisible();
+  expect(testSentAtRead).toBe(4);
 });
 
 test("settings sections and notification toggles support keyboard access", async ({ page }, testInfo) => {

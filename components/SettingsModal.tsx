@@ -39,6 +39,7 @@ type ChronicleNativeBridge = {
 type PushDeviceStatus = {
   registered: boolean;
   deviceCount: number;
+  currentRegistration?: { registered: boolean; lastSeenAt: string | null };
 };
 
 type PushTestResult = {
@@ -228,23 +229,29 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       });
 
       const nativeBridge = getChronicleNativeBridge();
+      const beforeSync = await apiRequest<PushDeviceStatus>("/api/push/devices", { cache: "no-store" });
+      const previousSeen = beforeSync.currentRegistration?.lastSeenAt;
       nativeBridge?.requestNotificationPermission?.();
       nativeBridge?.syncPushRegistration?.();
 
       let status: PushDeviceStatus | null = null;
-      for (let attempt = 0; attempt < 10; attempt += 1) {
+      let registrationReady = false;
+      for (let attempt = 0; attempt < 12; attempt += 1) {
         status = await apiRequest<PushDeviceStatus>("/api/push/devices", {
           cache: "no-store",
         });
-        if (status.registered) break;
+        registrationReady = nativeBridge
+          ? Boolean(status.currentRegistration?.registered && status.currentRegistration.lastSeenAt && (!previousSeen || Date.parse(status.currentRegistration.lastSeenAt) > Date.parse(previousSeen)))
+          : status.registered;
+        if (registrationReady) break;
         if (!nativeBridge) break;
         await new Promise((resolve) => window.setTimeout(resolve, 750));
-        if (attempt === 3) nativeBridge.syncPushRegistration?.();
+        if (attempt === 3 || attempt === 7) nativeBridge.syncPushRegistration?.();
       }
 
-      if (!status?.registered) {
+      if (!registrationReady) {
         throw new Error(
-          "No Android device is registered yet. Allow notifications, then try again.",
+          status?.registered ? "This Android device is still syncing. Keep the app open, then try again." : "No Android device is registered yet. Allow notifications, then try again.",
         );
       }
 

@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Clock3,
   FastForward,
   MoreHorizontal,
@@ -15,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  Shuffle,
 } from "lucide-react";
 import type { HomePayload, MediaItem } from "@/types/media";
 import { useMediaStore } from "@/store/mediaStore";
@@ -52,23 +51,35 @@ export default function HomePage() {
   const [heroOptimisticProgress, setHeroOptimisticProgress] = useState<{ id: string; value: number } | null>(null);
   const [heroTickedId, setHeroTickedId] = useState<string | null>(null);
   const tickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [featuredId, setFeaturedId] = useState<string | null>(null);
+  const [featured, setFeatured] = useState<MediaItem | null>(null);
+  const [featureLoading, setFeatureLoading] = useState(false);
+  const [featureError, setFeatureError] = useState("");
+  const [rotationCycle, setRotationCycle] = useState(0);
+  const featureRequest = useRef<AbortController | null>(null);
   const [rotationPaused, setRotationPaused] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
-  const featuredItems = useMemo(() => {
-    const items = payload?.featured_items?.length ? payload.featured_items : [payload?.featured, ...(payload?.continue_items || [])];
-    return [...new Map(items.filter((item): item is MediaItem => !!item).map((item) => [item._id, item])).values()];
-  }, [payload]);
-  const featuredIndex = Math.max(0, featuredItems.findIndex((item) => item._id === featuredId));
-  const featured = featuredItems[featuredIndex] || null;
   const heroTicked = heroTickedId === featured?._id;
 
-  const changeFeatured = useCallback((direction: number) => {
-    setFeaturedId((current) => {
-      const index = Math.max(0, featuredItems.findIndex((item) => item._id === current));
-      return featuredItems[(index + direction + featuredItems.length) % featuredItems.length]?._id || null;
-    });
-  }, [featuredItems]);
+  const changeFeatured = useCallback(async () => {
+    featureRequest.current?.abort();
+    const controller = new AbortController();
+    featureRequest.current = controller;
+    setFeatureLoading(true);
+    setFeatureError("");
+    try {
+      const query = featured ? `?exclude=${encodeURIComponent(featured._id)}` : "";
+      const data = await apiRequest<{ featured: MediaItem | null }>(`/api/home/featured${query}`, { cache: "no-store", signal: controller.signal });
+      if (!controller.signal.aborted) setFeatured(data.featured);
+    } catch (error) {
+      if (!controller.signal.aborted) setFeatureError(getErrorMessage(error, "Could not load another story. Try again."));
+    } finally {
+      if (featureRequest.current === controller) {
+        featureRequest.current = null;
+        setFeatureLoading(false);
+        setRotationCycle((cycle) => cycle + 1);
+      }
+    }
+  }, [featured]);
 
   useEffect(() => {
     const visibilityChanged = () => setPageVisible(!document.hidden);
@@ -78,20 +89,32 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (featuredItems.length < 2 || rotationPaused || pendingId || panelOpen || !pageVisible) return;
-    const timer = window.setTimeout(() => changeFeatured(1), 5000);
+    if (!featured || rotationPaused || pendingId || panelOpen || !pageVisible) return;
+    if (featureLoading) return;
+    const timer = window.setTimeout(() => { void changeFeatured(); }, 30_000);
     return () => window.clearTimeout(timer);
-  }, [featured?._id, featuredItems.length, changeFeatured, rotationPaused, pendingId, panelOpen, pageVisible]);
+  }, [featured, changeFeatured, rotationCycle, featureLoading, rotationPaused, pendingId, panelOpen, pageVisible]);
 
-  useEffect(() => () => { if (tickTimer.current) clearTimeout(tickTimer.current); }, []);
+  useEffect(() => {
+    if (rotationPaused || pendingId || panelOpen || !pageVisible) featureRequest.current?.abort();
+  }, [rotationPaused, pendingId, panelOpen, pageVisible]);
+
+  useEffect(() => () => {
+    if (tickTimer.current) clearTimeout(tickTimer.current);
+    const request = featureRequest.current;
+    featureRequest.current = null;
+    request?.abort();
+  }, []);
 
   const loadHome = useCallback(async () => {
+    featureRequest.current?.abort();
     setError("");
     try {
       const data = await apiRequest<HomePayload>("/api/home", {
         cache: "no-store",
       });
       setPayload(data);
+      setFeatured(data.featured);
     } catch (err) {
       setError(getErrorMessage(err, "Could not load Home"));
     } finally {
@@ -105,11 +128,10 @@ export default function HomePage() {
   }, [loadHome, setActiveRoute, mediaRev]);
 
   useEffect(() => {
-    const feat = featuredItems.find((item) => item._id === heroOptimisticProgress?.id);
-    if (heroOptimisticProgress && feat && feat.progress_current >= heroOptimisticProgress.value) {
+    if (heroOptimisticProgress && featured?._id === heroOptimisticProgress.id && featured.progress_current >= heroOptimisticProgress.value) {
       setHeroOptimisticProgress(null);
     }
-  }, [featuredItems, heroOptimisticProgress]);
+  }, [featured, heroOptimisticProgress]);
 
   const triggerHeroTick = (id: string) => {
     setHeroTickedId(id);
@@ -243,7 +265,7 @@ export default function HomePage() {
       ) : null}
 
       <div className="reading-board">
-        <section className="current-volume home-hero" aria-label="Featured story" aria-roledescription="carousel"
+        <section className="current-volume home-hero" aria-label="Featured story"
           onFocusCapture={(event) => { if (!(event.target as HTMLElement).closest(".feature-rotation-controls")) setRotationPaused(true); }}
           onPointerDown={(event) => { if (!(event.target as HTMLElement).closest(".feature-rotation-controls")) setRotationPaused(true); }}>
           <div className="index-section-label"><span>On rotation</span><span>{featured.media_type}</span></div>
@@ -267,13 +289,12 @@ export default function HomePage() {
             </div>
             {unread > 1 && <button className="volume-catchup" onClick={() => catchUp(featured, latest)} disabled={!!pendingId}><FastForward size={14} /> Catch up to {formatProgress(latest)}</button>}
           </div>
-          {featuredItems.length > 1 && <div className="feature-rotation-controls" role="group" aria-label="Featured story rotation">
-            <span>{String(featuredIndex + 1).padStart(2, "0")} / {String(featuredItems.length).padStart(2, "0")}</span>
-            <button onClick={() => { setRotationPaused(true); changeFeatured(-1); }} disabled={!!pendingId} aria-label="Previous featured story"><ChevronLeft size={17} /></button>
+          <div className="feature-rotation-controls" role="group" aria-label="Featured story rotation">
+            <span>{rotationPaused ? "Paused · random picks" : "Random pick · every 30s"}</span>
             <button onClick={() => setRotationPaused((paused) => !paused)} aria-label={rotationPaused ? "Resume featured rotation" : "Pause featured rotation"}>{rotationPaused ? <Play size={15} /> : <Pause size={15} />}</button>
-            <button onClick={() => { setRotationPaused(true); changeFeatured(1); }} disabled={!!pendingId} aria-label="Next featured story"><ChevronRight size={17} /></button>
-          </div>}
-          {featuredItems.length > 1 && <div className="feature-preload" aria-hidden="true"><MediaArtwork key={featuredItems[(featuredIndex + 1) % featuredItems.length]._id} media={featuredItems[(featuredIndex + 1) % featuredItems.length]} priority /></div>}
+            <button onClick={() => { void changeFeatured(); }} disabled={!!pendingId || featureLoading} aria-label="Another random story">{featureLoading ? <span className="spinner" /> : <Shuffle size={17} />}</button>
+          </div>
+          {featureError && <p className="story-save-error" role="status">{featureError}</p>}
         </section>
         <section className="reading-queue" aria-labelledby="queue-title">
           <div className="index-section-label"><h3 id="queue-title">Recently active</h3><span>By last activity</span></div>

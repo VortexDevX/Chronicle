@@ -112,10 +112,23 @@ describe("Android push test API", () => {
 
     const response = await POST(request());
 
-    expect(response.status).toBe(502);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "PUSH_REGISTRATION_EXPIRED" });
     expect(mocks.deleteMany).toHaveBeenCalledWith({
       user_id: userId,
       token: { $in: ["firebase-device-id"] },
     });
+  });
+
+  it.each([
+    ["TIMEOUT", 504, "PUSH_TEST_TIMEOUT"],
+    ["AUTHENTICATION_FAILED", 503, "PUSH_SERVICE_CONFIGURATION"],
+    ["UNAVAILABLE", 503, "PUSH_SERVICE_UNAVAILABLE"],
+  ])("reports %s without claiming delivery or deleting the registration", async (failure, status, code) => {
+    mocks.sendAndroidPush.mockResolvedValue({ configured: true, sent: 0, failed: 1, invalidTokens: [], failureCodes: [failure] });
+    const response = await POST(request());
+    expect(response.status).toBe(status);
+    expect(await response.json()).toMatchObject({ ok: false, code });
+    expect(mocks.deleteMany).not.toHaveBeenCalled();
   });
 });

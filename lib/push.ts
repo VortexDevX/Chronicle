@@ -23,6 +23,7 @@ export type AndroidPushResult = {
   sent: number;
   failed: number;
   invalidTokens: string[];
+  failureCodes?: string[];
 };
 
 type CachedAccessToken = { value: string; expiresAt: number };
@@ -124,8 +125,17 @@ async function getAccessToken(
   return json.access_token;
 }
 
-function isUnregisteredDevice(status: number, body: string): boolean {
-  return status === 404 || body.includes("UNREGISTERED");
+function firebaseFailure(status: number, body: string): string {
+  try {
+    const error = (JSON.parse(body) as { error?: { status?: string; details?: { "@type"?: string; errorCode?: string }[] } }).error;
+    const code = error?.details?.find((detail) => detail["@type"] === "type.googleapis.com/google.firebase.fcm.v1.FcmError")?.errorCode || error?.status;
+    if (code && /^[A-Z_]{1,60}$/.test(code)) return code;
+  } catch { /* Do not log raw Firebase responses or registration identifiers. */ }
+  return status === 429 ? "QUOTA_EXCEEDED" : status === 401 || status === 403 ? "PERMISSION_DENIED" : status >= 500 ? "UNAVAILABLE" : "SEND_FAILED";
+}
+
+function requestFailure(error: unknown): string {
+  return error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "TIMEOUT" : "NETWORK_ERROR";
 }
 
 export async function sendAndroidPush(
@@ -170,7 +180,7 @@ export async function sendAndroidPush(
                     notification: {
                       channel_id: "chronicle_updates",
                       icon: "ic_notification",
-                      color: "#F43F5E",
+                      color: "#3159E8",
                     },
                   },
                 },
@@ -179,18 +189,22 @@ export async function sendAndroidPush(
             },
             PUSH_TIMEOUT_MS,
           );
-          if (response.ok) return { sent: true, invalid: false };
+          if (response.ok) return { sent: true, invalid: false, code: undefined };
 
           const body = await response.text().catch(() => "");
+          const code = firebaseFailure(response.status, body);
+          if (response.status === 401) cachedAccessToken = null;
+          logInfo("android_push_rejected", { status: response.status, reason: code });
           return {
             sent: false,
-            invalid: isUnregisteredDevice(response.status, body),
+            invalid: code === "UNREGISTERED",
+            code,
           };
         } catch (err) {
           if (!signal?.aborted) {
             logInternalError("android_push_request_failed", err);
           }
-          return { sent: false, invalid: false };
+          return { sent: false, invalid: false, code: requestFailure(err) };
         }
       }),
     );
@@ -203,6 +217,7 @@ export async function sendAndroidPush(
       sent: results.filter((result) => result.sent).length,
       failed: results.filter((result) => !result.sent).length,
       invalidTokens,
+      ...(results.some((result) => result.code) ? { failureCodes: [...new Set(results.flatMap((result) => result.code ? [result.code] : []))] } : {}),
     };
   } catch (err) {
     if (!signal?.aborted) {
@@ -213,6 +228,7 @@ export async function sendAndroidPush(
       sent: 0,
       failed: uniqueTokens.length,
       invalidTokens: [],
+      failureCodes: [err instanceof Error && ["TimeoutError", "AbortError", "TypeError"].includes(err.name) ? requestFailure(err) : "AUTHENTICATION_FAILED"],
     };
   }
 }

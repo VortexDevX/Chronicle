@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     const [devices, userResult] = await Promise.all([
       PushDevice.find({ user_id: userId, platform: "android" })
-        .select("app_version last_seen_at")
+        .select("app_version last_seen_at installation_id")
         .sort({ last_seen_at: -1 })
         .limit(20)
         .lean(),
@@ -38,12 +38,18 @@ export async function GET(req: NextRequest) {
         .lean(),
     ]);
     const user = userResult as { push_notifications_enabled?: boolean } | null;
+    const installationId = getInstallationId(req);
+    const currentDevice = installationId ? devices.find((device) => device.installation_id === installationId) : null;
 
     return jsonOk({
       registered: devices.length > 0,
       deviceCount: devices.length,
       pushEnabled: Boolean(user?.push_notifications_enabled),
       configured: isAndroidPushConfigured(),
+      currentRegistration: {
+        registered: Boolean(currentDevice),
+        lastSeenAt: currentDevice?.last_seen_at || null,
+      },
       devices: devices.map((device) => ({
         appVersion: device.app_version || null,
         lastSeenAt: device.last_seen_at || null,

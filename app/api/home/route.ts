@@ -7,6 +7,7 @@ import { logInternalError } from "@/lib/log";
 import { MediaItem } from "@/lib/models";
 import { getUpdateFeed } from "@/lib/services/media/updateFeedQuery";
 import { getActivitySnapshot } from "@/lib/services/activity/query";
+import { sampleActiveMedia } from "@/lib/services/media/featured";
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,14 +27,13 @@ export async function GET(request: NextRequest) {
       Promise.allSettled([
         getUpdateFeed(userObjectId, 4),
         getActivitySnapshot(userObjectId, 6),
-        MediaItem.aggregate([{ $match: activeFilter }, { $sample: { size: 12 } }]),
+        sampleActiveMedia(userObjectId),
       ]),
     ]);
 
     const [updatesResult, activityResult, featuredResult] = optionalResults;
     const continueItems = activeItems;
-    const featuredItems = featuredResult.status === "fulfilled" ? featuredResult.value : [];
-    const featured = featuredItems[0] ?? continueItems[0] ?? null;
+    const featured = (featuredResult.status === "fulfilled" ? featuredResult.value : null) ?? continueItems[0] ?? null;
     const partialFailures: string[] = [];
     if (featuredResult.status === "rejected") partialFailures.push("featured rotation");
 
@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
 
     return jsonOk({
       featured,
-      featured_items: featuredItems,
       continue_items: continueItems,
       upcoming_releases: [],
       updates: updates.items,

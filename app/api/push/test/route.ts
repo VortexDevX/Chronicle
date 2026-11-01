@@ -79,9 +79,22 @@ export async function POST(req: NextRequest) {
       sent: result.sent,
       failed: result.failed,
       invalidated: result.invalidTokens.length,
+      failure_codes: result.failureCodes?.join(","),
     });
 
     if (result.sent === 0) {
+      if (result.invalidTokens.length === tokens.length) {
+        return jsonError("PUSH_REGISTRATION_EXPIRED", "Android registration expired. Reopen the app and try again.", 409);
+      }
+      if (result.failureCodes?.includes("TIMEOUT")) {
+        return jsonError("PUSH_TEST_TIMEOUT", "The push service timed out. Try again shortly.", 504);
+      }
+      if (result.failureCodes?.some((code) => ["AUTHENTICATION_FAILED", "PERMISSION_DENIED", "SENDER_ID_MISMATCH"].includes(code))) {
+        return jsonError("PUSH_SERVICE_CONFIGURATION", "Push service configuration needs attention. Please contact support.", 503);
+      }
+      if (result.failureCodes?.some((code) => ["NETWORK_ERROR", "UNAVAILABLE", "QUOTA_EXCEEDED"].includes(code))) {
+        return jsonError("PUSH_SERVICE_UNAVAILABLE", "The push service is temporarily unavailable. Try again shortly.", 503);
+      }
       return jsonError(
         "PUSH_TEST_FAILED",
         "Firebase could not deliver the test notification",

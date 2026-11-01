@@ -271,7 +271,6 @@ summary::-webkit-details-marker { display: none; }
 .feature-rotation-controls > span { margin-right: auto; font: 11px var(--font-index); color: var(--text-muted); }
 .feature-rotation-controls button { display: inline-flex; flex: 0 0 44px; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; background: none; color: var(--text-secondary); border: 0; }
 .feature-rotation-controls button:hover { color: var(--accent); background: var(--bg-hover); }
-.feature-preload { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
 .reading-queue { min-width: 0; padding-left: 24px; display: flex; flex-direction: column; }
 .reading-queue-list { list-style: none; padding: 0; margin: 0; }
 .queue-row { display: grid; grid-template-columns: 25px 56px minmax(0,1fr) 44px; gap: 15px; align-items: center; padding: 19px 0; border-bottom: 1px solid var(--border); transition: background 160ms; }

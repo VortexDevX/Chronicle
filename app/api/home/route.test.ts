@@ -54,7 +54,6 @@ describe("home API", () => {
     expect(response.status).toBe(200);
     expect(body.data).toEqual({
       featured: null,
-      featured_items: [],
       continue_items: [],
       upcoming_releases: [],
       updates: [],
@@ -89,12 +88,12 @@ describe("home API", () => {
     const response = await GET(new NextRequest("https://chronicle.test/api/home"));
     const body = await response.json();
     expect(body.data.featured.title).toBe("Sampled story");
-    expect(body.data.featured_items[0].progress_current).toBe(18.5);
+    expect(body.data.featured.progress_current).toBe(18.5);
     expect(body.data.continue_items[0].title).toBe("Recent");
     const pipeline = mocks.mediaAggregate.mock.calls[0][0];
     expect(String(pipeline[0].$match.user_id)).toBe("507f1f77bcf86cd799439011");
     expect(pipeline[0].$match.status).toEqual({ $in: ["Active", "Watching/Reading"] });
-    expect(pipeline[1]).toEqual({ $sample: { size: 12 } });
+    expect(pipeline[1]).toEqual({ $sample: { size: 1 } });
   });
 
   it("falls back to recent active stories if featured sampling fails", async () => {
@@ -104,7 +103,6 @@ describe("home API", () => {
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.data.featured.title).toBe("Recent");
-    expect(body.data.featured_items).toEqual([]);
     expect(body.data.partial_failures).toEqual(["featured rotation"]);
   });
 

@@ -59,6 +59,7 @@ beforeEach(() => {
           lean: vi.fn().mockResolvedValue([
             {
               app_version: "1.0.3",
+              installation_id: installationId,
               last_seen_at: new Date("2026-08-12T12:00:00.000Z"),
             },
           ]),
@@ -86,9 +87,18 @@ describe("Android push device API", () => {
         deviceCount: 1,
         pushEnabled: true,
         configured: true,
+        currentRegistration: { registered: true, lastSeenAt: "2026-08-12T12:00:00.000Z" },
         devices: [{ appVersion: "1.0.3" }],
       },
     });
+  });
+
+  it("does not treat another registered phone as the current installation", async () => {
+    const response = await GET(new NextRequest("https://chronicle.example/api/push/devices", { headers: { cookie: "chronicle_android_installation=d9428888-122b-4a5f-9f6c-21eb1d1fe002" } }));
+    const body = await response.json();
+    expect(body.data.registered).toBe(true);
+    expect(body.data.currentRegistration).toEqual({ registered: false, lastSeenAt: null });
+    expect(JSON.stringify(body)).not.toContain(installationId);
   });
 
   it("registers the FCM token against the authenticated installation", async () => {
