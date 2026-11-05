@@ -275,6 +275,7 @@ export default function HomePage() {
           <div className="current-volume-copy">
             <h2><button onClick={() => openDetails(featured)}>{featured.title}</button></h2>
             <div className="current-volume-meta"><span>{featured.status}</span>{featured.rating ? <span>★ {featured.rating}/10</span> : null}</div>
+            {featured.hosted_novel_slug && <Link className="novel-button" href={`/read/${featured.hosted_novel_slug}/${Math.max(1, Math.min(featured.progress_total || 1, Math.floor(featured.progress_current || 1)))}`}>Continue reading →</Link>}
             <div className="hero-progress">
               <strong className={`progress-current-val ${heroTicked ? "is-ticked" : ""}`}>{progress.label}</strong>
               {progress.knownTotal && <div className="progress-track"><i style={{ width: `${progress.percent}%` }} /></div>}
@@ -305,7 +306,7 @@ export default function HomePage() {
                 <span className="queue-position" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
                 <button className="queue-cover" onClick={() => openDetails(media)} aria-label={`View details for ${media.title}`}><MediaArtwork media={media} priority={index < 2} /></button>
                 <div className="queue-copy"><span>{media.media_type}</span><h3><button onClick={() => openDetails(media)}>{media.title}</button></h3><p>{itemProgress.label}</p>{itemProgress.unread > 0 && <small>{formatProgress(itemProgress.unread)} {itemProgress.unit} unread</small>}</div>
-                <button className="queue-log" onClick={() => logNext(media)} disabled={!!pendingId || itemProgress.next <= media.progress_current} aria-label={`Log next for ${media.title}`} title={`Log ${itemProgress.shortUnit} ${formatProgress(itemProgress.next)}`}>{pendingId === media._id ? <span className="spinner" /> : <Plus size={18} />}<span>+1</span></button>
+                <button className="queue-log" onClick={() => logNext(media)} disabled={!!pendingId || itemProgress.next <= media.progress_current} aria-label={`Log next for ${media.title}`} title={`Log ${itemProgress.shortUnit} ${formatProgress(itemProgress.next)}`}>{pendingId === media._id ? <span className="spinner" /> : <Plus size={18} />}<span>1</span></button>
               </li>;
             })}
           </ol>

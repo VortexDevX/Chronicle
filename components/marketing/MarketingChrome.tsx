@@ -110,7 +110,7 @@ export function MarketingFooter() {
         <Link className="marketing-brand" href="/">
           <Brand />
         </Link>
-        <p>Track what you watch and read. Chronicle never hosts the media itself.</p>
+        <p>Your anime, manhwa, donghua, and novels. One story space.</p>
         <div className="simple-footer-links">
           <a href="/downloads/chronicle.apk" download="chronicle.apk">
             Download App (APK)

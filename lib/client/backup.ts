@@ -44,13 +44,26 @@ export async function importMediaBackup(file: File) {
 
   let inserted = 0;
   let skipped = 0;
-  for (let index = 0; index < items.length; index += IMPORT_CHUNK_SIZE) {
+  const hosted = items.filter(item => typeof item.hosted_novel_slug === "string");
+  for (const item of hosted) {
+    const slug = String(item.hosted_novel_slug);
+    if (!/^[a-zA-Z0-9_-]+$/.test(slug)) { skipped++; continue; }
+    const novel = await apiRequest<{ library: unknown }>(`/api/novels/${slug}`);
+    if (novel.library) { skipped++; continue; }
+    const entry = await apiRequest<{ _id: string }>(`/api/novels/${slug}/library`, { method: "POST" });
+    const values = Object.fromEntries(["status", "progress_current", "rating", "notes"].filter(key => item[key] !== undefined).map(key => [key,item[key]]));
+    await apiRequest(`/api/media?id=${entry._id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
+    if (typeof item.is_favorite === "boolean") await apiRequest(`/api/novels/${slug}/library`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_favorite: item.is_favorite }) });
+    inserted++;
+  }
+  const tracked = items.filter(item => typeof item.hosted_novel_slug !== "string");
+  for (let index = 0; index < tracked.length; index += IMPORT_CHUNK_SIZE) {
     const result = await apiRequest<{ inserted?: number; skipped?: number }>(
       "/api/media?bulk=1",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(items.slice(index, index + IMPORT_CHUNK_SIZE)),
+        body: JSON.stringify(tracked.slice(index, index + IMPORT_CHUNK_SIZE)),
       },
     );
     inserted += Number(result.inserted || 0);

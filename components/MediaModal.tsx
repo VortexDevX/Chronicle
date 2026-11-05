@@ -21,6 +21,7 @@ import {
 import { useFeedback } from "@/components/FeedbackProvider";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
 import { normalizeMangaDexId } from "@/lib/mangadex";
+import { loadShelfPicker } from "@/lib/client/shelfPicker";
 
 interface MediaModalProps {
   media: MediaItem | null;
@@ -103,6 +104,9 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [shelves, setShelves] = useState<Shelf[]>([]);
+  const [shelvesLoading, setShelvesLoading] = useState(true);
+  const [shelvesError, setShelvesError] = useState(false);
+  const [shelvesRetry, setShelvesRetry] = useState(0);
   const [selectedShelfIds, setSelectedShelfIds] = useState<Set<string>>(new Set());
   const [originalShelfIds, setOriginalShelfIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -166,11 +170,13 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
 
     setSelectedShelfIds(new Set());
     setOriginalShelfIds(new Set());
-
-    fetch("/api/shelves", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((json) => {
-        const items = Array.isArray(json.data?.items) ? (json.data.items as Shelf[]) : [];
+  }, [media]);
+  useEffect(() => {
+    let active = true;
+    setShelvesLoading(true); setShelvesError(false);
+    loadShelfPicker()
+      .then((items) => {
+        if (!active) return;
         setShelves(items);
         if (items.length > 0 && media && media._id) {
           const activeIds = new Set<string>();
@@ -182,9 +188,10 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
         }
       })
       .catch(() => {
-        setShelves([]);
-      });
-  }, [media]);
+        if (active) { setShelves([]); setShelvesError(true); }
+      }).finally(() => { if (active) setShelvesLoading(false); });
+    return () => { active = false; };
+  }, [media, shelvesRetry]);
 
   // Click outside to dismiss title suggestions dropdown
   useEffect(() => {
@@ -452,14 +459,10 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
           const wasSelected = originalShelfIds.has(s._id);
           const isSelected = selectedShelfIds.has(s._id);
           if (wasSelected !== isSelected) {
-            const shelfMediaIds = getShelfMediaIds(s);
-            const newMediaIds = isSelected
-              ? Array.from(new Set([...shelfMediaIds, mediaId]))
-              : shelfMediaIds.filter((id) => id !== mediaId);
             await apiRequest(`/api/shelves?id=${s._id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ media_ids: newMediaIds }),
+              body: JSON.stringify({ [isSelected ? "add_media_id" : "remove_media_id"]: mediaId }),
             });
           }
         }
@@ -728,13 +731,15 @@ export function MediaModal({ media, onClose, onSave }: MediaModalProps) {
             </div>
 
             {/* Shelves - prominent in main essentials view */}
-            {shelves.length > 0 && (
+            {(shelvesLoading || shelvesError || shelves.length > 0) && (
               <div className="form-group" style={{ marginTop: 4 }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <Layers size={13} />
                   <span>Shelves</span>
                 </label>
                 <div className="shelf-picker">
+                  {shelvesLoading && <span className="shelf-picker-loading" role="status"><i className="spinner"/>Loading shelves…</span>}
+                  {shelvesError && <button type="button" className="btn-ghost" onClick={() => setShelvesRetry(value => value + 1)}>Retry loading shelves</button>}
                   {shelves.map((s) => (
                     <label
                       key={s._id}

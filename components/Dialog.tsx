@@ -42,6 +42,14 @@ export function Dialog({ children, labelledBy, onClose, beforeClose, busy = fals
     if (!dialog) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialog.showModal();
+    const viewport = window.visualViewport;
+    const sizeToViewport = () => {
+      dialog.style.setProperty("--dialog-height", `${viewport?.height || window.innerHeight}px`);
+      dialog.style.setProperty("--dialog-top", `${viewport?.offsetTop || 0}px`);
+    };
+    sizeToViewport();
+    viewport?.addEventListener("resize",sizeToViewport);
+    viewport?.addEventListener("scroll",sizeToViewport);
     const initial = dialog.querySelector<HTMLElement>("[data-dialog-initial-focus]")
       || document.getElementById(labelledBy);
     if (initial) {
@@ -53,6 +61,8 @@ export function Dialog({ children, labelledBy, onClose, beforeClose, busy = fals
       document.body.style.overflow = "hidden";
     }
     return () => {
+      viewport?.removeEventListener("resize",sizeToViewport);
+      viewport?.removeEventListener("scroll",sizeToViewport);
       if (timer.current) clearTimeout(timer.current);
       dialog.close();
       if (--scrollLocks === 0) document.body.style.overflow = previousOverflow;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Download, ShieldCheck } from "lucide-react";
 import { MarketingFooter, MarketingHeader } from "@/components/marketing/MarketingChrome";
 import { verifyAuthToken } from "@/lib/auth";
+import { androidRelease } from "@/lib/androidRelease";
 
 export const metadata: Metadata = {
   title: "Download Chronicle Android App | Chronicle X",
@@ -14,9 +15,7 @@ export const metadata: Metadata = {
 };
 
 const appDetails = {
-  version: "1.0.5",
-  versionCode: 6,
-  size: "807 KB",
+  ...androidRelease,
   minAndroid: "Android 8.0+ (Oreo or higher)",
   package: "com.vortexdevx.chronicle",
   filename: "chronicle.apk",

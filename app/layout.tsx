@@ -1,17 +1,25 @@
 import "./globals.css";
 import "./marketing.css";
 import "./catalogue.css";
-import { Barlow_Condensed, IBM_Plex_Sans } from "next/font/google";
+import "./reading-room.css";
+import "./studio.css";
+import { Fira_Code, Manrope, Sora, Literata, Lora, Inter, Roboto, Josefin_Sans } from "next/font/google";
 import type { Metadata, Viewport } from "next";
 import { absoluteUrl, siteConfig } from "@/lib/site";
 
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
 const bingVerification = process.env.BING_SITE_VERIFICATION?.trim();
 
-const interfaceFont = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-interface", display: "swap" });
-const displayFont = Barlow_Condensed({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-catalogue", display: "swap" });
+const interfaceFont = Manrope({ subsets: ["latin"], variable: "--font-interface", display: "swap" });
+const headingFont = Sora({ subsets: ["latin"], variable: "--font-heading", display: "swap" });
+const indexFont = Fira_Code({ subsets: ["latin"], variable: "--font-index-face", display: "swap" });
+const literata = Literata({subsets:["latin"],variable:"--font-literata",display:"swap",preload:false});
+const lora = Lora({subsets:["latin"],variable:"--font-lora",display:"swap",preload:false});
+const inter = Inter({subsets:["latin"],variable:"--font-inter",display:"swap",preload:false});
+const roboto = Roboto({subsets:["latin"],variable:"--font-roboto",display:"swap",preload:false});
+const josefin = Josefin_Sans({subsets:["latin"],variable:"--font-josefin",display:"swap",preload:false});
 
-export const viewport: Viewport = { themeColor: "#0d141a", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#0b0d12", colorScheme: "dark" };
 
 export const metadata: Metadata = {
     metadataBase: new URL(siteConfig.url),
@@ -91,7 +99,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${interfaceFont.variable} ${displayFont.variable}`}
+      className={`${interfaceFont.variable} ${headingFont.variable} ${indexFont.variable} ${literata.variable} ${lora.variable} ${inter.variable} ${roboto.variable} ${josefin.variable}`}
       suppressHydrationWarning
     >
       <body>

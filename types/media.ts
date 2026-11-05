@@ -1,6 +1,8 @@
 /** Core data types for Chronicle. */
 
 export interface MediaItem {
+  hosted_novel_slug?: string | null;
+  is_favorite?: boolean;
   _id: string;
   title: string;
   media_type: string;

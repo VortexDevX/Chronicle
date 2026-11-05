@@ -8,21 +8,45 @@ A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and *
 
 | Category                | Highlights                                                                                                                                   |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Command Center Home** | Dynamic focus hero banner with quick log · Real-time "Today" orientation metrics (unread, continue, rhythm) · Activity feed · Rhythm heatmap |
+| **Home** | Featured story with quick logging · Recently active queue · Release updates · Activity feed |
 | **Media Tracking**      | Add, edit, single delete & bulk delete · Track progress (chapters/episodes) · Quick +1 log · One-click catchup · Ratings (0–10) · Notes      |
 | **Tracker Scraping**    | Automated cron checks for Manhwa and Donghua · Direct Cheerio scraping with Cloudflare reader fallback proxy · Zero external calendar dependencies |
 | **Updates Inbox**       | Dedicated unread updates feed with exact chapter/episode deltas · Bulk "Mark all caught up" action · Detailed tracker error diagnostics     |
 | **3D Curated Shelves**  | 3D fanned poster stack gallery cards with depth animations · Quick library entry manager modal · Media type drilldowns · Custom shelf tags   |
-| **Modern Navigation**   | Context-aware TopBar with dynamic route badges & search shortcut (`⌘K` / `/`) · Collapsible sectioned Sidebar · Clean 5-slot mobile dock   |
+| **Modern Navigation**   | Context-aware TopBar · Collapsible sidebar (`Ctrl/Cmd+B`) · Five-slot mobile dock with More menu |
 | **Statistics**          | Analytics dashboard with type/status breakdowns, ratings, progress totals, and recent progress activity timeline                             |
 | **Import / Export**     | Full library export as JSON · Bulk JSON import to easily backup, restore, or migrate libraries                                               |
 | **Discovery & Covers**  | Omnisearch discovery via AniList and MangaDex · AniList & MyAnimeList cover art · Cached cover proxy with custom URL overrides              |
 | **Droppedyard**         | Dedicated "Graveyard" for dropped entries with a "Maybe Revisit" queue to filter out titles you might want to try again                      |
 | **Notifications**       | Android push notifications (Firebase FCM) & Telegram bot alerts delivered when new chapters or episodes are detected                        |
 | **Auth & Security**     | JWT cookie auth · bcrypt password hashing · Branded HTML account verification & password reset emails via Resend                            |
-| **Design & Experience** | Pure dark geometric aesthetic · Responsive mobile-first layouts · Accessible badging · Skeleton loading states · PWA install support         |
+| **Design & Experience** | Shared Studio design system · Responsive layouts · Styled dropdowns and file controls · Reduced-motion support · Accessible dialogs |
 
-## 🔎 Public SEO Page
+## Novel reading room
+
+The **Novels** section hosts uploaded novels, chapter reading, saved passages, favourites, and reader settings. Opening chapter 200 adds the novel to the existing Chronicle Library as **Active · Chapter 200**. Earlier chapters do not lower the saved count. Reading saves only chapter-open events, with no periodic scroll/percentage tracking or Nocturne PWA.
+
+Administrators can import TXT/Markdown chapters or split a complete book. Files upload directly to private R2 and are verified before publication. All users can add a profile avatar from Settings. The optional `scripts/migrateNocturne.ts` utility imports only the source catalogue/chapter index, preserving original R2 objects and excluding legacy user data; it defaults to a dry run.
+
+Reader controls include nine fonts (Book serif, Literata, Lora, Manrope, Inter, Roboto, Josefin Sans, System, Fira Code), font size, line/paragraph spacing, page width, brightness, four themes, five page tints, text alignment, continuous/paged reading, and reset defaults. Settings save to the signed-in account when **Save settings** is pressed.
+
+Focus mode hides the reader controls and fills the viewport with text. Tap the reading canvas or press **M** to toggle it; use **Exit focus** or **Escape** to return. **S** opens settings; arrow/Page Up/Page Down keys move through text. Selecting a passage does not toggle focus.
+
+### Upload new novels
+
+1. Sign in with an administrator account. The migrated catalogue belongs to Vixy.
+2. Open **Novels → Upload**, or go directly to `/admin/novels/upload`.
+3. Enter title, author, publication status, description and genres. Add an optional JPEG/PNG/WebP cover (up to 3 MiB).
+4. Choose ordered TXT/Markdown chapter files, or use **Or split a complete book** for a TXT/Markdown book with chapter headings (up to 50 MiB).
+5. Review chapter titles/order and press **Publish novel**. Each chapter must contain text and be at most 3 MiB; up to 10,000 chapters are supported. Keep the page open until **Novel published** appears.
+
+The upload screen is admin-only. Configure `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME` in the **hosting environment**, plus bucket PUT CORS for the exact site origin with `Content-Type` and `If-None-Match` allowed. Local `.env.local` does not configure Vercel. Existing titles cannot be overwritten by a new upload; retry an interrupted upload with the same metadata/files.
+
+### Studio interface
+
+The whole application uses the tokens in [app/studio.css](./app/studio.css), including settings, novel screens, public pages and forms. Editable logo source: `design/brand/chronicle-master.svg`; regenerate icons with `npm run icons:export`. Shelf choices are preloaded with a lightweight request and invalidated when shelves change; membership updates are atomic. Native Android sources remain local and Git-ignored.
+
+## Public SEO page
 
 Chronicle keeps account data private while exposing one concise, server-rendered product page to search engines and prospective users:
 
@@ -53,7 +77,9 @@ The page summarizes all four formats without separate tracker landing pages. Tec
 Because Android uses the responsive Chronicle UI, Cron history and MangaDex URL
 normalization work in both the browser and Android app without a second mobile UI.
 
-See [ANDROID_APP.md](./ANDROID_APP.md) for APK builds, Firebase setup, and release notes.
+Local Android builds use Android Studio's JDK 17 runtime: run `gradlew.bat assembleDebug assembleRelease lintDebug lintRelease` inside `android-app/`. Native Firebase push requires the local `google-services.json` for `com.vortexdevx.chronicle`. Verify notification permission, persistent login, device registration, direct push and cron-triggered push separately on a device. The current release passed builds/lint and signature checks; no device/emulator was available for launch verification.
+
+Current downloadable release: **1.1.0**, version code **7**, **697 KB**. The APK at `public/downloads/chronicle.apk` includes the new launcher identity and trusted-site file selection for novel/avatar uploads. Its signature matches the previous downloadable APK, allowing an in-place update.
 
 ## 📡 Tracker Scraping & Cron Sync
 

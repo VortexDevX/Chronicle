@@ -21,7 +21,7 @@ export function MobileBottomNav({
     { path: "/home", label: "Home", icon: Home },
     { path: "/library", label: "Library", icon: BookOpen },
     { path: "/updates", label: "Updates", icon: BellRing },
-    { path: "/shelves", label: "Shelves", icon: Layers3 },
+    { path: "/novels", label: "Novels", icon: Layers3 },
   ];
 
   return (

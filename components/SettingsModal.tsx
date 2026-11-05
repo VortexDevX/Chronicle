@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { ProfileAvatar } from "./ProfileAvatar";
 import { Dialog } from "@/components/Dialog";
+import { androidRelease } from "@/lib/androidRelease";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -93,7 +95,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const { toast, confirm } = useFeedback();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAdvancedPush, setShowAdvancedPush] = useState(false);
-  const [activeSection, setActiveSection] = useState("account");
+  const [activeSection, setActiveSection] = useState<"account" | "notifications" | "devices" | "data">("account");
   const [dirty, setDirty] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -351,7 +353,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             </span>
             <div>
               <h2>Settings</h2>
-              <p>Account, notifications, mobile app, and data management.</p>
+              <p>Make Chronicle feel like your space.</p>
             </div>
           </div>
         </div>
@@ -365,14 +367,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <div className="settings-tabs" role="tablist" aria-label="Settings sections" onKeyDown={(event) => {
               const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
               const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
-              const next = event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+              const next = ["ArrowRight","ArrowDown"].includes(event.key) ? (index + 1) % tabs.length : ["ArrowLeft","ArrowUp"].includes(event.key) ? (index + tabs.length - 1) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
               if (next >= 0) { event.preventDefault(); tabs[next].focus(); tabs[next].click(); }
             }}>
-              {[["account", "Account"], ["notifications", "Notifications"], ["devices", "Devices"], ["data", "Data"]].map(([id, title]) => <button key={id} id={`settings-tab-${id}`} type="button" role="tab" aria-selected={activeSection === id} aria-controls={`settings-panel-${id}`} tabIndex={activeSection === id ? 0 : -1} onClick={() => setActiveSection(id)}>{title}</button>)}
+              {[["account", "Account", User], ["notifications", "Notifications", Bell], ["devices", "Devices", Smartphone], ["data", "Data", Database]].map(([id, title, Icon]) => { const SectionIcon = Icon as typeof User; return <button key={id as string} id={`settings-tab-${id}`} type="button" role="tab" aria-selected={activeSection === id} aria-controls={`settings-panel-${id}`} tabIndex={activeSection === id ? 0 : -1} onClick={() => setActiveSection(id as typeof activeSection)}><SectionIcon size={17}/><span>{title as string}</span></button>; })}
             </div>
             <div className="modal-scroll settings-modal-body">
+              <div className="settings-section-intro" key={activeSection}><span className="section-eyebrow">Your preferences</span><h3>{{account:"Your account",notifications:"Stay in the loop",devices:"Take your stories along",data:"Your library. Your data."}[activeSection]}</h3><p>{{account:"Manage your identity and account recovery.",notifications:"Choose how new chapters and episodes reach you.",devices:"Keep Chronicle close, wherever you go.",data:"Keep a copy, bring a backup, or manage your session."}[activeSection]}</p></div>
               {/* Account Section */}
               <div className="settings-section" hidden={activeSection !== "account"} id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account">
+                <ProfileAvatar editable/>
                 <div className="modal-section-header">
                   <User size={15} />
                   <span>Account &amp; Security</span>
@@ -508,7 +512,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   <div className="settings-app-content">
                     <div className="settings-app-title-row">
                       <strong>Chronicle for Android</strong>
-                      <span className="settings-app-badge">v1.0.4 Release</span>
+                      <span className="settings-app-badge">v{androidRelease.version} Release</span>
                     </div>
                     <p>
                       Official signed APK with native push alerts, offline library caching, and quick home screen access.
@@ -521,7 +525,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     title="Download Chronicle Android APK"
                   >
                     <Download size={15} />
-                    <span>Download APK (850 KB)</span>
+                    <span>Download APK ({androidRelease.size})</span>
                   </a>
                 </div>
               </div>

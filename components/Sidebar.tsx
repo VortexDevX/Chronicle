@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileAvatar } from "./ProfileAvatar";
 import { Brand } from "./Brand";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -26,12 +27,14 @@ export const NAV_GROUPS = [
     items: [
       { path: "/home", label: "Home", icon: Home },
       { path: "/library", label: "Library", icon: BookOpen },
+      { path: "/novels", label: "Novels", icon: BookOpen },
       { path: "/updates", label: "Updates", icon: BellRing },
     ],
   },
   {
     title: "LIBRARY",
     items: [
+      { path: "/bookmarks", label: "Saved passages", icon: BookOpen },
       { path: "/shelves", label: "Shelves", icon: Layers3 },
       { path: "/droppedyard", label: "Droppedyard", icon: ArchiveX },
     ],
@@ -65,7 +68,7 @@ export function Sidebar({
   const setAuth = useMediaStore((state) => state.setAuth);
   const openSettings = useMediaStore((state) => state.openSettings);
   const { toast } = useFeedback();
-  const avatarLetter = username?.charAt(0).toUpperCase() || "C";
+
 
   const logout = async () => {
     try {
@@ -110,7 +113,7 @@ export function Sidebar({
             <span className="rail-group-title">{group.title}</span>
             {group.items.map((item) => {
               const Icon = item.icon;
-              const active = pathname === item.path;
+              const active = pathname === item.path || pathname.startsWith(item.path + "/");
               return (
                 <Link
                   key={item.path}
@@ -164,7 +167,7 @@ export function Sidebar({
         </button>
         <div className="rail-user-card" title={username || "Chronicle user"}>
           <div className="rail-user-avatar">
-            {avatarLetter}
+            <ProfileAvatar/>
             <span className="rail-user-dot" />
           </div>
           <span className="rail-user-name">{username || "Chronicle user"}</span>

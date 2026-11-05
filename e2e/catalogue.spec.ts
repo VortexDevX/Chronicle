@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
+import { test, expect } from "./session";
 
 const story = {
   _id: "story-1", title: "A Story With a Long and Memorable Title", media_type: "Manhwa", status: "Active",
@@ -28,6 +29,45 @@ test("failed save restores fractional progress and never announces saved", async
   await expect(page.getByText("Not saved. Try +1 again.")).toBeVisible();
   await expect(page.locator(".story-progress strong")).toHaveText("Ch. 42.5");
   await expect(page.locator(".story-log")).not.toHaveClass(/is-saved/);
+});
+
+test("filter panel stays above animated covers and accepts selections", async ({ page }, info) => {
+  await page.route("**/api/media?*", route => route.fulfill({json:{ok:true,data:{items:Array.from({length:8},(_,index) => ({...story,_id:`story-${index}`,title:`Story ${index}`})),total:8,has_more:false}}}));
+  await page.reload();
+  await expect(page.locator(".media-card")).toHaveCount(8);
+  await page.locator(".library-filter-disclosure>summary").click();
+  const sort = page.getByLabel("Sort by",{exact:true});
+  await expect(sort).toBeVisible();
+  await sort.scrollIntoViewIfNeeded();
+  expect(await sort.evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    return !!document.elementFromPoint(bounds.x+bounds.width/2,bounds.y+bounds.height/2)?.closest(".library-filter-panel");
+  })).toBe(true);
+  await sort.selectOption("title");
+  await expect(sort).toHaveValue("title");
+  await sort.click();
+  await page.screenshot({path:info.outputPath("filter-dropdown.png"),animations:"disabled"});
+  await page.keyboard.press("Escape");
+});
+
+test("entry form reuses preloaded shelf choices without waiting for another request", async ({page},info) => {
+  let shelfRequests=0;
+  await page.route("**/api/shelves?picker=1",route => {
+    shelfRequests++;
+    return route.fulfill({json:{ok:true,data:{items:[{_id:"shelf-1",name:"Weekend stories",media_ids:[story._id]}]}}});
+  });
+  await page.reload();
+  await expect.poll(() => shelfRequests).toBe(1);
+  await page.getByRole("button",{name:"Add new entry",exact:true}).click();
+  await expect(page.getByText("Weekend stories",{exact:true})).toBeVisible();
+  await expect(page.getByText("Loading shelves…",{exact:true})).not.toBeVisible();
+  await page.getByRole("button",{name:"Close entry form",exact:true}).click();
+  await page.getByRole("button",{name:"Add new entry",exact:true}).click();
+  await expect(page.getByText("Weekend stories",{exact:true})).toBeVisible();
+  expect(shelfRequests).toBe(1);
+  const dimensions=await page.locator(".shelf-chip input").evaluate(node=>({width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height}));
+  expect(dimensions.height).toBeLessThanOrEqual(16);expect(dimensions.width).toBeLessThanOrEqual(16);
+  await page.locator(".shelf-picker").screenshot({path:info.outputPath("shelf-chips.png"),animations:"disabled"});
 });
 
 test("mobile and desktop list retain progress without inventing completion", async ({ page }) => {
@@ -89,7 +129,7 @@ test("reduced motion removes collection entrance effects", async ({ page }) => {
   expect(await page.locator(".media-card").evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
 });
 
-test("home jacket and recent queue preserve progress when saves fail", async ({ page }) => {
+test("home jacket and recent queue preserve progress when saves fail", async ({ page },info) => {
   const recent = { ...story, _id: "story-2", title: "Another active story", progress_current: 18.5 };
   await page.route("**/api/home", (route) => route.fulfill({ json: { ok: true, data: {
     featured: story, continue_items: [story, recent], updates: [], activity: [], rhythm: [], partial_failures: [],
@@ -104,12 +144,15 @@ test("home jacket and recent queue preserve progress when saves fail", async ({ 
   await expect(page.locator(".queue-row").filter({ hasText: recent.title }).locator(".queue-copy p")).toHaveText("Ch. 18.5");
   await expect(page.locator(".queue-row").filter({ hasText: recent.title }).locator(".queue-log")).toBeEnabled();
   await expect(page.getByText("Simulated save failure").first()).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.evaluate(()=>{(document.activeElement as HTMLElement)?.blur();window.scrollTo(0,0);});
+  await page.screenshot({path:info.outputPath("featured-home.png"),fullPage:true,animations:"disabled"});
 });
 
 test("featured media draws fresh random stories every 30 seconds without cycling a capped pool", async ({ page }) => {
   const now = new Date("2026-10-31T12:00:00Z");
   await page.clock.install({ time: now });
-  await page.clock.pauseAt(now);
+  await page.clock.pauseAt(new Date(now.getTime() + 1000));
   const second = { ...story, _id: "second", title: "Second featured story", progress_current: 18.5 };
   const third = { ...story, _id: "third", title: "Third featured story", progress_current: 7 };
   let requests = 0;
@@ -152,7 +195,8 @@ test("featured media draws fresh random stories every 30 seconds without cycling
 test("rotated story saves target the visible title and retain its progress after failure", async ({ page }) => {
   const now = new Date("2026-10-31T12:00:00Z");
   await page.clock.install({ time: now });
-  await page.clock.pauseAt(now);
+  // Installation starts the clock; allow setup to advance before pausing it.
+  await page.clock.pauseAt(new Date(now.getTime() + 1000));
   const second = { ...story, _id: "second", title: "Second featured story", progress_current: 18.5 };
   await page.route("**/api/home", (route) => route.fulfill({ json: { ok: true, data: {
     featured: story, continue_items: [story], updates: [], activity: [], rhythm: [],

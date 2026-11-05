@@ -124,7 +124,7 @@ export default async function LandingPage() {
                 want them.
               </p>
               <LandingHeroActions isAuthenticated={isAuthenticated} />
-              <small>No streaming. No chapter hosting. Just your list.</small>
+              <small>Your watchlist, reading library, and next chapter. Together.</small>
             </div>
 
             <div className="simple-capability-panel" aria-label="Current Chronicle product capabilities">

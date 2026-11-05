@@ -6,8 +6,8 @@
   --text-invert: #fff; --accent: #9bb7ff; --action: #3159e8; --accent-hover: #2545c6; --accent-text: #fff;
   --accent-glow: transparent; --border: #303c46; --border-strong: #52616f; --border-focus: #9bb7ff;
   --green: #91d7b2; --amber: #e6c778; --red: #ff989e; --cyan: #85cddc; --violet: #c3a6eb;
-  --font-body: var(--font-interface), sans-serif; --font-display: var(--font-catalogue), sans-serif;
-  --font-index: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --font-body: var(--font-interface), sans-serif; --font-display: Georgia, "Times New Roman", serif;
+  --font-index: var(--font-index-face), "Cascadia Code", monospace;
   --radius-sm: 0px; --radius-md: 0px; --radius-lg: 0px;
   --motion-press: 90ms; --motion-fast: 160ms; --motion-panel: 240ms;
   --ease-settle: cubic-bezier(.2,.8,.2,1);

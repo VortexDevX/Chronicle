@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileAvatar } from "./ProfileAvatar";
 import { useEffect } from "react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -26,6 +27,8 @@ const ROUTE_CONFIG: Record<
     icon: React.ElementType;
   }
 > = {
+  "/novels": { eyebrow: "The reading room", title: "Novels", icon: BookOpen },
+  "/bookmarks": { eyebrow: "Words worth keeping", title: "Saved passages", icon: BookOpen },
   "/home": {
     eyebrow: "Personal Command Center",
     title: "Home",
@@ -83,7 +86,7 @@ export function TopBar({
     icon: Home,
   };
   const RouteIcon = routeInfo.icon;
-  const avatarLetter = username?.charAt(0).toUpperCase() || "C";
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -149,7 +152,7 @@ export function TopBar({
           title={username ? `${username} (Settings)` : "Chronicle Profile"}
           aria-label="Open profile settings"
         >
-          <div className="topbar-avatar">{avatarLetter}</div>
+          <div className="topbar-avatar"><ProfileAvatar/></div>
           <span className="topbar-user-status-dot" />
         </button>
       </div>

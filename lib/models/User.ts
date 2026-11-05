@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
+    is_admin: { type: Boolean, default: false },
+    avatar_object_key: { type: String, default: null },
     username: { type: String, required: true, unique: true },
     email: {
       type: String,
@@ -21,4 +23,8 @@ const userSchema = new mongoose.Schema(
   { timestamps: { createdAt: "created_at", updatedAt: false } },
 );
 
-export const User = mongoose.models.User || mongoose.model("User", userSchema);
+const existingUser = mongoose.models.User;
+if (existingUser && !existingUser.schema.path("is_admin")) {
+  existingUser.schema.add({ is_admin: { type: Boolean, default: false }, avatar_object_key: { type: String, default: null } });
+}
+export const User = existingUser || mongoose.model("User", userSchema);

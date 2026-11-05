@@ -13,6 +13,7 @@ import { PageLoader } from "./PageLoader";
 import { FeedbackProvider } from "./FeedbackProvider";
 import { MediaDetails } from "./MediaDetails";
 import { Dialog } from "./Dialog";
+import { clearShelfPicker, loadShelfPicker } from "@/lib/client/shelfPicker";
 
 export default function ClientSessionProvider({ children }: { children: React.ReactNode }) {
   const { authStatus } = useAuth();
@@ -56,6 +57,14 @@ export default function ClientSessionProvider({ children }: { children: React.Re
     if (authStatus === "unauthenticated") router.push("/login");
   }, [authStatus, router]);
 
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    const warm = () => { void loadShelfPicker().catch(() => {}); };
+    const changed = () => { clearShelfPicker(); warm(); };
+    warm(); window.addEventListener("chronicle-shelves-changed",changed);
+    return () => window.removeEventListener("chronicle-shelves-changed",changed);
+  }, [authStatus]);
+
   if (authStatus === "loading") {
     return (
       <div className="auth-bg">
@@ -70,6 +79,7 @@ export default function ClientSessionProvider({ children }: { children: React.Re
   const isDashboard = pathname !== "/login" && pathname !== "/register";
 
   if (!isDashboard) return <>{children}</>;
+  if (pathname.startsWith("/read/")) return <FeedbackProvider><main id="main-content">{children}</main></FeedbackProvider>;
 
   return (
     <FeedbackProvider>

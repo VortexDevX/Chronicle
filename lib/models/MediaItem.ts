@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 
 const mediaSchema = new mongoose.Schema(
   {
+    hosted_novel_slug: { type: String, default: null },
+    is_favorite: { type: Boolean, default: false },
     user_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -59,6 +61,7 @@ const mediaSchema = new mongoose.Schema(
 );
 
 mediaSchema.index({ user_id: 1, last_updated: -1 });
+mediaSchema.index({ user_id: 1, hosted_novel_slug: 1 }, { unique: true, partialFilterExpression: { hosted_novel_slug: { $type: "string" } } });
 mediaSchema.index({ user_id: 1, media_type: 1 });
 mediaSchema.index({ user_id: 1, status: 1, last_updated: -1 });
 mediaSchema.index({ user_id: 1, media_type: 1, status: 1, last_updated: -1 });
@@ -84,6 +87,9 @@ mediaSchema.pre("findOneAndUpdate", function (next) {
 
 // Next.js keeps Mongoose models alive across dev hot reloads.
 const existingMediaItem = mongoose.models.MediaItem;
+if (existingMediaItem && !existingMediaItem.schema.path("hosted_novel_slug")) {
+  existingMediaItem.schema.add({ hosted_novel_slug: { type: String, default: null }, is_favorite: { type: Boolean, default: false } });
+}
 if (existingMediaItem && !existingMediaItem.schema.path("watch_url")) {
   existingMediaItem.schema.add({
     title_aliases: {

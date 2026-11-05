@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Chronicle mark</title>
+  <desc id="desc">Three orbiting story paths form a forward-facing Chronicle C.</desc>
+  <path d="M387 100 208 100 76 232q-24 24 0 48l132 132h179l-76-76H240l-80-80 80-80h71Z" fill="#7298ff"/>
+  <path d="m297 176 80 80-80 80h90l80-80-80-80Z" fill="#dce7ff"/>
+  <path d="m76 232 84 24 80-80h71l76-76H208Z" fill="#94b3ff"/>
+</svg>

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { MediaItem } from "@/types/media";
+import { clearShelfPicker } from "@/lib/client/shelfPicker";
 
 export interface GlobalStats {
   total: number;
@@ -86,6 +87,7 @@ export const useMediaStore = create<AppState>((set, get) => ({
   detailsMedia: null,
 
   setAuth: (status, username) => {
+    if (status !== "authenticated" || (username && username !== get().username)) clearShelfPicker();
     set({ authStatus: status, username: username || "", ...(status === "unauthenticated" ? {
       media: [], total: 0, hasMore: false, detailsMedia: null,
       modalOpen: false, modalMedia: null, settingsOpen: false, selectedIds: new Set<string>(),

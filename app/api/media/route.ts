@@ -371,13 +371,14 @@ export async function PUT(req: NextRequest) {
       _id: id,
       user_id: userObjectId,
     })
-      .select("title media_type dedupe_key progress_current")
+      .select("title media_type dedupe_key progress_current hosted_novel_slug")
       .lean()) as {
       _id: unknown;
       title: string;
       media_type: string;
       dedupe_key?: string | null;
       progress_current?: number;
+      hosted_novel_slug?: string | null;
     } | null;
 
     if (!existing) {
@@ -385,9 +386,12 @@ export async function PUT(req: NextRequest) {
     }
 
     const updateDoc: Record<string, unknown> = { ...validated.normalized };
+    if (existing.hosted_novel_slug && validated.normalized.media_type && validated.normalized.media_type !== "Light Novel") {
+      return jsonError("HOSTED_NOVEL_TYPE", "Hosted novels must remain Light Novel entries", 400);
+    }
     if (
-      validated.normalized.title !== undefined ||
-      validated.normalized.media_type !== undefined
+      !existing.hosted_novel_slug && (validated.normalized.title !== undefined ||
+      validated.normalized.media_type !== undefined)
     ) {
       const nextTitle = String(validated.normalized.title || existing.title);
       const nextType = String(

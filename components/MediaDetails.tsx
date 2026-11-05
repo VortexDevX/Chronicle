@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useState } from "react";
 import { Check, Edit3, ExternalLink, FastForward, Plus, X } from "lucide-react";
@@ -66,6 +67,7 @@ export function MediaDetails({ media, onClose }: { media: MediaItem; onClose: ()
           {item.notes && <div className="story-details-notes"><span className="section-eyebrow">Your notes</span><p>{item.notes}</p></div>}
           <div className="story-details-links">
             <button className="btn-ghost" onClick={() => { onClose(); edit(item); }}><Edit3 size={16} /> Edit entry</button>
+            {item.hosted_novel_slug && <Link className="btn-primary" onClick={onClose} href={`/read/${item.hosted_novel_slug}/${Math.max(1, Math.min(item.progress_total || 1, Math.floor(item.progress_current || 1)))}`}>Continue reading →</Link>}
             {source && <a className="btn-ghost" href={source} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Open source</a>}
           </div>
           <details className="story-source-info"><summary>Tracking details</summary>

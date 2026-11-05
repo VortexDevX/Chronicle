@@ -33,6 +33,9 @@ export async function apiRequest<T>(
     );
   }
 
+  if (typeof window !== "undefined" && String(input).startsWith("/api/shelves") && init.method && init.method !== "GET") {
+    window.dispatchEvent(new Event("chronicle-shelves-changed"));
+  }
   return (payload?.data ?? payload) as T;
 }
 

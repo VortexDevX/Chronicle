@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Check, Edit3, ExternalLink, FastForward, MoreHorizontal, Plus, Star, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { MediaItem } from "@/types/media";
@@ -57,13 +58,14 @@ export function MediaCard({ m, mode = "grid", priority = false, position, onEdit
   );
   const actions = (
     <div className="story-actions">
+      {m.hosted_novel_slug && <Link href={`/read/${m.hosted_novel_slug}/${Math.max(1, Math.min(m.progress_total || 1, Math.floor(m.progress_current || 1)))}`} aria-label={`Read ${m.title}`}>Read →</Link>}
       {tracker ? <a href={tracker} target="_blank" rel="noreferrer" aria-label={`Open tracker for ${m.title}`} title="Open source"><ExternalLink size={16} /></a>
         : mode === "list" && <button disabled aria-label={`No tracker link for ${m.title}`} title="No tracker link"><ExternalLink size={16} /></button>}
       {onIncrement && status === "Active" && (
         <button className={`story-log ${saved ? "is-saved" : ""}`} onClick={increment} disabled={pending || !canIncrement}
           aria-label={`Log next for ${m.title}`} title={`Log ${p.shortUnit} ${formatProgress(p.next)}`}>
           {pending ? <span className="spinner" /> : saved ? <Check size={16} /> : <Plus size={17} />}
-          <span>{saved ? "Saved" : "+1"}</span>
+          <span>{saved ? "Saved" : "1"}</span>
         </button>
       )}
       {(onEdit || onDelete || onCatchUp) && (

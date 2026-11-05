@@ -46,6 +46,10 @@ export async function GET(req: NextRequest) {
       return jsonOk({ items: media });
     }
 
+    if (req.nextUrl.searchParams.get("picker") === "1") {
+      const items = await Shelf.find({ user_id: userId }).select("_id name media_ids").sort({ created_at:-1 }).lean();
+      return jsonOk({items});
+    }
     const shelves = await Shelf.find({ user_id: userId }).sort({ created_at: -1 }).lean();
     const allMediaIds = shelves.flatMap((s: unknown) => {
       const doc = s as Record<string, unknown>;
@@ -129,6 +133,19 @@ export async function PUT(req: NextRequest) {
     const { media_ids } = body;
 
     await connectDB();
+
+    if (body.add_media_id !== undefined || body.remove_media_id !== undefined) {
+      const adding = body.add_media_id !== undefined;
+      const mediaId = adding ? body.add_media_id : body.remove_media_id;
+      if ((body.add_media_id !== undefined && body.remove_media_id !== undefined) || typeof mediaId !== "string" || !isValidObjectId(mediaId)) {
+        return jsonError("INVALID_MEDIA_ID", "Choose one valid entry to add or remove", 400);
+      }
+      if (adding && !await MediaItem.exists({ _id:mediaId,user_id:userId })) return jsonError("NOT_FOUND", "Entry not found", 404);
+      const itemId = new mongoose.Types.ObjectId(mediaId);
+      const shelf = await Shelf.findOneAndUpdate({ _id:id,user_id:userId },adding ? {$addToSet:{media_ids:itemId}} : {$pull:{media_ids:itemId}},{new:true});
+      if (!shelf) return jsonError("NOT_FOUND", "Shelf not found", 404);
+      return jsonOk(shelf);
+    }
 
     const shelf = await Shelf.findOne({ _id: id, user_id: userId });
     if (!shelf) return jsonError("NOT_FOUND", "Shelf not found", 404);

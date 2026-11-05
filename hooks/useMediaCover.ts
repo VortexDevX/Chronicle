@@ -25,7 +25,7 @@ function getIdentity(media: MediaItem): string {
 
 export function useMediaCover(media: MediaItem, enabled = true) {
   const identity = getIdentity(media);
-  const customCover = media.custom_cover_url || "";
+  const customCover = media.hosted_novel_slug ? `/api/novels/${media.hosted_novel_slug}/cover` : media.custom_cover_url || "";
   const lookupMedia = useMemo<MediaCoverRequest>(() => ({
     title: media.title,
     media_type: media.media_type,

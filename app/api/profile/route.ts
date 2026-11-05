@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     if (!userId && errorResponse) return errorResponse;
 
     const user = await User.findById(userId).select(
-      "username email email_verified_at notifications_enabled push_notifications_enabled telegram_chat_id created_at",
+      "username email email_verified_at notifications_enabled push_notifications_enabled telegram_chat_id created_at avatar_object_key is_admin",
     );
 
     if (!user) {
@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
     }
 
     return jsonOk({
+      avatar_url: user.avatar_object_key ? `/api/profile/avatar?v=${encodeURIComponent(user.avatar_object_key.split('/').pop())}` : null,
+      is_admin: Boolean(user.is_admin),
       username: user.username,
       email: user.email || null,
       email_verified_at: user.email_verified_at || null,
@@ -104,7 +106,7 @@ export async function PUT(req: NextRequest) {
       new: true,
       runValidators: true,
     }).select(
-      "username email email_verified_at notifications_enabled push_notifications_enabled telegram_chat_id created_at",
+      "username email email_verified_at notifications_enabled push_notifications_enabled telegram_chat_id created_at avatar_object_key is_admin",
     );
 
     if (!updated) {
@@ -112,6 +114,8 @@ export async function PUT(req: NextRequest) {
     }
 
     return jsonOk({
+      avatar_url: updated.avatar_object_key ? `/api/profile/avatar?v=${encodeURIComponent(updated.avatar_object_key.split('/').pop())}` : null,
+      is_admin: Boolean(updated.is_admin),
       username: updated.username,
       email: updated.email || null,
       email_verified_at: updated.email_verified_at || null,

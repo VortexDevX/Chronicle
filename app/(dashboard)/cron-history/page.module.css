@@ -20,10 +20,9 @@
   align-items: center;
   gap: 14px;
   border: 1px solid var(--border);
-  border-radius: 0;
-  border-width: 0 0 1px;
-  padding: 0 0 28px;
-  background: transparent;
+  border-radius: 14px;
+  padding: 24px;
+  background: var(--bg-card);
   min-width: 0;
   max-width: 100%;
 }
@@ -73,9 +72,9 @@
   justify-content: center;
   gap: 7px;
   border: 1px solid var(--border-strong);
-  border-radius: 4px;
+  border-radius: 10px;
   padding: 0 14px;
-  background: transparent;
+  background: var(--bg-card);
   color: var(--text-primary);
   cursor: pointer;
   flex-shrink: 0;

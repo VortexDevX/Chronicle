@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import ClientSessionProvider from "@/components/ClientSessionProvider";
+import { requireServerSession } from "@/lib/serverSession";
 
 export const metadata: Metadata = {
   title: "Private media library",
@@ -11,10 +12,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await requireServerSession();
   return <ClientSessionProvider>{children}</ClientSessionProvider>;
 }

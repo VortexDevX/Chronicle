@@ -4,8 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const master = path.join(root, "design/brand/chronicle-master.png");
-const background = "#0d141a";
+const master = path.join(root, "design/brand/chronicle-master.svg");
+const background = "#0b0d12";
 const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
 const mark = await sharp(master).trim().png().toBuffer();
 
