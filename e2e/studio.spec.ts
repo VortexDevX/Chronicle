@@ -1,5 +1,34 @@
 import { test, expect } from "./session";
 
+test("mobile update delta stays compact and navigation drawer aligns left", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile", "Mobile layout regression");
+  await page.route("**/api/updates", (route) => route.fulfill({ json: { ok: true, data: {
+    items: [{
+      _id: "mobile-layout-story", title: "Mobile layout story", media_type: "Manhwa", status: "Active",
+      progress_current: 19, progress_total: 0, latest_remote_progress: 20, unread_delta: 1,
+      telegram_state: "not_notified", last_updated: "2026-11-05T12:00:00.000Z", last_checked_at: "2026-11-05T12:00:00.000Z",
+    }],
+    tracker_errors: [], partial_failures: [],
+  } } }));
+  await page.goto("/updates");
+  const delta = page.locator(".update-delta");
+  await expect(delta).toContainText("+1");
+  const deltaBox = await delta.boundingBox();
+  const mainBox = await page.locator(".update-row-main").boundingBox();
+  expect(deltaBox).not.toBeNull();
+  expect(mainBox).not.toBeNull();
+  expect(deltaBox!.width).toBeLessThan(mainBox!.width / 2);
+
+  await page.getByRole("button", { name: "Open menu for shelves, graveyard, and settings" }).click();
+  const drawer = page.locator(".navigation-dialog .sidebar.app-rail");
+  await expect(drawer).toBeVisible();
+  const drawerBox = await drawer.boundingBox();
+  expect(drawerBox).not.toBeNull();
+  expect(drawerBox!.x).toBe(0);
+  expect(drawerBox!.width).toBeLessThanOrEqual(300);
+  await page.screenshot({ path: info.outputPath("mobile-updates-and-drawer.png"), fullPage: true, animations: "disabled" });
+});
+
 test("studio surfaces keep the same design and fit desktop and mobile", async ({ page }, info) => {
   test.setTimeout(120000);
   for (const path of ["/home","/library","/novels","/shelves","/updates","/analytics","/bookmarks","/droppedyard","/cron-history"]) {

@@ -38,7 +38,8 @@ Focus mode hides the reader controls and fills the viewport with text. Tap the r
 2. Open **Novels → Upload**, or go directly to `/admin/novels/upload`.
 3. Enter title, author, publication status, description and genres. Add an optional JPEG/PNG/WebP cover (up to 3 MiB).
 4. Choose ordered TXT/Markdown chapter files, or use **Or split a complete book** for a TXT/Markdown book with chapter headings (up to 50 MiB).
-5. Review chapter titles/order and press **Publish novel**. Each chapter must contain text and be at most 3 MiB; up to 10,000 chapters are supported. Keep the page open until **Novel published** appears.
+5. Optionally upload a file named exactly `titles.txt` to assign chapter titles automatically. Use one line per chapter, such as `Chapter 1: The Beginning`; `Chapter`, `Ch`, and `Ch.` prefixes with a colon, dash, or plain space are accepted. Missing entries fall back to `Chapter N` and every assigned title remains editable.
+6. Review chapter titles/order and press **Publish novel**. Each chapter must contain text and be at most 3 MiB; up to 10,000 chapters are supported. Keep the page open until **Novel published** appears.
 
 The upload screen is admin-only. Configure `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET_NAME` in the **hosting environment**, plus bucket PUT CORS for the exact site origin with `Content-Type` and `If-None-Match` allowed. Local `.env.local` does not configure Vercel. Existing titles cannot be overwritten by a new upload; retry an interrupted upload with the same metadata/files.
 
@@ -79,7 +80,7 @@ normalization work in both the browser and Android app without a second mobile U
 
 Local Android builds use Android Studio's JDK 17 runtime: run `gradlew.bat assembleDebug assembleRelease lintDebug lintRelease` inside `android-app/`. Native Firebase push requires the local `google-services.json` for `com.vortexdevx.chronicle`. Verify notification permission, persistent login, device registration, direct push and cron-triggered push separately on a device. The current release passed builds/lint and signature checks; no device/emulator was available for launch verification.
 
-Current downloadable release: **1.1.0**, version code **7**, **697 KB**. The APK at `public/downloads/chronicle.apk` includes the new launcher identity and trusted-site file selection for novel/avatar uploads. Its signature matches the previous downloadable APK, allowing an in-place update.
+Current downloadable release: **1.1.1**, version code **8**, **697 KB**. The APK at `public/downloads/chronicle.apk` opens `/home` on every normal launch, includes trusted-site file selection for novel/avatar uploads, and keeps notification deep links. Its signature matches the previous downloadable APK, allowing an in-place update.
 
 ## 📡 Tracker Scraping & Cron Sync
 

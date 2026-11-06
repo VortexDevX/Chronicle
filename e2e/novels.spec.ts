@@ -1,5 +1,30 @@
 import { test, expect } from "./session";
 
+test("novel filters update locally without reloading the archive", async ({ page }) => {
+  let requests = 0;
+  await page.route("**/api/novels?all=1", (route) => {
+    requests++;
+    return route.fulfill({ json: { ok: true, data: {
+      items: [
+        { slug:"ongoing-story",title:"Ongoing Story",author:"Author A",description:"",genres:["Fantasy"],status:"ongoing",totalChapters:20,cover:null,library:null,createdAt:"2026-11-01T00:00:00Z" },
+        { slug:"finished-story",title:"Finished Story",author:"Author B",description:"",genres:["Mystery"],status:"completed",totalChapters:10,cover:null,library:null,createdAt:"2026-11-02T00:00:00Z" },
+      ],
+      genres:["Fantasy","Mystery"],total:2,has_more:false,is_admin:false,
+    } } });
+  });
+  await page.goto("/novels");
+  await expect(page.getByRole("link",{name:"Ongoing Story",exact:true}).last()).toBeVisible();
+  const initialRequests = requests;
+  await page.getByRole("button",{name:"Completed",exact:true}).click();
+  await expect(page.getByRole("link",{name:"Finished Story",exact:true}).last()).toBeVisible();
+  await expect(page.getByRole("link",{name:"Ongoing Story",exact:true})).toHaveCount(0);
+  await expect(page.locator(".novel-loading")).toHaveCount(0);
+  await page.getByRole("button",{name:"Fantasy",exact:true}).click();
+  await expect(page.getByText("No novels found",{exact:true})).toBeVisible();
+  expect(initialRequests).toBeGreaterThan(0);
+  expect(requests).toBe(initialRequests);
+});
+
 test("profile avatar keeps a circular crop with a loaded image", async ({ page }, info) => {
   await page.route("**/api/profile", async route => {
     const response = await route.fetch(); const json = await response.json();
