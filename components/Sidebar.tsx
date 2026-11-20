@@ -93,7 +93,7 @@ export function Sidebar({
       aria-label="Sidebar navigation"
     >
       <div className="rail-brand">
-        <Link href="/home" className="rail-brand-link" aria-label="Chronicle home" onClick={() => setMobileOpen(false)}>
+        <Link href="/home" className="rail-brand-link" aria-label={collapsed && !mobileOpen ? "Chronicle home" : "Chronicle The story continues home"} onClick={() => setMobileOpen(false)}>
           <Brand compact={collapsed && !mobileOpen} />
         </Link>
         <span id="navigation-title" className="sr-only">Your Chronicle navigation</span>
@@ -163,7 +163,7 @@ export function Sidebar({
           aria-label="Sign out of Chronicle"
         >
           <LogOut size={19} />
-          <span className="rail-footer-text">Logout</span>
+          <span className="rail-footer-text">Sign out</span>
         </button>
         <div className="rail-user-card" title={username || "Chronicle user"}>
           <div className="rail-user-avatar">

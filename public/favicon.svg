@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Chronicle</title>
+  <desc id="desc">A bold ink C with a paper bookmark on a lilac tile.</desc>
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#c5b0ea"/>
+  <path d="M43 18H28c-9 0-15 6-15 14s6 14 15 14h15v-8H28a6 6 0 0 1 0-12h15Z" fill="#30223e"/>
+  <path d="M43 10h9v20l-4.5-3.5L43 30Z" fill="#fffaf1"/>
+</svg>

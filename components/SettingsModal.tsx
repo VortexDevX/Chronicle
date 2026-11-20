@@ -1,5 +1,8 @@
 "use client";
 
+import { MotionPreference } from "@/components/motion/MotionPreference";
+import { ThemePreference } from "@/components/ThemeToggle";
+
 import { useState, useEffect, useRef } from "react";
 import { ProfileAvatar } from "./ProfileAvatar";
 import { Dialog } from "@/components/Dialog";
@@ -377,6 +380,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               {/* Account Section */}
               <div className="settings-section" hidden={activeSection !== "account"} id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account">
                 <ProfileAvatar editable/>
+                  <ThemePreference />
+                <MotionPreference />
                 <div className="modal-section-header">
                   <User size={15} />
                   <span>Account &amp; Security</span>

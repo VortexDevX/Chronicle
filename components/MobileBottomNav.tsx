@@ -29,7 +29,7 @@ export function MobileBottomNav({
       <div className="mobile-bottom-nav-inner">
         {navLinks.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.path;
+          const active = pathname === item.path || pathname.startsWith(`${item.path}/`);
           return (
             <Link
               key={item.path}
@@ -50,7 +50,7 @@ export function MobileBottomNav({
           aria-label="Open menu for shelves, graveyard, and settings"
         >
           <Menu size={20} />
-          <span>More</span>
+          <span>Menu</span>
         </button>
       </div>
     </nav>

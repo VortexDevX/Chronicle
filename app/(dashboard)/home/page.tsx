@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
+  BookOpen,
+  Layers3,
   Check,
   Clock3,
   FastForward,
@@ -12,19 +14,18 @@ import {
   Play,
   Plus,
   RefreshCw,
-  Sparkles,
   Shuffle,
 } from "lucide-react";
 import type { HomePayload, MediaItem } from "@/types/media";
 import { useMediaStore } from "@/store/mediaStore";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
 import { useFeedback } from "@/components/FeedbackProvider";
+import { CharacterArt } from "@/components/illustrations/CharacterArt";
 import { MediaArtwork } from "@/components/MediaArtwork";
-import {
-  relativeTime,
-} from "@/utils/format";
+import { relativeTime } from "@/utils/format";
 import { PageLoader } from "@/components/PageLoader";
 import { formatProgress, progressSummary } from "@/utils/progress";
+import styles from "./page.module.css";
 
 function progressUnit(mediaType: string) {
   return mediaType === "Anime" || mediaType === "Donghua"
@@ -230,157 +231,153 @@ export default function HomePage() {
     );
   }
 
-  if (!featured) {
-    return (
-      <section className="home-empty">
-        <div className="home-empty-icon"><Sparkles size={32} /></div>
-        <span>Your personal story index</span>
-        <h2>Build a library worth returning to.</h2>
-        <p>Add an active title, then Chronicle will bring progress, releases, and activity into one place.</p>
-        <div className="home-empty-actions">
-          <button className="btn-primary" onClick={() => openModal(null)}>
-            <Plus size={17} /> Add entry
-          </button>
-          <Link className="btn-ghost" href="/library">Open Library</Link>
-        </div>
-      </section>
-    );
-  }
-
-  const currentHeroProgress = heroOptimisticProgress?.id === featured._id ? heroOptimisticProgress.value : featured.progress_current;
-  const latest = featured.latest_remote_progress ?? currentHeroProgress;
-  const progress = progressSummary(featured, currentHeroProgress);
-  const unread = progress.unread;
-
+  const currentHeroProgress = featured ? (heroOptimisticProgress?.id === featured._id ? heroOptimisticProgress.value : featured.progress_current) : 0;
+  const latest = featured?.latest_remote_progress ?? currentHeroProgress;
+  const progress = featured ? progressSummary(featured, currentHeroProgress) : null;
+  const week = payload?.rhythm ?? [];
+  const activeDays = week.filter((day) => day.events > 0).length;
+  const maximumEvents = Math.max(1, ...week.map((day) => day.events));
+  const activityUnavailable = payload?.partial_failures?.includes("seven-day activity");
+  const updatesUnavailable = payload?.partial_failures?.includes("updates");
 
   return (
-    <div className="home-view">
-      <div className="page-intro home-intro"><div><span className="section-eyebrow">Your personal story index</span><h2>In progress<span className="title-stop">.</span></h2></div><Link href="/library" className="index-link">Explore Library <ArrowRight size={17} /></Link></div>
-      {payload?.partial_failures?.length ? (
-        <div className="partial-notice">
-          <RefreshCw size={15} />
-          Some panels are temporarily unavailable: {payload.partial_failures.join(", ")}.
-          <button onClick={loadHome}>Retry</button>
-        </div>
-      ) : null}
-
-      <div className="reading-board">
-        <section className="current-volume home-hero" aria-label="Featured story"
-          onFocusCapture={(event) => { if (!(event.target as HTMLElement).closest(".feature-rotation-controls")) setRotationPaused(true); }}
-          onPointerDown={(event) => { if (!(event.target as HTMLElement).closest(".feature-rotation-controls")) setRotationPaused(true); }}>
-          <div className="index-section-label"><span>On rotation</span><span>{featured.media_type}</span></div>
-          <button className="current-volume-cover" onClick={() => openDetails(featured)} aria-label={`View details for ${featured.title}`}><MediaArtwork key={featured._id} media={featured} priority />
-            <span className="volume-progress-stamp">{shortUnit(featured.media_type)}<strong>{formatProgress(currentHeroProgress)}</strong></span>
-          </button>
-          <div className="current-volume-copy">
-            <h2><button onClick={() => openDetails(featured)}>{featured.title}</button></h2>
-            <div className="current-volume-meta"><span>{featured.status}</span>{featured.rating ? <span>★ {featured.rating}/10</span> : null}</div>
-            {featured.hosted_novel_slug && <Link className="novel-button" href={`/read/${featured.hosted_novel_slug}/${Math.max(1, Math.min(featured.progress_total || 1, Math.floor(featured.progress_current || 1)))}`}>Continue reading →</Link>}
-            <div className="hero-progress">
-              <strong className={`progress-current-val ${heroTicked ? "is-ticked" : ""}`}>{progress.label}</strong>
-              {progress.knownTotal && <div className="progress-track"><i style={{ width: `${progress.percent}%` }} /></div>}
-              <p className="hero-availability">{progress.availability}</p>
-            </div>
-            <div className="hero-actions">
-              <button className="hero-primary" onClick={() => logNext(featured)} disabled={!!pendingId || progress.next <= currentHeroProgress}>
-                {pendingId === featured._id ? <span className="spinner" /> : heroTicked ? <Check size={17} /> : <Plus size={17} />}
-                Log {shortUnit(featured.media_type)} {formatProgress(progress.next)}
-              </button>
-              <button className="hero-secondary volume-details" onClick={() => openDetails(featured)} aria-label={`More about ${featured.title}`}><MoreHorizontal size={18} /></button>
-            </div>
-            {unread > 1 && <button className="volume-catchup" onClick={() => catchUp(featured, latest)} disabled={!!pendingId}><FastForward size={14} /> Catch up to {formatProgress(latest)}</button>}
-          </div>
-          <div className="feature-rotation-controls" role="group" aria-label="Featured story rotation">
-            <span>{rotationPaused ? "Paused · random picks" : "Random pick · every 30s"}</span>
-            <button onClick={() => setRotationPaused((paused) => !paused)} aria-label={rotationPaused ? "Resume featured rotation" : "Pause featured rotation"}>{rotationPaused ? <Play size={15} /> : <Pause size={15} />}</button>
-            <button onClick={() => { void changeFeatured(); }} disabled={!!pendingId || featureLoading} aria-label="Another random story">{featureLoading ? <span className="spinner" /> : <Shuffle size={17} />}</button>
-          </div>
-          {featureError && <p className="story-save-error" role="status">{featureError}</p>}
-        </section>
-        <section className="reading-queue" aria-labelledby="queue-title">
-          <div className="index-section-label"><h3 id="queue-title">Recently active</h3><span>By last activity</span></div>
-          <ol className="reading-queue-list">
-            {payload?.continue_items.map((media, index) => {
-              const itemProgress = progressSummary(media);
-              return <li key={media._id} className="queue-row">
-                <span className="queue-position" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-                <button className="queue-cover" onClick={() => openDetails(media)} aria-label={`View details for ${media.title}`}><MediaArtwork media={media} priority={index < 2} /></button>
-                <div className="queue-copy"><span>{media.media_type}</span><h3><button onClick={() => openDetails(media)}>{media.title}</button></h3><p>{itemProgress.label}</p>{itemProgress.unread > 0 && <small>{formatProgress(itemProgress.unread)} {itemProgress.unit} unread</small>}</div>
-                <button className="queue-log" onClick={() => logNext(media)} disabled={!!pendingId || itemProgress.next <= media.progress_current} aria-label={`Log next for ${media.title}`} title={`Log ${itemProgress.shortUnit} ${formatProgress(itemProgress.next)}`}>{pendingId === media._id ? <span className="spinner" /> : <Plus size={18} />}<span>1</span></button>
-              </li>;
-            })}
-          </ol>
-          {!payload?.continue_items.length && <p className="panel-empty">Your recently active stories will appear here.</p>}
-          <Link className="queue-library-link" href="/library">Open the full collection <ArrowRight size={17} /></Link>
-          <div className="queue-rhythm"><div><span className="section-eyebrow">Past 7 days</span><strong>{payload?.rhythm.filter((day) => day.events > 0).length || 0}<small> active days</small></strong></div><div className="rhythm-strip" aria-label="Seven-day activity">{payload?.rhythm.map((day) => <i key={day.date} data-active={day.events > 0 ? "true" : "false"} title={`${day.date}: ${formatProgress(day.units)} units`} />)}</div></div>
-        </section>
-      </div>
-
-      {/* Dashboard Panels: New Releases & Activity */}
-      <div className="home-dashboard">
-        <section className="home-panel">
-          <div className="section-heading compact">
-            <div>
-              <h2>Release desk</h2>
-              <span>{payload?.updates.length || 0} recent updates</span>
-            </div>
-            <Link href="/updates">
-              Open Updates <ArrowRight size={14} />
-            </Link>
-          </div>
-          <div className="home-update-list">
-            {payload?.updates.length ? (
-              payload.updates.map((item) => (
-                <Link href="/updates" key={item._id} className="home-update-item">
-                  <MediaArtwork media={item} />
-                  <div className="update-item-copy">
-                    <strong>{item.title}</strong>
-                    <small>
-                      {shortUnit(item.media_type)}{" "}
-                      {formatProgress(item.latest_remote_progress || 0)} available
-                    </small>
+    <div className={`${styles.journal} home-view`}>
+      <header className={styles.header} data-motion-reveal>
+        <div><h2>Your next chapter<span>.</span></h2><p>Pick up where you left off and see what’s been released.</p></div>
+        <Link href="/library" className={styles.textLink}>Browse your library <ArrowRight size={17} /></Link>
+      </header>
+      {(error || payload?.partial_failures?.length) ? <div className="partial-notice" role="status"><RefreshCw size={15} /><span>{error || `Temporarily unavailable: ${payload?.partial_failures?.join(", ")}.`}</span><button onClick={loadHome}>Retry</button></div> : null}
+      <div className={styles.spread}>
+        <div className={styles.mainColumn}>
+          {featured && progress ? (
+            <section className={`${styles.feature} home-hero`} aria-label="Featured story" data-motion-reveal
+              onFocusCapture={(event) => { if (!(event.target as HTMLElement).closest(".feature-rotation-controls")) setRotationPaused(true); }}
+              onPointerDown={(event) => { if (!(event.target as HTMLElement).closest(".feature-rotation-controls")) setRotationPaused(true); }}>
+              <div className={styles.sectionIndex}><span>Continue the story</span><span className={styles.format}>{featured.media_type}</span></div>
+              <div className={styles.featurePage} key={featured._id}>
+                <button className={styles.cover} onClick={() => openDetails(featured)} aria-label={`View details for ${featured.title}`}>
+                  <MediaArtwork media={featured} priority />
+                </button>
+                <div className={`${styles.featureCopy} current-volume-copy`}>
+                  <span className={styles.storyStatus}>{featured.status}{featured.rating ? ` · ★ ${featured.rating}/10` : ""}</span>
+                  <h2><button onClick={() => openDetails(featured)}>{featured.title}</button></h2>
+                  <div className={`${styles.progress} hero-progress`}>
+                    <strong className={`progress-current-val ${heroTicked ? "is-ticked" : ""}`}>{progress.label}</strong>
+                    {progress.knownTotal && (
+                      <div className={styles.progressTrack} role="progressbar" aria-label={`Progress for ${featured.title}`}
+                        aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent ?? 0} aria-valuetext={progress.label}>
+                        <i style={{ width: `${progress.percent}%` }} />
+                      </div>
+                    )}
+                    {(!progress.knownTotal || featured.latest_remote_progress != null) && <p>{progress.availability}</p>}
                   </div>
-                  <em>+{formatProgress(progressSummary(item).unread)}</em>
-                </Link>
-              ))
-            ) : (
-              <p className="panel-empty">Nothing new. You are caught up.</p>
-            )}
-          </div>
-        </section>
-
-        <section className="home-panel">
-          <div className="section-heading compact">
-            <div>
-              <h2>Reading log</h2>
-              <span>Real progress · last 7 days</span>
-            </div>
-            <span className="rhythm-label">
-              {payload?.rhythm.filter((day) => day.events > 0).length || 0} active days
-            </span>
-          </div>
-          <div className="activity-list">
-            {payload?.activity.length ? (
-              payload.activity.map((event) => (
-                <div key={event._id} className="activity-row">
-                  <span className="activity-mark">{event.title.charAt(0)}</span>
-                  <div className="activity-copy">
-                    <strong>{event.title}</strong>
-                    <small>
-                      <Clock3 size={11} /> {relativeTime(event.occurred_at)}
-                    </small>
+                  {featured.hosted_novel_slug && <Link className={styles.readLink} href={`/read/${featured.hosted_novel_slug}/${Math.max(1, Math.min(featured.progress_total || 1, Math.floor(featured.progress_current || 1)))}`}><BookOpen size={16} /> Continue reading <ArrowRight size={15} /></Link>}
+                  <div className={styles.featureActions}>
+                    <button className={`hero-primary home-save ${heroTicked ? "is-saved" : ""}`} onClick={() => logNext(featured)} disabled={!!pendingId || progress.next <= currentHeroProgress}>
+                      {pendingId === featured._id ? <span className="spinner" /> : heroTicked ? <Check size={17} /> : <Plus size={17} />}
+                      <span>Log {shortUnit(featured.media_type)} {formatProgress(progress.next)}</span>
+                    </button>
+                    <button className={styles.detailsButton} onClick={() => openDetails(featured)} aria-label={`More about ${featured.title}`}><MoreHorizontal size={18} /></button>
                   </div>
-                  <em>
-                    {event.delta > 0 ? "+" : ""}
-                    {formatProgress(event.delta)}
-                  </em>
+                  {progress.unread > 1 && <button className={styles.catchUp} onClick={() => catchUp(featured, latest)} disabled={!!pendingId}><FastForward size={14} /> Catch up to {formatProgress(latest)}</button>}
                 </div>
-              ))
-            ) : (
-              <p className="panel-empty">Progress you log will appear here.</p>
-            )}
-          </div>
-        </section>
+              </div>
+              <div className={`${styles.rotation} feature-rotation-controls`} role="group" aria-label="Featured story rotation">
+                <span>{rotationPaused ? "Rotation paused" : "A new pick every 30 seconds"}</span>
+                <button onClick={() => setRotationPaused((paused) => !paused)} aria-label={rotationPaused ? "Resume featured rotation" : "Pause featured rotation"}>{rotationPaused ? <Play size={15} /> : <Pause size={15} />}</button>
+                <button onClick={() => { void changeFeatured(); }} disabled={!!pendingId || featureLoading} aria-label="Another random story">{featureLoading ? <span className="spinner" /> : <Shuffle size={17} />}</button>
+              </div>
+              {featureError && <p className="story-save-error" role="status">{featureError}</p>}
+            </section>
+          ) : (
+            <section className={styles.welcome} data-motion-reveal>
+              <div className={styles.welcomeBody}>
+                <div>
+                  <h2>Make room for<br /><em>a new story.</em></h2>
+                  <p>Add a title you’re watching or reading. It’ll appear here with your progress.</p>
+                  <button className="btn-primary" onClick={() => openModal(null)}><Plus size={17} /> Add an active story</button>
+                </div>
+                <div className={styles.welcomeArt}>
+                  <div className="theme-art-light"><CharacterArt character="frieren" variant="welcome" /></div>
+                  <div className="theme-art-dark"><CharacterArt character="rukia" variant="welcome" /></div>
+                </div>
+              </div>
+            </section>
+          )}
+          <section className={styles.queue} aria-labelledby="queue-title" data-motion-reveal>
+            <div className={styles.heading}><h2 id="queue-title">Back to your stories</h2><span className={styles.caption}>By last activity</span></div>
+            {payload?.continue_items.length ? <ol className={styles.queueList}>
+              {payload.continue_items.map((media, index) => {
+                const itemProgress = progressSummary(media);
+                return <li key={media._id} className={`${styles.queueItem} queue-row`}>
+                  <button className={styles.queueCover} onClick={() => openDetails(media)} aria-label={`View details for ${media.title}`}><MediaArtwork media={media} priority={index < 2} /></button>
+                  <div className={`${styles.queueCopy} queue-copy`}>
+                    <span>{media.media_type}</span>
+                    <h3><button onClick={() => openDetails(media)}>{media.title}</button></h3>
+                    <p>{itemProgress.label}</p>
+                    {itemProgress.unread > 0 && <small>{formatProgress(itemProgress.unread)} {itemProgress.unit} unread</small>}
+                  </div>
+                  <button className={`${styles.queueLog} queue-log`} onClick={() => logNext(media)}
+                    disabled={!!pendingId || itemProgress.next <= media.progress_current}
+                    aria-label={`Log next for ${media.title}`} title={`Log ${itemProgress.shortUnit} ${formatProgress(itemProgress.next)}`}>
+                    {pendingId === media._id ? <span className="spinner" /> : <Plus size={16} />}<span>Next</span>
+                  </button>
+                </li>;
+              })}
+            </ol> : <div className={styles.queueEmpty}><BookOpen size={24} /><p>No active stories yet.</p><Link href="/library">Open Library <ArrowRight size={15} /></Link></div>}
+          </section>
+          <nav className={styles.destinations} aria-label="Explore your story space" data-motion-reveal>
+            <Link href="/novels"><BookOpen size={22} /><strong>Browse light novels</strong><ArrowRight size={18} /></Link>
+            <Link href="/shelves"><Layers3 size={22} /><strong>Open shelves</strong><ArrowRight size={18} /></Link>
+          </nav>
+        </div>
+        <aside className={styles.aside} aria-label="Your reading journal">
+          <section className={styles.week} data-motion-reveal aria-labelledby="week-title">
+            <div className={styles.heading}><h2 id="week-title">A week in stories</h2><span className={styles.caption}>Past 7 days</span></div>
+            {activityUnavailable ? <p className={styles.emptyCopy}>Your activity is temporarily unavailable.</p> : <>
+              <p className={styles.weekNumber}><strong>{activeDays}</strong><span>active {activeDays === 1 ? "day" : "days"}</span></p>
+              {week.length > 0 && (
+                <ol className={styles.weekChart} aria-label="Daily progress activity">
+                  {week.map((day) => (
+                    <li key={day.date} aria-label={`${day.date}: ${day.events} log entries`} title={`${day.date}: ${day.events} log entries`}>
+                      <div><i style={{ height: `${Math.max(5, day.events / maximumEvents * 100)}%` }} data-active={day.events > 0} /></div>
+                      <span aria-hidden="true">{new Date(day.date).toLocaleDateString("en", { weekday: "narrow", timeZone: "UTC" })}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <Link className={styles.textLink} href="/analytics">View activity stats <ArrowRight size={15} /></Link>
+            </>}
+          </section>
+          <section className={styles.desk} data-motion-reveal aria-labelledby="release-title">
+            <div className={styles.heading}><h2 id="release-title">New releases</h2><Link href="/updates" aria-label="View all updates"><ArrowRight size={18} /></Link></div>
+            {updatesUnavailable ? <p className={styles.emptyCopy}>Release updates are temporarily unavailable.</p> : payload?.updates.length ? (
+              <div className={styles.releaseList}>
+                {payload.updates.map((item) => (
+                  <Link href="/updates" key={item._id} className={styles.release}>
+                    <MediaArtwork media={item} />
+                    <div><strong>{item.title}</strong><small>{shortUnit(item.media_type)} {formatProgress(item.latest_remote_progress ?? 0)} available</small></div>
+                    <span>+{formatProgress(item.unread_delta)}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : <p className={styles.emptyCopy}>No unread releases from your trackers.</p>}
+          </section>
+          <section className={styles.log} data-motion-reveal aria-labelledby="log-title">
+            <div className={styles.heading}><h2 id="log-title">Recent activity</h2></div>
+            {activityUnavailable ? <p className={styles.emptyCopy}>Your reading log is temporarily unavailable.</p> : payload?.activity.length ? (
+              <ol className={styles.timeline}>
+                {payload.activity.map((event) => (
+                  <li key={event._id}>
+                    <span className={styles.timelineDot} aria-hidden="true" />
+                    <div><strong>{event.title}</strong><small><Clock3 size={11} /> {relativeTime(event.occurred_at)}</small></div>
+                    <span>{event.delta > 0 ? "+" : ""}{formatProgress(event.delta)}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : <p className={styles.emptyCopy}>No episodes or chapters logged this week.</p>}
+          </section>
+        </aside>
       </div>
     </div>
   );

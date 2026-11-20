@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Bookmark, BookOpen, Check, ChevronLeft, ChevronRight, List, Search, Settings2, ScanLine, X } from "lucide-react";
 import ReaderAppearance from "./ReaderAppearance";
 import {readerFonts} from "@/lib/novels/reader-settings";
@@ -11,6 +12,7 @@ import { defaultSettings, type ReaderSettings, type NovelView } from "./types";
 type Chapter = { number: number; title: string; content: string };
 
 export default function Reader({ slug, chapterNumber }: { slug: string; chapterNumber: number }) {
+  const router = useRouter();
   const [chapter, setChapter] = useState<Chapter>(); const [novel, setNovel] = useState<NovelView>();
   const [error, setError] = useState(""); const [saveError, setSaveError] = useState("");
   const [settings, setSettings] = useState<ReaderSettings>(defaultSettings); const [query, setQuery] = useState("");
@@ -56,7 +58,7 @@ export default function Reader({ slug, chapterNumber }: { slug: string; chapterN
   const chapters = novel?.chapters || []; const index = chapters.findIndex(c => c.number === chapterNumber); const previous = index > 0 ? chapters[index - 1] : null; const next = index >= 0 && index < chapters.length - 1 ? chapters[index + 1] : null;
   function highlighted(value: string) { if (!query) return value; const lower = value.toLowerCase(), needle = query.toLowerCase(), chunks: React.ReactNode[] = []; let start = 0, at = lower.indexOf(needle); while (at !== -1) { chunks.push(value.slice(start,at), <mark key={at}>{value.slice(at,at + needle.length)}</mark>); start = at + needle.length; at = lower.indexOf(needle,start); } chunks.push(value.slice(start)); return chunks; }
   function openBookmark() { const selection = window.getSelection(); setBookmarkText(selection?.toString().slice(0,10000) || ""); const node = selection?.anchorNode?.parentElement?.closest("[data-paragraph]"); setBookmarkParagraph(node && contentRef.current?.contains(node) ? Number(node.getAttribute("data-paragraph")) : 0); setBookmarkNote(""); setBookmarkOpen(true); }
-  function move(direction: -1 | 1) { if (settings.mode === "paged" && !query) { const target = page + direction; if (target >= 0 && target < pageCount) return setPage(target); } const target = direction < 0 ? previous : next; if (target) window.location.href = `/read/${slug}/${target.number}`; }
+  function move(direction: -1 | 1) { if (settings.mode === "paged" && !query) { const target = page + direction; if (target >= 0 && target < pageCount) return setPage(target); } const target = direction < 0 ? previous : next; if (target) router.push(`/read/${slug}/${target.number}`); }
 
   return <section className={`novel-reader reader-shell ${focused ? "is-focused" : ""}`} data-tint={settings.theme === "amoled" ? "default" : settings.tint} onPointerDown={event=>{pointerStart.current={x:event.clientX,y:event.clientY,scroll:document.querySelector(".reader-viewport")?.scrollTop||0};}} onClick={event=>{if(!(event.target instanceof Element) || !event.target.closest(".reader-viewport") || event.target.closest("a,button,input,select,textarea") || window.getSelection()?.toString().trim() || event.detail>1) return; const start=pointerStart.current; if(Math.hypot(event.clientX-start.x,event.clientY-start.y)>8 || Math.abs((document.querySelector(".reader-viewport")?.scrollTop||0)-start.scroll)>8)return;setFocused(value=>!value);}} data-theme={settings.theme} style={{ "--reader-size": `${settings.fontSize}px`, "--reader-line": settings.lineHeight, "--reader-font": readerFonts.find(font=>font.value===settings.fontFamily)?.family, "--reader-width": `${settings.contentWidth}px`, "--reader-paragraph-gap": `${settings.paragraphSpacing}em`, "--reader-align": settings.textAlign } as React.CSSProperties}>
     <header className="reader-toolbar"><div className="reader-toolbar-start"><Link className="reader-back" href={`/novels/${slug}`} aria-label="Back to novel"><ArrowLeft/><span>Back</span></Link><button className="reader-tool" onClick={() => setSearchOpen(value => !value)} aria-label="Search chapter text"><Search/></button></div><div className="reader-book-title"><Link href={`/novels/${slug}`}>{novel?.title || "Novel"}</Link></div><nav className="reader-tools" aria-label="Reader tools"><button className="reader-tool" onClick={()=>setFocused(true)} aria-label="Enter focus mode"><ScanLine/></button><button className="reader-tool" onClick={() => setPanel(panel === "chapters" ? null : "chapters")} aria-label="Open chapters"><List/></button><button className="reader-tool" onClick={openBookmark} aria-label="Save selected passage / bookmark"><Bookmark/></button><button className="reader-tool" onClick={() => setPanel(panel === "settings" ? null : "settings")} aria-label="Reading settings"><Settings2/></button></nav></header>

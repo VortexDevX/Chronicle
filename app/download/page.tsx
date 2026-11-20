@@ -100,22 +100,22 @@ export default async function DownloadPage() {
                 <div>
                   <dt>File size</dt>
                   <dd>{appDetails.size} (Lightweight)</dd>
-                  <span>APK</span>
+                  <dd className="capability-tag">APK</dd>
                 </div>
                 <div>
                   <dt>Compatibility</dt>
                   <dd>{appDetails.minAndroid}</dd>
-                  <span>API 26+</span>
+                  <dd className="capability-tag">API 26+</dd>
                 </div>
                 <div>
                   <dt>Notifications</dt>
                   <dd>FCM Push for new chapters &amp; episodes</dd>
-                  <span>PUSH</span>
+                  <dd className="capability-tag">PUSH</dd>
                 </div>
                 <div>
                   <dt>Security</dt>
                   <dd>RSA-2048 Signed release build</dd>
-                  <span>PASS</span>
+                  <dd className="capability-tag">PASS</dd>
                 </div>
               </dl>
 

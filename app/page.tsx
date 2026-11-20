@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { Check } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, BookOpen, Check, Layers3, BellRing, Bookmark } from "lucide-react";
+import styles from "./landing.module.css";
+import { StoryScene } from "@/components/marketing/StoryScene";
 import { JsonLd } from "@/components/marketing/JsonLd";
 import {
   LandingFinalAction,
@@ -40,29 +43,29 @@ export const metadata: Metadata = {
   },
 };
 
-const highlights = [
+const features = [
   {
-    title: "Keep your place",
-    description:
-      "Log exact episodes and chapters, including decimal chapter numbers.",
+    icon: Bookmark,
+    title: "Pick up where you left off",
+    description: "Log episodes and chapters down to the decimal, so you know exactly where to resume.",
   },
   {
-    title: "Sort it your way",
-    description:
-      "Use clear statuses and custom shelves instead of maintaining another spreadsheet.",
+    icon: Layers3,
+    title: "Give favorites their own shelves",
+    description: "Make collections for future reads and comfort rewatches. Keep notes and ratings beside each title.",
   },
   {
-    title: "Take your list with you",
-    description:
-      "Export and restore your library as JSON whenever you need a backup.",
+    icon: BellRing,
+    title: "See what’s been released",
+    description: "Link supported manhwa and donghua trackers to see new chapters and episodes. Catch up when you choose.",
   },
 ];
 
 const mediaFormats = [
-  { name: "Anime", summary: "Episodes, seasons, ratings, and notes." },
-  { name: "Manhwa", summary: "Chapters, reading links, covers, and update checks." },
-  { name: "Donghua", summary: "Chinese animation tracked as its own media type." },
-  { name: "Light novels", summary: "Chapter progress, reading notes, and adaptations." },
+  { id: "anime", name: "Anime", summary: "Episodes, watch links, ratings, and notes." },
+  { id: "manhwa", name: "Manhwa", summary: "Chapters, reading links, covers, and update checks." },
+  { id: "donghua", name: "Donghua", summary: "Episode progress and release checks for supported trackers." },
+  { id: "novels", name: "Light novels", summary: "Chapter progress, reading notes, and a built-in reader for hosted novels." },
 ];
 
 const structuredData = [
@@ -97,7 +100,7 @@ const structuredData = [
       name: siteConfig.creator,
       url: siteConfig.creatorUrl,
     },
-    featureList: highlights.map((highlight) => highlight.title),
+    featureList: [...features.map(({ title }) => title), "Export and restore your library as JSON"],
   },
 ];
 
@@ -108,112 +111,64 @@ export default async function LandingPage() {
   );
 
   return (
-    <div className="marketing-site simple-home">
+    <div className={`${styles.landing} marketing-site`}>
       <JsonLd data={structuredData} />
       <MarketingHeader isAuthenticated={isAuthenticated} />
-
       <main>
-        <section className="simple-hero">
-          <div className="marketing-container simple-hero-grid">
-            <div className="simple-hero-copy">
-              <span className="simple-kicker">Watch. Read. Remember.</span>
-              <h1>Every story.<br /><em>Your place in it.</em></h1>
-              <p>
-                Chronicle keeps anime, manhwa, donghua, and light novels in one
-                private list—with progress, shelves, notes, and updates when you
-                want them.
-              </p>
+        <section className={styles.hero}>
+          <div className={`${styles.heroGrid} marketing-container`}>
+            <div className={styles.heroCopy} data-motion-reveal>
+              <span className={styles.kicker}><span aria-hidden="true">✦</span> ANIME & READING TRACKER</span>
+              <h1>Your worlds.<br /><em>Your pace.</em></h1>
+              <p>Track every episode and chapter. Keep your library, shelves, and new releases in one place.</p>
               <LandingHeroActions isAuthenticated={isAuthenticated} />
-              <small>Your watchlist, reading library, and next chapter. Together.</small>
+              <p className={styles.promise}><Check size={15} aria-hidden="true" /> Your library is private by default.</p>
             </div>
-
-            <div className="simple-capability-panel" aria-label="Current Chronicle product capabilities">
-              <header>
-                <div>
-                  <span>A private collection</span>
-                  <strong>One home for your stories.</strong>
-                </div>
-                <small>Built in</small>
-              </header>
-              <dl>
-                <div>
-                  <dt>Media types</dt>
-                  <dd>Anime · Manhwa · Donghua · Light Novel</dd>
-                  <span>04</span>
-                </div>
-                <div>
-                  <dt>Statuses</dt>
-                  <dd>Planned · Active · On Hold · Dropped · Completed</dd>
-                  <span>05</span>
-                </div>
-                <div>
-                  <dt>Metadata</dt>
-                  <dd>AniList · MangaDex · Custom covers</dd>
-                  <span>API</span>
-                </div>
-                <div>
-                  <dt>Portability</dt>
-                  <dd>JSON library import and export</dd>
-                  <span>JSON</span>
-                </div>
-              </dl>
-              <footer>
-                <Check size={14} aria-hidden="true" /> Your progress stays in your hands.
-              </footer>
-            </div>
+            <div className={styles.heroArt} data-motion-reveal><StoryScene /></div>
+          </div>
+          <nav className={`${styles.heroFooter} marketing-container`} aria-label="Supported formats">
+            <span>Track your</span>
+            {mediaFormats.map(({ id, name }) => <a key={id} href={`#format-${id}`}>{name}</a>)}
+          </nav>
+        </section>
+        <section className={`${styles.features} marketing-container`} id="features" aria-labelledby="feature-title">
+          <div className={styles.sectionIntro} data-motion-reveal>
+            <h2 id="feature-title">The plot gets complicated.<br /><em>Your list shouldn’t.</em></h2>
+          </div>
+          <div className={styles.featureRows}>
+            {features.map(({ icon: Icon, title, description }) => (
+              <article key={title} data-motion-reveal>
+                <Icon className={styles.featureIcon} size={25} aria-hidden="true" />
+                <div><h3>{title}</h3><p>{description}</p></div>
+              </article>
+            ))}
           </div>
         </section>
-
-        <section className="simple-section" id="features" aria-labelledby="simple-features-title">
-          <div className="marketing-container">
-            <div className="simple-section-heading">
-              <span>Simple on purpose</span>
-              <h2 id="simple-features-title">Your list, minus the busywork.</h2>
+        <section className={styles.formats} id="trackers" aria-labelledby="formats-title">
+          <div className={`${styles.formatsGrid} marketing-container`}>
+            <div className={styles.formatStatement} data-motion-reveal>
+              <h2 id="formats-title">Different worlds.<br /><em>One home.</em></h2>
+              <p>Anime tonight. A novel tomorrow. Your progress stays with each story.</p>
+              <Link href={isAuthenticated ? "/library" : "/login?mode=register"} className={styles.secondaryLink}>
+                {isAuthenticated ? "Browse your library" : "Start your library"} <ArrowRight size={17} aria-hidden="true" />
+              </Link>
             </div>
-            <div className="simple-feature-list">
-              {highlights.map((highlight, index) => (
-                <article key={highlight.title}>
-                  <span>0{index + 1}</span>
-                  <h3>{highlight.title}</h3>
-                  <p>{highlight.description}</p>
-                </article>
+            <ul className={styles.formatList}>
+              {mediaFormats.map(({ id, name, summary }) => (
+                <li key={id} id={`format-${id}`} data-motion-reveal>
+                  <div><h3>{name}</h3><p>{summary}</p></div>
+                  <BookOpen size={20} aria-hidden="true" />
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </section>
-
-        <section className="simple-section simple-trackers" id="trackers" aria-labelledby="simple-trackers-title">
-          <div className="marketing-container simple-trackers-grid">
-            <div className="simple-section-heading">
-              <span>Four formats</span>
-              <h2 id="simple-trackers-title">One library.</h2>
-              <p>Keep each format separate without spreading your progress across four apps.</p>
-            </div>
-            <div className="simple-format-list" aria-label="Supported media formats">
-              {mediaFormats.map((format) => (
-                <div key={format.name}>
-                  <span>
-                    <strong>{format.name}</strong>
-                    <small>{format.summary}</small>
-                  </span>
-                  <Check size={15} aria-hidden="true" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="simple-final-cta" aria-labelledby="simple-cta-title">
-          <div className="marketing-container simple-final-cta-inner">
-            <div>
-              <h2 id="simple-cta-title">Ready when your next story starts.</h2>
-              <p>Build your list now. Keep it useful later.</p>
-            </div>
-            <LandingFinalAction isAuthenticated={isAuthenticated} />
-          </div>
+        <section className={`${styles.closing} marketing-container`} aria-labelledby="closing-title" data-motion-reveal>
+          <h2 id="closing-title">Keep the stories.<br /><em>Lose the scattered lists.</em></h2>
+          <p>Save a backup of your collection or take it with you in the Android app.</p>
+          <LandingFinalAction isAuthenticated={isAuthenticated} />
         </section>
       </main>
-
       <MarketingFooter />
     </div>
   );

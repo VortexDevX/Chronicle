@@ -1,0 +1,39 @@
+.scene { position: relative; width: 100%; height: 590px; margin: 0; isolation: isolate; }
+.orbit { position: absolute; inset: 9% 0 13% 23%; border-radius: 50% 50% 3px 3px; background: var(--bg-raised); border: 1px solid var(--border-strong); background-image: radial-gradient(var(--paper-dot) 1px, transparent 1px); background-size: 7px 7px; rotate: 7deg; }
+.still { position: absolute; top: 12%; left: 2%; width: 59%; height: 36%; border: 7px solid var(--bg-card); outline: 1px solid var(--border-strong); box-shadow: 6px 8px 0 var(--paper-shadow); rotate: -7deg; overflow: hidden; z-index: 1; }
+.still img { object-fit: cover; }
+.still > span, .luffy > span { position: absolute; left: 0; bottom: 0; padding: 7px 10px; background: var(--bg-card); color: var(--text-primary); font: 500 10px var(--font-mono); letter-spacing: .04em; }
+.luffy { position: absolute; top: 52%; left: 3%; width: 49%; height: 31%; background: #e6d9eb; border: 7px solid var(--bg-card); outline: 1px solid var(--border-strong); box-shadow: 5px 7px 0 var(--paper-shadow); rotate: 6deg; z-index: 3; }
+.luffy img { object-fit: contain; object-position: center top; }
+.luffy > span { left: -1px; right: -1px; text-align: center; bottom: -1px; }
+.lead { position: absolute; right: -2%; top: 1%; width: 56%; height: 85%; z-index: 2; overflow: hidden; filter: drop-shadow(3px 6px 0 #30223e1c); }
+.lead img { position: absolute; height: auto; max-width: none; bottom: 0; }
+.asta img { width: 126%; left: -28%; }
+.ichigo img { width: auto; height: 100%; left: 50%; translate: -50% 0; }
+.caption { position: absolute; right: 1%; top: 79%; z-index: 4; rotate: -5deg; padding: 10px 14px; background: var(--action); color: var(--text-invert); border: 1px solid var(--border-strong); box-shadow: 4px 5px 0 var(--paper-shadow); font: 700 23px/1.1 var(--font-display); }
+.credits { position: absolute; left: 0; right: 0; bottom: 4%; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 4px; color: var(--text-muted); font: 400 10px/1.8 var(--font-mono); }
+.credits a { padding-block: 5px; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.credits a:hover { color: var(--accent); text-decoration-color: currentColor; }
+@media (max-width: 1100px) {
+  .scene { height: 520px; }
+  .lead { width: 58%; top: 4%; height: 82%; }
+  .still { top: 17%; height: 31%; }
+  .luffy { height: 29%; }
+  .caption { font-size: 21px; }
+}
+@media (max-width: 800px) {
+  .scene { max-width: 570px; margin-inline: auto; height: 560px; }
+  .lead { top: 0; height: 86%; }
+  .still { top: 12%; height: 34%; }
+  .luffy { height: 31%; }
+}
+@media (max-width: 480px) {
+  .scene { height: 400px; }
+  .lead { height: 84%; }
+  .still { border-width: 5px; height: 32%; top: 14%; }
+  .luffy { border-width: 5px; height: 29%; }
+  .still > span, .luffy > span { font-size: 8px; padding: 5px; }
+  .caption { top: 77%; font-size: 19px; padding: 8px 10px; }
+  .credits { font-size: 9px; }
+}
+@media (max-width: 350px) { .scene { height: 340px; } }

@@ -1,5 +1,10 @@
 # Chronicle Agent Instructions
 
+## Source of truth
+
+- Read `docs/CHRONICLE.md` before cross-layer, data, cron, novel-storage, or release work; verify changing details against code and configuration.
+- `README.md` is the user setup overview. Its cron timing table is stale relative to `app/api/cron/checkChapters/route.ts`; use the current handler values and deployed scheduler configuration.
+
 ## Package Manager
 
 - Use npm and committed `package-lock.json`: `npm install`, `npm run dev`, `npm test`.
@@ -40,34 +45,6 @@
 - Cron work needs `npm run cron:check` plus deployed endpoint/delivery proof when credentials and network permit.
 - Android work needs Gradle build/lint and emulator or device launch; state exactly when no device proof exists.
 
-## Git
-
-- Only commit or push changes when explicitly requested.
-- Before committing, inspect the exact diff and perform a secret scan.
-- Write concise, direct commit messages that clearly describe what changed.
-- Keep commit subjects natural and human-readable.
-- Do not use conventional commit prefixes such as `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `perf:`, or `test:`.
-- Avoid vague or generic messages such as `changes`, `updates`, `fix stuff`, or `AI changes`.
-
-## Commit Attribution
-
-- AI agents MUST NOT add `Co-Authored-By` trailers to commits.
-- AI agents MUST NOT include their model name, agent name, vendor name, or other AI attribution in commit messages.
-- All commits MUST use the user's existing Git author and committer identity.
-- NEVER modify `user.name` or `user.email`.
-- Do not add `Co-authored-by`, `Co-Authored-By`, or any equivalent attribution trailer unless explicitly requested by the user.
-- Before committing, verify that the commit message contains no AI attribution trailer.
-
-## Commit Message Style
-
-- Write commit messages as a developer would naturally describe the change.
-- Prefer direct descriptions of the actual change or behavior.
-- Keep the subject concise and specific.
-- Focus on what changed, not how the change was produced.
-- Avoid robotic, overly formal, verbose, or generic wording.
-- Use a commit body only when additional context is genuinely useful.
-- Do not mention AI assistance, prompts, agents, models, or automated generation unless explicitly requested.
-
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
@@ -77,3 +54,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+## Change workflow
+
+- Before editing, check the project manifest and lockfile, existing project docs, real entry points, and working-tree changes relevant to the task.
+- Trace any affected boundaries that exist in this project (such as UI, API, authentication, storage, jobs, and deployment); follow its architecture and contracts.
+- Make the smallest complete change, preserve unrelated work and user data, and report the exact checks run and any unverified boundary.
+
+## Git and handoff
+
+- Commit or push only when explicitly requested. Inspect the exact diff and scan for secrets before committing.
+- Use the existing Git author and committer identity. Never add AI attribution trailers or change Git identity unless explicitly requested.
+- Use one concise, natural subject describing the change; do not use conventional commit prefixes or generic wording.

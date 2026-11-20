@@ -19,10 +19,11 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
   padding: 24px;
   background: var(--bg-card);
+  box-shadow: 4px 5px 0 var(--paper-shadow);
   min-width: 0;
   max-width: 100%;
 }
@@ -72,7 +73,7 @@
   justify-content: center;
   gap: 7px;
   border: 1px solid var(--border-strong);
-  border-radius: 10px;
+  border-radius: 3px;
   padding: 0 14px;
   background: var(--bg-card);
   color: var(--text-primary);
@@ -94,11 +95,11 @@
 }
 
 .runCard {
-  border: 1px solid var(--border);
-  border-left: 2px solid var(--green);
-  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--green);
+  border-radius: 5px;
   padding: 16px 18px;
-  background: transparent;
+  background: var(--bg-card);
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -166,7 +167,7 @@
 }
 
 .metrics strong {
-  font-size: 1rem;
+  font: 700 28px/1.2 var(--font-display);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -228,7 +229,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 7px 9px;
   background: var(--bg-base);
   min-width: 0;

@@ -1,11 +1,14 @@
 import { Brand } from "@/components/Brand";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import Link from "next/link";
-import { ArrowRight, Smartphone } from "lucide-react";
+import { ArrowRight, Download } from "lucide-react";
+import styles from "@/app/landing.module.css";
 
 export function MarketingHeaderActions({ isAuthenticated }: { isAuthenticated: boolean }) {
   if (isAuthenticated) {
     return (
       <div className="marketing-header-actions">
+        <ThemeToggle />
         <Link className="marketing-login" href="/home">
           Home
         </Link>
@@ -18,6 +21,7 @@ export function MarketingHeaderActions({ isAuthenticated }: { isAuthenticated: b
 
   return (
     <div className="marketing-header-actions">
+      <ThemeToggle />
       <Link className="marketing-login" href="/login">
         Sign in
       </Link>
@@ -30,48 +34,27 @@ export function MarketingHeaderActions({ isAuthenticated }: { isAuthenticated: b
 
 export function LandingHeroActions({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
-    <div className="simple-actions">
-      <Link
-        className="marketing-button"
-        href={isAuthenticated ? "/library" : "/login?mode=register"}
-      >
-        {isAuthenticated ? "Open library" : "Create your list"}{" "}
-        <ArrowRight size={16} aria-hidden="true" />
+    <div className={styles.actions}>
+      <Link className="marketing-button" href={isAuthenticated ? "/home" : "/login?mode=register"}>
+        {isAuthenticated ? "Back to your stories" : "Start your chronicle"}
+        <ArrowRight size={18} aria-hidden="true" />
       </Link>
-      <a
-        className="marketing-button secondary"
-        href="/downloads/chronicle.apk"
-        download="chronicle.apk"
-        title="Download Chronicle Android App (v1.0.4 APK)"
-      >
-        <Smartphone size={16} aria-hidden="true" />
-        Download App
+      <a className={styles.secondaryLink} href="#features">
+        Explore features <span aria-hidden="true">↓</span>
       </a>
-      <Link className="simple-text-link" href={isAuthenticated ? "/home" : "/login"}>
-        {isAuthenticated ? "Home" : "Sign in"}
-      </Link>
     </div>
   );
 }
 
 export function LandingFinalAction({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
-    <div className="simple-actions">
-      <Link
-        className="marketing-button"
-        href={isAuthenticated ? "/library" : "/login?mode=register"}
-      >
-        {isAuthenticated ? "Open your library" : "Start tracking"}{" "}
-        <ArrowRight size={16} aria-hidden="true" />
+    <div className={styles.actions}>
+      <Link className="marketing-button" href={isAuthenticated ? "/library" : "/login?mode=register"}>
+        {isAuthenticated ? "Open your library" : "Create your library"}
+        <ArrowRight size={18} aria-hidden="true" />
       </Link>
-      <a
-        className="marketing-button secondary"
-        href="/downloads/chronicle.apk"
-        download="chronicle.apk"
-        title="Download Chronicle Android App (APK)"
-      >
-        <Smartphone size={16} aria-hidden="true" />
-        Download APK
+      <a className={styles.secondaryLink} href="/downloads/chronicle.apk" download="chronicle.apk">
+        <Download size={17} aria-hidden="true" /> Get the Android app
       </a>
     </div>
   );
@@ -81,7 +64,7 @@ export function MarketingHeader({ isAuthenticated }: { isAuthenticated: boolean 
   return (
     <header className="marketing-header">
       <div className="marketing-container marketing-header-inner">
-        <Link className="marketing-brand" href="/" aria-label="Chronicle X home">
+        <Link className="marketing-brand" href="/" aria-label="Chronicle The story continues home">
           <Brand />
         </Link>
 
@@ -110,7 +93,7 @@ export function MarketingFooter() {
         <Link className="marketing-brand" href="/">
           <Brand />
         </Link>
-        <p>Your anime, manhwa, donghua, and novels. One story space.</p>
+        <p>Your anime, manhwa, donghua, and light novels in one place.</p>
         <div className="simple-footer-links">
           <a href="/downloads/chronicle.apk" download="chronicle.apk">
             Download App (APK)

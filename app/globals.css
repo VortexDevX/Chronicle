@@ -1511,11 +1511,16 @@ button:disabled {
   display: none;
 }
 .settings-toggle-track {
-  width: 48px;
-  height: 24px;
+  --track-width: 48px;
+  --track-height: 24px;
+  display: flex;
+  align-items: center;
+  width: var(--track-width);
+  height: var(--track-height);
+  padding: 2px;
+  border: 1px solid transparent;
   background: var(--bg-raised);
   border-radius: var(--radius-pill);
-  position: relative;
   transition: all var(--transition-fast);
   flex-shrink: 0;
 }
@@ -1523,17 +1528,15 @@ button:disabled {
   background: var(--accent);
 }
 .settings-toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
+  flex: none;
+  height: 100%;
+  aspect-ratio: 1;
   background: #fff;
   border-radius: var(--radius-pill);
   transition: all var(--transition-fast);
 }
 .settings-toggle[data-checked="true"] .settings-toggle-thumb {
-  transform: translateX(24px);
+  transform: translateX(calc(var(--track-width) - var(--track-height)));
 }
 .settings-toggle-text {
   display: flex;

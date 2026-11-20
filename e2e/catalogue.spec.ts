@@ -135,7 +135,13 @@ test("home jacket and recent queue preserve progress when saves fail", async ({ 
     featured: story, continue_items: [story, recent], updates: [], activity: [], rhythm: [], partial_failures: [],
   } } }));
   await page.goto("/home");
-  await expect(page.locator(".home-hero").getByRole("button", { name: `View details for ${story.title}`, exact: true })).toBeVisible();
+  const featured = page.getByRole("region", { name: "Featured story" });
+  const cover = featured.getByRole("button", { name: `View details for ${story.title}`, exact: true });
+  await expect(cover).toBeVisible();
+  const coverBox = await cover.boundingBox();
+  const titleBox = await featured.getByRole("heading", { name: story.title, exact: true }).boundingBox();
+  expect(titleBox!.y).toBeLessThan(coverBox!.y + coverBox!.height);
+  expect(titleBox!.x).toBeGreaterThan(coverBox!.x);
   await page.getByRole("button", { name: "Log Ch 43.5", exact: true }).click();
   await expect(page.locator(".hero-progress > strong")).toHaveText("Ch. 42.5");
   await expect(page.locator(".hero-primary")).toBeEnabled();

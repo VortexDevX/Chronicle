@@ -1,16 +1,19 @@
 "use client";
 
+import { Brand } from "@/components/Brand";
+
 export default function LoginError({
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   return (
     <div className="auth-bg">
       <div className="auth-container">
-        <div className="auth-error">Login view failed to load.</div>
-        <button className="auth-btn btn-primary" onClick={reset}>
+        <Brand />
+        <div className="auth-error" role="alert">Login view failed to load.</div>
+        <button className="auth-btn btn-primary" onClick={retry}>
           Retry
         </button>
       </div>

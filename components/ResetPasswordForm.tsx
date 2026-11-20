@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Brand } from "./Brand";
+import { ThemeToggle } from "./ThemeToggle";
 
 export default function ResetPasswordForm({ token }: { token: string }) {
   const [password, setPassword] = useState("");
@@ -50,9 +51,10 @@ export default function ResetPasswordForm({ token }: { token: string }) {
 
   return (
     <div className="auth-bg">
+      <div className="auth-theme-toggle"><ThemeToggle /></div>
       <div className="auth-container">
         <div className="auth-brand">
-          <Link href="/" aria-label="Chronicle home"><Brand /></Link>
+          <Link href="/" aria-label="Chronicle The story continues home"><Brand /></Link>
         </div>
         <div className="auth-card-heading"><h1>A fresh start.</h1><p>Choose a new password for your chronicle.</p></div>
         {!token && <p className="auth-error" role="alert">This reset link is missing or expired. Return to sign in and request a new link.</p>}

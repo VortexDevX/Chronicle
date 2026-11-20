@@ -1,8 +1,10 @@
 "use client";
 
+import { CharacterArt } from "@/components/illustrations/CharacterArt";
+
 import { useMediaStore } from "@/store/mediaStore";
 import { MediaCard } from "@/components/MediaCard";
-import { Search, Book, Grid2X2, List, RefreshCw, ImageOff, ChevronDown, ChevronUp, CheckSquare, Trash2, SlidersHorizontal, X } from "lucide-react";
+import { Search, Grid2X2, List, RefreshCw, ImageOff, ChevronDown, ChevronUp, CheckSquare, Trash2, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadCoverCache } from "@/store/coverCache";
 import { apiRequest, getErrorMessage } from "@/lib/client/api";
@@ -398,7 +400,7 @@ export default function LibraryPage() {
         </div>
       ) : media.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon"><Book size={48} style={{ color: "var(--text-secondary)", opacity: 0.5 }} /></div>
+          <CharacterArt character="fern" />
           <h3>{hasFilters ? "No matching stories" : "Your first chapter starts here."}</h3>
           <p>{hasFilters ? "Try another title or clear your filters." : "Add an anime, manhwa, donghua, or novel to start your collection."}</p>
           <button className="btn-primary" onClick={hasFilters ? resetFilters : () => openModal(null)}>{hasFilters ? "Clear search & filters" : "Add your first story"}</button>

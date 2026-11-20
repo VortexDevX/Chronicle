@@ -24,6 +24,7 @@ import { apiRequest, getErrorMessage } from "@/lib/client/api";
 import { MediaViewMode, MediaViewToggle } from "@/components/MediaViewToggle";
 import { MediaArtwork } from "@/components/MediaArtwork";
 import { Dialog } from "@/components/Dialog";
+import { CharacterArt } from "@/components/illustrations/CharacterArt";
 
 const SHELF_VIEW_KEY = "chronicle:shelf-view:v1";
 
@@ -603,6 +604,7 @@ export default function ShelvesPage() {
         </div>
 
         <div className="shelves-hero-right">
+          <CharacterArt character="luffy" variant="postcard" />
           <button
             className="shelves-create-cta"
             onClick={handleOpenCreate}

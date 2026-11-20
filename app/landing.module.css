@@ -1,0 +1,89 @@
+.landing { overflow-x: clip; }
+.hero { position: relative; padding-top: 32px; }
+.heroGrid { display: grid; grid-template-columns: minmax(0, .94fr) minmax(0, 1.06fr); align-items: center; min-height: 640px; gap: 20px; }
+.heroCopy { position: relative; z-index: 2; padding-bottom: 28px; }
+.kicker { display: inline-flex; align-items: center; gap: 9px; font: 500 10px/1.7 var(--font-mono); letter-spacing: .09em; color: var(--text-secondary); }
+.kicker > span { color: var(--accent); font-size: 21px; }
+.heroCopy h1 { margin: 24px 0; font: 800 clamp(76px, 7.3vw, 108px)/.94 var(--font-display); letter-spacing: -.025em; }
+.landing em { color: var(--accent); font-style: normal; }
+.heroCopy > p:not(.promise) { max-width: 365px; font-size: 15px; line-height: 1.9; color: var(--text-secondary); }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 25px; margin-top: 32px; }
+.actions :global(.marketing-button) { min-height: 49px; padding: 13px 19px; }
+.actions :global(.marketing-button) svg { transition: translate 200ms var(--ease-settle); }
+.actions :global(.marketing-button):hover svg { translate: 3px 0; }
+.secondaryLink { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; font-size: 12px; color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 6px; transition: text-decoration-color 180ms; }
+.secondaryLink:hover { text-decoration-color: var(--accent); }
+.heroCopy .promise { display: flex; align-items: center; gap: 8px; margin-top: 23px; color: var(--text-muted); font-size: 11px; }
+.promise svg { color: var(--accent); flex-shrink: 0; }
+.heroArt { min-width: 0; }
+.heroFooter { display: flex; flex-wrap: wrap; align-items: center; gap: 22px; padding-block: 18px 22px; border-bottom: 1px solid var(--border-strong); }
+.heroFooter > span { color: var(--text-muted); font: 400 11px var(--font-mono); }
+.heroFooter > a { display: inline-flex; align-items: center; min-height: 44px; font: 600 20px var(--font-display); color: var(--text-secondary); }
+.heroFooter > a:hover { color: var(--accent); }
+.features { padding-block: 100px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 80px; }
+.sectionIntro h2, .formatStatement h2, .closing h2 { margin: 20px 0; font: 700 clamp(42px, 4.1vw, 60px)/1.04 var(--font-display); letter-spacing: -.02em; }
+.formatStatement p { max-width: 360px; color: var(--text-secondary); font-size: 14px; line-height: 1.9; }
+.featureRows { display: grid; }
+.featureRows > article { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 18px; padding: 29px 0; border-top: 1px solid var(--border-strong); }
+.featureRows > article:last-child { border-bottom: 1px solid var(--border-strong); }
+.featureIcon { color: var(--accent); margin-top: 4px; }
+.featureRows h3 { font: 700 28px/1.1 var(--font-display); }
+.featureRows p { margin-top: 12px; color: var(--text-secondary); font-size: 14px; line-height: 1.75; }
+.formats { padding-block: 80px; background: var(--bg-raised); border-block: 1px solid var(--border-strong); }
+.formatsGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 80px; align-items: center; }
+.formatStatement .secondaryLink { margin-top: 23px; }
+.formatList { margin: 0; padding: 0; list-style: none; }
+.formatList li { display: grid; grid-template-columns: minmax(0, 1fr) 22px; align-items: center; gap: 18px; padding: 19px 0; border-bottom: 1px solid var(--border-strong); }
+.formatList li:target { background: var(--accent-soft); }
+.formatList li:first-child { border-top: 1px solid var(--border-strong); }
+.formatList h3 { font: 600 28px/1.1 var(--font-display); }
+.formatList p { margin-top: 7px; color: var(--text-secondary); font-size: 13px; line-height: 1.75; }
+.formatList svg { color: var(--accent); }
+.closing { text-align: center; padding-block: 104px 110px; }
+.closing h2 { font-size: clamp(48px, 5.5vw, 76px); }
+.closing > p { color: var(--text-secondary); font-size: 13px; line-height: 1.9; }
+.closing .actions { justify-content: center; }
+@media (max-width: 1100px) {
+  .heroGrid { min-height: 580px; gap: 10px; }
+  .heroCopy h1 { font-size: clamp(64px, 8vw, 82px); }
+  .heroCopy > p:not(.promise) { font-size: 14px; }
+  .features, .formatsGrid { gap: 45px; }
+}
+@media (max-width: 800px) {
+  .hero { padding-top: 44px; }
+  .heroGrid { grid-template-columns: 1fr; max-width: 660px; }
+  .heroCopy { padding-bottom: 0; }
+  .heroCopy h1 { font-size: clamp(68px, 13vw, 96px); }
+  .heroCopy > p:not(.promise) { max-width: 420px; }
+  .heroArt { margin-top: 24px; }
+  .heroFooter { justify-content: center; gap: 14px; }
+  .features, .formatsGrid { grid-template-columns: 1fr; gap: 36px; }
+  .features { padding-block: 64px; }
+  .formats { padding-block: 60px; }
+  .formatStatement p { max-width: 470px; }
+  .closing { padding-block: 70px; }
+}
+@media (max-width: 480px) {
+  .hero { padding-top: 30px; }
+  .kicker { font-size: 9px; letter-spacing: .06em; }
+  .heroCopy h1 { font-size: clamp(65px, 17vw, 80px); margin-block: 20px; }
+  .heroCopy > p:not(.promise) { max-width: 310px; }
+  .actions { margin-top: 25px; gap: 19px; }
+  .actions :global(.marketing-button) { min-height: 45px; font-size: 11px; padding: 11px 14px; gap: 8px; }
+  .secondaryLink { font-size: 11px; }
+  .heroCopy .promise { margin-top: 18px; }
+  .heroArt { margin-top: 15px; }
+  .heroFooter { gap: 12px; padding-block: 12px 18px; }
+  .heroFooter > span { flex-basis: 100%; text-align: center; }
+  .heroFooter > a { font-size: 18px; }
+  .sectionIntro h2, .formatStatement h2 { font-size: 43px; }
+  .formatStatement p { font-size: 13px; }
+  .featureRows > article { gap: 13px; grid-template-columns: 29px minmax(0, 1fr); padding-block: 24px; }
+  .featureRows h3 { font-size: 26px; }
+  .featureRows p { font-size: 13px; }
+  .closing h2 { font-size: 47px; }
+  .closing > p { font-size: 12px; }
+  .closing .actions { gap: 12px; }
+}
+@media (hover: none), (prefers-reduced-motion: reduce) { .actions :global(.marketing-button):hover svg { translate: none; } }
+:global(html[data-motion=reduced]) .actions :global(.marketing-button):hover svg { translate: none; }

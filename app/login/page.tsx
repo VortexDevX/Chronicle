@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Brand } from "@/components/Brand";
+import { CharacterArt } from "@/components/illustrations/CharacterArt";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useMediaStore } from "@/store/mediaStore";
 
 type ChronicleNativeBridge = {
@@ -120,14 +122,16 @@ export default function LoginPage() {
 
   return (
     <div className="auth-bg">
+      <div className="auth-theme-toggle"><ThemeToggle /></div>
       <div className="auth-story">
-        <Link href="/" aria-label="Chronicle home"><Brand /></Link>
+        <Link href="/" aria-label="Chronicle The story continues home"><Brand /></Link>
         <span className="section-eyebrow">Your private story journal</span>
         <h2>Every story<br />leaves <em>a mark.</em></h2>
         <p>Keep your place in every world.<br />Anime, manhwa, donghua, and novels—together.</p>
+        <CharacterArt character="rukia" variant="welcome" />
       </div>
       <div className="auth-container">
-        <Link className="auth-mobile-brand" href="/" aria-label="Chronicle home"><Brand /></Link>
+        <Link className="auth-mobile-brand" href="/" aria-label="Chronicle The story continues home"><Brand /></Link>
         <div className="auth-card-heading">
           <span className="section-eyebrow">{isForgotPassword ? "Account recovery" : isRegister ? "A new chapter" : "Your collection awaits"}</span>
           <h1>{isForgotPassword ? "Find your way back." : isRegister ? "Start your chronicle." : "Welcome back."}</h1>

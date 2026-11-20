@@ -1,8 +1,9 @@
 "use client";
 
 import { ProfileAvatar } from "./ProfileAvatar";
+import { ThemeToggle } from "./ThemeToggle";
 import { useEffect } from "react";
-import Image from "next/image";
+import { Brand } from "./Brand";
 import { usePathname } from "next/navigation";
 import {
   ArchiveX,
@@ -30,7 +31,7 @@ const ROUTE_CONFIG: Record<
   "/novels": { eyebrow: "The reading room", title: "Novels", icon: BookOpen },
   "/bookmarks": { eyebrow: "Words worth keeping", title: "Saved passages", icon: BookOpen },
   "/home": {
-    eyebrow: "Personal Command Center",
+    eyebrow: "The story continues",
     title: "Home",
     icon: Home,
   },
@@ -80,11 +81,11 @@ export function TopBar({
   const openSettings = useMediaStore((state) => state.openSettings);
   const username = useMediaStore((state) => state.username);
 
-  const routeInfo = ROUTE_CONFIG[pathname] || {
+  const routeInfo = ROUTE_CONFIG[pathname] || (pathname.startsWith("/novels/") ? { eyebrow: "The reading room", title: "Novel details", icon: BookOpen } : pathname.startsWith("/admin/novels/") ? { eyebrow: "The publishing desk", title: "Upload novel", icon: BookOpen } : {
     eyebrow: "Chronicle",
     title: "Workspace",
     icon: Home,
-  };
+  });
   const RouteIcon = routeInfo.icon;
 
 
@@ -124,7 +125,7 @@ export function TopBar({
         )}
 
         <div className="topbar-context-badge">
-          <Image className="topbar-brand-mark" src="/brand/chronicle-mark.png" width={28} height={28} alt="" unoptimized />
+          <span className="topbar-brand-mark"><Brand compact /></span>
           <div className="topbar-route-icon-box">
             <RouteIcon size={18} />
           </div>
@@ -136,6 +137,7 @@ export function TopBar({
       </div>
 
       <div className="topbar-actions">
+        <ThemeToggle />
         <button
           className="topbar-add-btn"
           onClick={() => openModal(null)}
@@ -143,7 +145,7 @@ export function TopBar({
           title="Add a story"
         >
           <Plus size={18} strokeWidth={2.5} />
-          <span className="topbar-add-label">Add a story</span>
+          <span className="topbar-add-label">Add new entry</span>
         </button>
 
         <button

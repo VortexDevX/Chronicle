@@ -1,12 +1,13 @@
 // Chronicle X – Service Worker
 // Network-first for pages and code, cache-first for images and fonts
 
-const CACHE_NAME = "chronicle-v4-catalogue";
+const CACHE_NAME = "chronicle-v7-paper-dusk";
 
 // App shell assets to pre-cache on install
 const APP_SHELL = [
   "/icon.png",
   "/favicon.png",
+  "/favicon.svg",
   "/brand/chronicle-mark.png",
   "/icon-maskable.png",
   "/apple-touch-icon.png",
@@ -107,7 +108,22 @@ self.addEventListener("fetch", (event) => {
             if (cachedLogin) return cachedLogin;
           }
           return new Response(
-            "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'><title>Chronicle - Offline</title><style>body{background:#0e1117;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;padding:20px;text-align:center;}button{margin-top:16px;padding:10px 20px;background:#e50914;color:#fff;border:none;border-radius:6px;font-size:16px;cursor:pointer;}</style></head><body><h2>You appear to be offline</h2><p>Please check your internet connection.</p><button onclick='location.reload()'>Retry</button></body></html>",
+            `<!DOCTYPE html>
+            <html lang="en">
+              <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Chronicle · Offline</title>
+                <script>try{document.documentElement.dataset.theme=localStorage.getItem("chronicle_theme")}catch{}</script>
+                <style>
+                  :root { color-scheme: light; --paper: #f7f5f0; --ink: #302b3a; --action: #c5b0ea; }
+                  [data-theme="dark"] { color-scheme: dark; --paper: #19151f; --ink: #f1eaf5; --action: #bda0e1; }
+                  body { background: var(--paper); color: var(--ink); font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100dvh; margin: 0; text-align: center; }
+                  main { padding: 24px; }
+                  button { margin-top: 16px; min-height: 44px; padding: 10px 20px; background: var(--action); color: #302b3a; border: 0; border-radius: 4px; font: inherit; cursor: pointer; }
+                </style>
+              </head>
+              <body><main><h1>You’re offline</h1><p>Reconnect to open your library.</p><button onclick="location.reload()">Retry</button></main></body>
+            </html>`,
             {
               status: 503,
               statusText: "Offline",

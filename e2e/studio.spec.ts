@@ -29,14 +29,14 @@ test("mobile update delta stays compact and navigation drawer aligns left", asyn
   await page.screenshot({ path: info.outputPath("mobile-updates-and-drawer.png"), fullPage: true, animations: "disabled" });
 });
 
-test("studio surfaces keep the same design and fit desktop and mobile", async ({ page }, info) => {
+test("Paper and Lilac surfaces fit desktop and mobile", async ({ page }, info) => {
   test.setTimeout(120000);
   for (const path of ["/home","/library","/novels","/shelves","/updates","/analytics","/bookmarks","/droppedyard","/cron-history"]) {
     await page.goto(path);
     await expect(page.locator(".page-content")).toBeVisible();
     await page.waitForLoadState("networkidle");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),path).toBe(true);
-    expect(await page.locator(".main").evaluate(node => getComputedStyle(node).backgroundColor)).toBe("rgb(16, 19, 27)");
+    expect(await page.locator(".main").evaluate(node => getComputedStyle(node).backgroundColor)).toBe("rgb(250, 248, 245)");
     await page.screenshot({ path:info.outputPath(`${path.slice(1)}.png`),fullPage:true,animations:"disabled" });
   }
   await page.getByRole("button",{name:"Open profile settings",exact:true}).click();

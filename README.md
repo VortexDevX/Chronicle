@@ -2,6 +2,8 @@
 
 A sleek, self-hosted media tracker for **Anime**, **Manhwa**, **Donghua**, and **Light Novels** — built with Next.js App Router, React, Zustand, MongoDB, and serverless API routes.
 
+Maintainers: see the [Chronicle project and operations guide](./docs/CHRONICLE.md) for the current architecture, data and security contracts, cron behavior, novel storage flow, and verification boundaries.
+
 ![chronicle-preview](https://img.shields.io/badge/status-active-brightgreen) ![license](https://img.shields.io/badge/license-MIT-blue) ![vercel](https://img.shields.io/badge/deploy-Vercel-000?logo=vercel)
 
 ## ✨ Features
@@ -80,7 +82,7 @@ normalization work in both the browser and Android app without a second mobile U
 
 Local Android builds use Android Studio's JDK 17 runtime: run `gradlew.bat assembleDebug assembleRelease lintDebug lintRelease` inside `android-app/`. Native Firebase push requires the local `google-services.json` for `com.vortexdevx.chronicle`. Verify notification permission, persistent login, device registration, direct push and cron-triggered push separately on a device. The current release passed builds/lint and signature checks; no device/emulator was available for launch verification.
 
-Current downloadable release: **1.1.1**, version code **8**, **697 KB**. The APK at `public/downloads/chronicle.apk` opens `/home` on every normal launch, includes trusted-site file selection for novel/avatar uploads, and keeps notification deep links. Its signature matches the previous downloadable APK, allowing an in-place update.
+Current downloadable release: **1.1.2**, version code **9**, **738 KB**. The APK at `public/downloads/chronicle.apk` opens `/home` on every normal launch, includes the refreshed Chronicle launcher identity and trusted-site file selection for novel/avatar uploads, and keeps notification deep links. Its signature matches the previous downloadable APK, allowing an in-place update.
 
 ## 📡 Tracker Scraping & Cron Sync
 
@@ -97,7 +99,7 @@ Chronicle relies strictly on direct source scraping for update checks — no ext
    - Chronicle updates `latest_remote_progress` and leaves `progress_current` entirely under user control. It never auto-advances your personal reading position.
    - Fractional chapters (e.g. `10.5`) are fully preserved.
 4. **Bounded Cron Budget**:
-   - The cron endpoint `/api/cron/checkChapters` operates within a bounded time budget (default 24s) to fit within standard serverless timeouts. Unfinished scans rotate safely and defer to the next run without data loss.
+   - The cron endpoint `/api/cron/checkChapters` operates within a bounded time budget (application default 50s, clamped to 10–55s). Unfinished scans rotate safely and defer to the next run without data loss. Configure a lower budget when the external scheduler has a shorter request timeout.
 
 ## 🚀 Getting Started
 
@@ -147,10 +149,11 @@ SENDER_NAME="Chronicle"
 # Cron protection (required in production)
 CRON_SECRET=your-cron-secret
 
-# Optional cron tuning (default 4, max 8)
-CRON_CHECK_CONCURRENCY=4
+# Optional cron tuning (default 6, max 8)
+CRON_CHECK_CONCURRENCY=6
 
-# Keep response below cron-job.org's 30-second request limit (default 24000, max 25000)
+# Application default is 50000; use a lower value for schedulers with a 30-second request limit.
+# Application clamps this setting to 10000–55000 ms and reserves 6000 ms for notifications.
 CRON_TIME_BUDGET_MS=24000
 
 # Preserve full tracker retry behavior (default 2, max 2)
@@ -194,9 +197,9 @@ Run the checks above before pushing or opening a pull request.
 ### Production Notes
 
 - Set `CRON_SECRET` in production so `/api/cron/checkChapters` rejects unauthenticated requests.
-- Tune `CRON_CHECK_CONCURRENCY` if tracker notifications arrive late. Default is `4`; values above `8` are capped to avoid hammering tracker sites.
+- Tune `CRON_CHECK_CONCURRENCY` if tracker notifications arrive late. Default is `6`; values above `8` are capped to avoid hammering tracker sites.
 - Cron runs stop taking new tracker work before their HTTP deadline. A `200` response with `partial: true` and `deferred > 0` is healthy: deferred entries rotate by `last_attempted_at` and are retried on the next run.
-- Keep `CRON_TIME_BUDGET_MS` below the scheduler timeout. Chronicle clamps it to `10000`–`25000` ms and reserves the final eight seconds for Android push and Telegram delivery.
+- Keep `CRON_TIME_BUDGET_MS` below the scheduler timeout. The handler clamps it to `10000`–`55000` ms, defaults to `50000` ms, and reserves the final six seconds for notification delivery. [cron-job.org's FAQ](https://cron-job.org/en/faq/) documents a 30-second request limit, so retain a lower configured value there (for example `24000` ms) to leave timeout headroom.
 - `CRON_SCRAPE_RETRIES=2` preserves full retry behavior. If the HTTP budget ends first, unfinished attempts rotate safely and continue on a later run.
 - Configure `APP_ORIGIN` to the exact deployed origins that may call the API.
 - Upstash Redis rate limiting is optional for local/single-instance installs, but recommended for serverless or horizontally scaled production. Without it, rate limits use process-local memory.
@@ -224,7 +227,7 @@ Vercel Cron is not configured for this project. Create one job in the
 
 Run one manual test from the cron-job.org dashboard and confirm an HTTP `200` JSON response before enabling the four-hour schedule.
 cron-job.org stops requests after 30 seconds. Chronicle therefore uses a bounded
-24-second run, aborts in-flight tracker requests (Manhwa and Donghua) when its scan budget ends, returns partial
+configured run budget (24 seconds in the example above), aborts in-flight tracker requests (Manhwa and Donghua) when its scan budget ends, returns partial
 progress instead of timing out, and retries deferred trackers on the next run.
 
 ## 📁 Project Structure

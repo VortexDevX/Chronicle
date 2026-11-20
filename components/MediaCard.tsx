@@ -63,9 +63,9 @@ export function MediaCard({ m, mode = "grid", priority = false, position, onEdit
         : mode === "list" && <button disabled aria-label={`No tracker link for ${m.title}`} title="No tracker link"><ExternalLink size={16} /></button>}
       {onIncrement && status === "Active" && (
         <button className={`story-log ${saved ? "is-saved" : ""}`} onClick={increment} disabled={pending || !canIncrement}
-          aria-label={`Log next for ${m.title}`} title={`Log ${p.shortUnit} ${formatProgress(p.next)}`}>
+          aria-label={`${saved ? "Saved. " : ""}Log next for ${m.title}`} title={`Log ${p.shortUnit} ${formatProgress(p.next)}`}>
           {pending ? <span className="spinner" /> : saved ? <Check size={16} /> : <Plus size={17} />}
-          <span>{saved ? "Saved" : "1"}</span>
+          <span>{saved ? "Saved" : "Next"}</span>
         </button>
       )}
       {(onEdit || onDelete || onCatchUp) && (
@@ -117,7 +117,7 @@ export function MediaCard({ m, mode = "grid", priority = false, position, onEdit
         <div className="story-progress" aria-live="polite">
           <strong className={`progress-current-val ${saved ? "is-ticked" : ""}`}>{p.label}</strong>
           <span className="story-availability">{p.knownTotal ? `${Math.round(p.percent!)}% complete` : p.availability}</span>
-          {p.knownTotal && <div className="progress-track" aria-label={`${Math.round(p.percent!)}% complete`}><i style={{ width: `${p.percent}%` }} /></div>}
+          {p.knownTotal && <div className="progress-track" role="progressbar" aria-label={`Progress for ${m.title}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={p.percent ?? 0} aria-valuetext={p.label}><i style={{ width: `${p.percent}%` }} /></div>}
           {p.knownTotal && p.unread > 0 && <span className="story-availability">{p.availability}</span>}
         </div>
         {failed && <p className="story-save-error" role="status">Not saved. Try +1 again.</p>}

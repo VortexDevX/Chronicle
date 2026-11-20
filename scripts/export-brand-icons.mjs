@@ -1,11 +1,11 @@
 import sharp from "sharp";
-import { mkdir, writeFile, access } from "node:fs/promises";
+import { mkdir, writeFile, readFile, access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const master = path.join(root, "design/brand/chronicle-master.svg");
-const background = "#0b0d12";
+const background = "#f7f5f0";
 const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
 const mark = await sharp(master).trim().png().toBuffer();
 
@@ -28,6 +28,7 @@ async function save(relative, contents) {
 }
 
 await save("public/brand/chronicle-mark.png", await icon(512, .94, transparent));
+await save("public/favicon.svg", await readFile(master));
 await save("public/icon.png", await icon(512, .72));
 await save("public/icon-maskable.png", await icon(512, .60));
 await save("public/favicon.png", await icon(192, .76));
@@ -35,7 +36,7 @@ await save("public/apple-touch-icon.png", await icon(180, .70));
 
 // PNG-backed ICO entries retain crisp alpha at each actual browser size.
 const sizes = [16, 32, 48];
-const bitmaps = await Promise.all(sizes.map(size => icon(size, .82)));
+const bitmaps = await Promise.all(sizes.map(size => icon(size, .94, transparent)));
 const header = Buffer.alloc(6 + sizes.length * 16);
 header.writeUInt16LE(1, 2);
 header.writeUInt16LE(sizes.length, 4);
@@ -56,7 +57,7 @@ await save("public/favicon.ico", Buffer.concat([header, ...bitmaps]));
 const android = "android-app/app/src/main/res";
 let nativePresent = false;
 try { await access(path.join(root, android)); nativePresent = true; } catch {}
-if (nativePresent) {
+if (nativePresent && !process.argv.includes("--web-only")) {
   for (const [density, scale] of [["mdpi", 1], ["hdpi", 1.5], ["xhdpi", 2], ["xxhdpi", 3], ["xxxhdpi", 4]]) {
     const launcher = await icon(Math.round(48 * scale), .72);
     await save(`${android}/mipmap-${density}/ic_launcher.png`, launcher);
@@ -66,4 +67,4 @@ if (nativePresent) {
     await save(`${android}/mipmap-${density}/ic_launcher_monochrome.png`, await icon(Math.round(108 * scale), .50, transparent, true));
   }
 }
-console.log(`Exported web icons${nativePresent ? " and Android launcher densities" : ""}.`);
+console.log(`Exported web icons${nativePresent && !process.argv.includes("--web-only") ? " and Android launcher densities" : ""}.`);

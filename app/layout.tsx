@@ -3,15 +3,20 @@ import "./marketing.css";
 import "./catalogue.css";
 import "./reading-room.css";
 import "./studio.css";
-import { Fira_Code, Manrope, Sora, Literata, Lora, Inter, Roboto, Josefin_Sans } from "next/font/google";
+import "./sakuga.css";
+import "./themes.css";
+import { Fira_Code, Manrope, Barlow_Condensed, Literata, Lora, Inter, Roboto, Josefin_Sans } from "next/font/google";
 import type { Metadata, Viewport } from "next";
 import { absoluteUrl, siteConfig } from "@/lib/site";
+import { SakugaEffects } from "@/components/motion/SakugaEffects";
+import { ThemeSync } from "@/components/ThemeToggle";
+import { THEME_BOOTSTRAP } from "@/lib/client/theme";
 
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
 const bingVerification = process.env.BING_SITE_VERIFICATION?.trim();
 
 const interfaceFont = Manrope({ subsets: ["latin"], variable: "--font-interface", display: "swap" });
-const headingFont = Sora({ subsets: ["latin"], variable: "--font-heading", display: "swap" });
+const headingFont = Barlow_Condensed({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--font-heading", display: "swap" });
 const indexFont = Fira_Code({ subsets: ["latin"], variable: "--font-index-face", display: "swap" });
 const literata = Literata({subsets:["latin"],variable:"--font-literata",display:"swap",preload:false});
 const lora = Lora({subsets:["latin"],variable:"--font-lora",display:"swap",preload:false});
@@ -19,7 +24,7 @@ const inter = Inter({subsets:["latin"],variable:"--font-inter",display:"swap",pr
 const roboto = Roboto({subsets:["latin"],variable:"--font-roboto",display:"swap",preload:false});
 const josefin = Josefin_Sans({subsets:["latin"],variable:"--font-josefin",display:"swap",preload:false});
 
-export const viewport: Viewport = { themeColor: "#0b0d12", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#f7f5f0", colorScheme: "light" };
 
 export const metadata: Metadata = {
     metadataBase: new URL(siteConfig.url),
@@ -34,9 +39,9 @@ export const metadata: Metadata = {
     publisher: siteConfig.name,
     category: "media tracking",
     icons: {
-      icon: "/icon.png",
-      shortcut: "/favicon.ico",
-      apple: "/apple-touch-icon.png",
+      icon: [{ url: "/favicon.svg?v=3", type: "image/svg+xml" }, { url: "/favicon.png?v=3", type: "image/png", sizes: "192x192" }],
+      shortcut: "/favicon.ico?v=3",
+      apple: "/apple-touch-icon.png?v=3",
     },
     openGraph: {
       type: "website",
@@ -83,7 +88,7 @@ export const metadata: Metadata = {
         : undefined,
     appleWebApp: {
       capable: true,
-      statusBarStyle: "black-translucent",
+      statusBarStyle: "default",
       title: siteConfig.shortName,
     },
     other: {
@@ -102,8 +107,11 @@ export default function RootLayout({
       className={`${interfaceFont.variable} ${headingFont.variable} ${indexFont.variable} ${literata.variable} ${lora.variable} ${inter.variable} ${roboto.variable} ${josefin.variable}`}
       suppressHydrationWarning
     >
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} /></head>
       <body>
+        <ThemeSync />
         {children}
+        <SakugaEffects />
         <script
           dangerouslySetInnerHTML={{
             __html: `if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js")})}`,
