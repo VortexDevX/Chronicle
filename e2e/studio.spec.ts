@@ -59,3 +59,56 @@ test("Paper and Lilac surfaces fit desktop and mobile", async ({ page }, info) =
     await page.screenshot({path:info.outputPath(path === "/" ? "landing.png" : `${path.slice(1)}.png`),fullPage:true});
   }
 });
+
+test("mobile novels and tracker health retain readable gutters", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile", "Mobile layout regression");
+  const novel = {
+    slug: "layout-fixture", title: "Layout fixture", author: "Browser verification",
+    description: "A stable fixture for responsive spacing checks.", genres: ["Fantasy", "Adventure"],
+    status: "ongoing", totalChapters: 2, cover: "/icon.png",
+    library: { status: "Active", progress_current: 1, is_favorite: false },
+  };
+  await page.route("**/api/novels?all=1", (route) => route.fulfill({ json: { ok: true, data: {
+    items: [novel], genres: novel.genres, total: 1, has_more: false, is_admin: false,
+  } } }));
+  await page.goto("/novels");
+  await expect(page.locator(".nocturne-novel-card")).toBeVisible();
+
+  const expectNovelGutters = async (minimum: number) => {
+    for (const selector of [".novel-explore-header h1", ".novel-spotlight", ".novel-section-title", ".nocturne-novel-grid"]) {
+      const inset = await page.locator(selector).evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        return { left: box.left, right: innerWidth - box.right };
+      });
+      expect(inset.left, `${selector} left gutter`).toBeGreaterThanOrEqual(minimum);
+      expect(inset.right, `${selector} right gutter`).toBeGreaterThanOrEqual(minimum);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  };
+  await expectNovelGutters(14);
+  await page.screenshot({ path: info.outputPath("mobile-novel-gutters.png"), fullPage: true, animations: "disabled" });
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expectNovelGutters(13);
+  await page.screenshot({ path: info.outputPath("narrow-novel-gutters.png"), fullPage: true, animations: "disabled" });
+
+  await page.route("**/api/updates", (route) => route.fulfill({ json: { ok: true, data: {
+    items: [], tracker_errors: [], partial_failures: [],
+  } } }));
+  await page.goto("/updates");
+  const health = page.locator(".tracker-attention");
+  await expect(health).toBeVisible();
+  const healthInsets = await health.evaluate((node) => {
+    const card = node.getBoundingClientRect();
+    const heading = node.querySelector("h3")!.getBoundingClientRect();
+    const row = node.querySelector(".tracker-healthy")!.getBoundingClientRect();
+    return {
+      headingLeft: heading.left - card.left,
+      rowLeft: row.left - card.left,
+      rowRight: card.right - row.right,
+    };
+  });
+  expect(healthInsets.headingLeft).toBeGreaterThanOrEqual(17);
+  expect(healthInsets.rowLeft).toBeGreaterThanOrEqual(17);
+  expect(healthInsets.rowRight).toBeGreaterThanOrEqual(17);
+  await page.screenshot({ path: info.outputPath("mobile-tracker-health-gutters.png"), fullPage: true, animations: "disabled" });
+});
